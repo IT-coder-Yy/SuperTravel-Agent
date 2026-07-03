@@ -1,0 +1,362 @@
+/* Markdown 内容样式优化 */
+
+.markdown-content {
+  font-size: 15px;
+  line-height: 1.78;
+  color: #1f2937;
+}
+
+.markdown-content p {
+  margin: 10px 0 14px;
+  line-height: 1.78;
+}
+
+/* 表格样式 */
+.markdown-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 16px 0 18px;
+  font-size: 14px;
+  line-height: 1.65;
+  background: #ffffff;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.markdown-content table th {
+  background: #f8fafc;
+  font-weight: 600;
+  padding: 10px 14px;
+  text-align: left;
+  border-bottom: 2px solid #e2e8f0;
+  color: #374151;
+  line-height: 1.55;
+}
+
+.markdown-content table td {
+  padding: 10px 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #4b5563;
+  vertical-align: top;
+  line-height: 1.65;
+}
+
+.markdown-content table tr:hover {
+  background: #f9fafb;
+}
+
+/* 代码块样式 */
+.markdown-content .code-block-container {
+  position: relative;
+  margin: 12px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+}
+
+.markdown-content .code-block-header {
+  background: #f8fafc;
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+}
+
+.markdown-content .code-block-language {
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.markdown-content .code-block-copy {
+  color: #64748b;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: all 0.2s;
+}
+
+.markdown-content .code-block-copy:hover {
+  background: #e2e8f0;
+  color: #475569;
+}
+
+.markdown-content .code-block-copy.copied {
+  color: #10b981;
+}
+
+/* 内联代码样式 */
+.markdown-content code:not([class*="language-"]) {
+  background: #f1f5f9;
+  color: #475569;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: 'SF Mono', Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+  border: 1px solid #e2e8f0;
+}
+
+/* 用户消息中的内联代码 */
+.user-message code:not([class*="language-"]) {
+  background: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* JSON 格式化样式 */
+.markdown-content .json-container {
+  position: relative;
+  margin: 12px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+
+.markdown-content .json-header {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  padding: 8px 12px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  color: #92400e;
+  font-weight: 500;
+}
+
+/* 引用块样式增强 */
+.markdown-content blockquote {
+  border-left: 4px solid #e2e8f0;
+  margin: 12px 0;
+  padding: 12px 12px 12px 16px;
+  background: #f8fafc;
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
+  position: relative;
+}
+
+.markdown-content blockquote::before {
+  content: '"';
+  position: absolute;
+  left: 8px;
+  top: 4px;
+  font-size: 24px;
+  color: #cbd5e1;
+  font-family: serif;
+}
+
+.user-message blockquote {
+  border-left-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.user-message blockquote::before {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* 列表样式增强 */
+.markdown-content ul {
+  margin: 10px 0 14px;
+  padding-left: 22px;
+}
+
+.markdown-content ul li {
+  margin: 6px 0;
+  line-height: 1.75;
+}
+
+.markdown-content ul li::marker {
+  color: #6366f1;
+}
+
+.markdown-content ol {
+  margin: 10px 0 14px;
+  padding-left: 22px;
+}
+
+.markdown-content ol li {
+  margin: 6px 0;
+  line-height: 1.75;
+}
+
+.markdown-content ol li::marker {
+  color: #6366f1;
+  font-weight: 600;
+}
+
+/* 标题样式增强 */
+.markdown-content h1 {
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1.35;
+  margin: 24px 0 14px 0;
+  color: #1f2937;
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+.markdown-content h1:first-child {
+  margin-top: 0;
+}
+
+.user-message h1 {
+  color: #ffffff;
+  border-bottom-color: transparent;
+}
+
+.markdown-content h2 {
+  font-size: 21px;
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 24px 0 12px 0;
+  color: #1f2937;
+}
+
+.user-message h2 {
+  color: #ffffff;
+}
+
+.markdown-content h3 {
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1.45;
+  margin: 20px 0 10px 0;
+  color: #1f2937;
+}
+
+.user-message h3 {
+  color: #ffffff;
+}
+
+/* 水平分割线 */
+.markdown-content hr {
+  display: none;
+}
+
+.user-message hr {
+  border-top-color: rgba(255, 255, 255, 0.3);
+}
+
+/* 链接样式 */
+.markdown-content a {
+  color: #6366f1;
+  text-decoration: underline;
+  text-decoration-color: #6366f1;
+  transition: all 0.2s;
+}
+
+.markdown-content a:hover {
+  color: #4f46e5;
+  text-decoration-color: #4f46e5;
+}
+
+.user-message a {
+  color: #ffffff;
+  text-decoration-color: rgba(255, 255, 255, 0.5);
+}
+
+.user-message a:hover {
+  text-decoration-color: #ffffff;
+}
+
+/* 强调文本 */
+.markdown-content strong {
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.user-message strong {
+  color: #ffffff;
+}
+
+.markdown-content em {
+  font-style: italic;
+  color: #4b5563;
+}
+
+.user-message em {
+  color: rgba(255, 255, 255, 0.9);
+}
+
+/* 响应式表格 */
+@media (max-width: 768px) {
+  .markdown-content {
+    font-size: 14px;
+    line-height: 1.7;
+  }
+
+  .markdown-content table {
+    font-size: 13px;
+  }
+  
+  .markdown-content table th,
+  .markdown-content table td {
+    padding: 8px 10px;
+  }
+
+  .markdown-content h1 {
+    font-size: 21px;
+  }
+
+  .markdown-content h2 {
+    font-size: 19px;
+  }
+
+  .markdown-content h3 {
+    font-size: 17px;
+  }
+}
+
+/* 滚动条样式 */
+.markdown-content *::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.markdown-content *::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.markdown-content *::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.markdown-content *::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* 数学公式样式（如果支持的话） */
+.markdown-content .math {
+  margin: 8px 0;
+}
+
+.markdown-content .math-inline {
+  margin: 0 2px;
+}
+
+/* 任务列表样式 */
+.markdown-content .task-list-item {
+  list-style: none;
+  margin: 4px 0;
+}
+
+.markdown-content .task-list-item input[type="checkbox"] {
+  margin-right: 8px;
+  accent-color: #6366f1;
+}
+
+/* 脚注样式 */
+.markdown-content .footnote {
+  font-size: 12px;
+  color: #6b7280;
+  margin-top: 16px;
+  padding-top: 8px;
+  border-top: 1px solid #e5e7eb;
+} 

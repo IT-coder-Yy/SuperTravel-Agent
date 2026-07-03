@@ -1,0 +1,61 @@
+{
+    "mcpServers": {
+        "fetch": {
+            "command": "uvx",
+            "args": [
+                "mcp-server-fetch"
+            ],
+            "env": {
+                "UV_INDEX_URL": "https://pypi.tuna.tsinghua.edu.cn/simple"
+            },
+            "disabled": false
+        },
+        "serper_web_search": {
+            "sse_url": "http://127.0.0.1:34011/sse",
+            "disabled": false
+        },
+        "baidu-map": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@baidumap/mcp-server-baidu-map"
+            ],
+            "env": {
+                "BAIDU_MAP_API_KEY": "your-baidu-map-api-key-here"
+            },
+            "disabled": false,
+            "description": "百度地图MCP服务器，提供地理编码、逆地理编码、地点检索、路线规划等10个地图相关API接口"
+        },
+        "12306-mcp": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "12306-mcp"
+            ],
+            "disabled": false,
+            "description": "12306火车票查询MCP服务器，提供火车票搜索、列车信息过滤、过站查询、中转查询等功能"
+        },
+        "filesystem": {
+            "command": "npx",
+            "args": [
+                "-y",
+                "@modelcontextprotocol/server-filesystem",
+                "./outputs"
+            ],
+            "disabled": false,
+            "description": "文件系统MCP服务器，提供文件和目录访问功能"
+        },
+        "xhs-mcp": {
+            "command": "python",
+            "args": [
+                "mcp_servers/xhs-mcp/main.py"
+            ],
+            "env": {
+                "XHS_COOKIE": "${XHS_COOKIE}",
+                "SERPER_API_KEY": "${SERPER_API_KEY}"
+            },
+            "disabled": false,
+            "description": "小红书MCP服务器，提供小红书内容搜索、分析等功能"
+        }
+    }
+}
