@@ -1,23 +1,24 @@
-# Sage FastAPI + React Demo 依赖
+# SuperTravelAgent FastAPI + React Demo 运行依赖
+# 已在 Python 3.13.5 下验证；使用精确版本保证本地环境可复现。
 
 # Web框架
-fastapi==0.100.0
-uvicorn[standard]==0.21.0
+fastapi==0.135.3
+uvicorn[standard]==0.42.0
 
 # WebSocket支持
-websockets==11.0.3
+websockets==16.0
 
 # HTTP客户端
-httpx==0.24.1
+httpx==0.28.1
 
 # 数据验证
-pydantic==1.10.12
+pydantic==2.12.5
 
 # 配置文件支持
-PyYAML==6.0.1
+PyYAML==6.0.2
 
 # OpenAI客户端
-openai>=1.0.0
+openai==2.30.0
 
 # 其他工具
-python-multipart==0.0.6 
+python-multipart==0.0.22

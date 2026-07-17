@@ -39,7 +39,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint src --ext .ts,.tsx",
-    "test": "vitest run --pool=threads --poolOptions.threads.singleThread=true --no-file-parallelism",
+    "test": "vitest run --pool=forks --no-file-parallelism",
     "test:e2e": "playwright test",
     "test:watch": "vitest",
     "type-check": "tsc --noEmit"
