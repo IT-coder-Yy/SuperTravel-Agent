@@ -1,0 +1,362 @@
+{
+  "schema_version": "3.0",
+  "plan_id": "plan_fixture_hangzhou_3d",
+  "revision": 1,
+  "status": "degraded",
+  "title": "杭州三日契约样本",
+  "generated_at": "2026-07-17T10:00:00+08:00",
+  "locale": "zh-CN",
+  "intent": {
+    "origin": "上海",
+    "destination": "杭州",
+    "start_date": "2026-08-01",
+    "end_date": "2026-08-03",
+    "days": 3,
+    "travelers": {"adults": 2, "children": 0, "seniors": 0},
+    "budget": {"amount": 5000, "currency": "CNY", "source_status": "user_confirmation_required"},
+    "preferences": ["人文", "轻松"],
+    "dietary_preferences": [],
+    "pace": "balanced"
+  },
+  "destination_overview": {
+    "name_zh": "杭州",
+    "name_en": "Hangzhou",
+    "country_code": "CN",
+    "country_name": "中国",
+    "timezone": "Asia/Shanghai",
+    "currency": "CNY",
+    "summary": "用于验证国内三日行程 V3 契约，不作为实时旅行建议。",
+    "themes": ["湖山", "人文"],
+    "evidence_refs": ["src_map_hz"]
+  },
+  "outbound_transport": {
+    "direction": "outbound",
+    "scope": "domestic",
+    "status": "ready",
+    "selected_option_id": "transport_hz_out",
+    "options": [
+      {
+        "option_id": "transport_hz_out",
+        "mode": "train",
+        "service_number": "TEST-G001",
+        "departure_place": "上海虹桥站",
+        "arrival_place": "杭州东站",
+        "departure_time": {
+          "display_text": "08:00",
+          "utc": "2026-08-01T00:00:00Z",
+          "local_iso": "2026-08-01T08:00:00+08:00",
+          "timezone": "Asia/Shanghai",
+          "beijing_iso": "2026-08-01T08:00:00+08:00"
+        },
+        "arrival_time": {
+          "display_text": "09:00",
+          "utc": "2026-08-01T01:00:00Z",
+          "local_iso": "2026-08-01T09:00:00+08:00",
+          "timezone": "Asia/Shanghai",
+          "beijing_iso": "2026-08-01T09:00:00+08:00"
+        },
+        "duration_minutes": 60,
+        "price": {"amount": 100, "currency": "CNY", "source_status": "realtime_verified"},
+        "availability": "available",
+        "source_status": "realtime_verified",
+        "source_refs": ["src_transport_fixture"],
+        "verified_at": "2026-07-17T09:55:00+08:00"
+      }
+    ]
+  },
+  "lodging_plan": {
+    "status": "ready",
+    "planning_lodging_id": "lodging_hz_1",
+    "options": [
+      {
+        "lodging_id": "lodging_hz_1",
+        "name": "杭州契约样本住宿",
+        "area": "西湖区",
+        "place": {
+          "poi_id": "poi_hz_lodging_fixture",
+          "name": "杭州契约样本住宿",
+          "category": "hotel",
+          "city": "杭州",
+          "timezone": "Asia/Shanghai",
+          "coordinates": {"latitude": 30.251, "longitude": 120.153, "coordinate_system": "WGS84"},
+          "evidence_refs": ["src_map_hz"]
+        },
+        "nightly_price": {"amount": 500, "currency": "CNY", "source_status": "map_reference"},
+        "reasons": ["仅用于契约测试"],
+        "source_status": "map_reference",
+        "source_refs": ["src_map_hz"]
+      }
+    ]
+  },
+  "itinerary": {
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-08-01",
+        "timezone": "Asia/Shanghai",
+        "theme": "抵达与湖滨",
+        "activities": [
+          {
+            "activity_id": "act_hz_1",
+            "kind": "attraction",
+            "title": "杭州契约景点一",
+            "day": 1,
+            "order": 1,
+            "start_at": "10:00",
+            "end_at": "12:00",
+            "duration_minutes": 120,
+            "place": {
+              "poi_id": "poi_hz_1",
+              "name": "杭州契约景点一",
+              "category": "attraction",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.259, "longitude": 120.142, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            },
+            "evidence_refs": ["src_map_hz"]
+          }
+        ],
+        "anchors": [
+          {
+            "anchor_id": "anchor_hz_arrival",
+            "kind": "arrival_hub",
+            "day": 1,
+            "display_label": "从杭州东站抵达",
+            "place": {
+              "poi_id": "poi_hz_east_station",
+              "name": "杭州东站",
+              "category": "transport",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.292, "longitude": 120.212, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            }
+          }
+        ]
+      },
+      {
+        "day": 2,
+        "date": "2026-08-02",
+        "timezone": "Asia/Shanghai",
+        "theme": "人文体验",
+        "activities": [
+          {
+            "activity_id": "act_hz_2",
+            "kind": "attraction",
+            "title": "杭州契约景点二",
+            "day": 2,
+            "order": 1,
+            "start_at": "09:30",
+            "end_at": "11:30",
+            "place": {
+              "poi_id": "poi_hz_2",
+              "name": "杭州契约景点二",
+              "category": "attraction",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.247, "longitude": 120.132, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            },
+            "evidence_refs": ["src_map_hz"]
+          }
+        ],
+        "anchors": [
+          {
+            "anchor_id": "anchor_hz_lodging_departure",
+            "kind": "lodging_departure",
+            "day": 2,
+            "display_label": "从规划住宿点出发",
+            "place": {
+              "poi_id": "poi_hz_lodging_fixture",
+              "name": "杭州契约样本住宿",
+              "category": "hotel",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.251, "longitude": 120.153, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            }
+          },
+          {
+            "anchor_id": "anchor_hz_lodging_return",
+            "kind": "lodging_return",
+            "day": 2,
+            "display_label": "返回规划住宿点",
+            "place": {
+              "poi_id": "poi_hz_lodging_fixture",
+              "name": "杭州契约样本住宿",
+              "category": "hotel",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.251, "longitude": 120.153, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            }
+          }
+        ]
+      },
+      {
+        "day": 3,
+        "date": "2026-08-03",
+        "timezone": "Asia/Shanghai",
+        "theme": "收尾与返程",
+        "activities": [
+          {
+            "activity_id": "act_hz_3",
+            "kind": "food",
+            "title": "杭州契约餐厅",
+            "day": 3,
+            "order": 1,
+            "start_at": "11:30",
+            "end_at": "12:30",
+            "place": {
+              "poi_id": "poi_hz_3",
+              "name": "杭州契约餐厅",
+              "category": "food",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.255, "longitude": 120.16, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            },
+            "evidence_refs": ["src_map_hz"]
+          }
+        ],
+        "anchors": [
+          {
+            "anchor_id": "anchor_hz_departure",
+            "kind": "departure_hub",
+            "day": 3,
+            "display_label": "前往杭州东站",
+            "place": {
+              "poi_id": "poi_hz_east_station",
+              "name": "杭州东站",
+              "category": "transport",
+              "city": "杭州",
+              "timezone": "Asia/Shanghai",
+              "coordinates": {"latitude": 30.292, "longitude": 120.212, "coordinate_system": "WGS84"},
+              "evidence_refs": ["src_map_hz"]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "candidate_pool": [
+    {
+      "activity_id": "candidate_hz_1",
+      "kind": "attraction",
+      "title": "杭州候选契约地点",
+      "place": {
+        "poi_id": "poi_hz_candidate_1",
+        "name": "杭州候选契约地点",
+        "category": "attraction",
+        "city": "杭州",
+        "timezone": "Asia/Shanghai",
+        "coordinates": {"latitude": 30.265, "longitude": 120.145, "coordinate_system": "WGS84"},
+        "evidence_refs": ["src_map_hz"]
+      },
+      "evidence_refs": ["src_map_hz"]
+    }
+  ],
+  "action_items": [
+    {
+      "action_id": "action_hz_1",
+      "kind": "checklist",
+      "scope": "trip",
+      "text": "出发前复核契约样本中的实时信息",
+      "status": "pending",
+      "source_ref": "src_transport_fixture"
+    }
+  ],
+  "notes": [],
+  "budget": {
+    "total_budget": {"amount": 5000, "currency": "CNY", "source_status": "user_confirmation_required"},
+    "estimated_total": {"amount": 3200, "currency": "CNY", "source_status": "map_reference"},
+    "categories": [],
+    "unknown_cost_count": 1,
+    "over_budget": false,
+    "warnings": []
+  },
+  "return_transport": {
+    "direction": "return",
+    "scope": "domestic",
+    "status": "ready",
+    "selected_option_id": "transport_hz_return",
+    "options": [
+      {
+        "option_id": "transport_hz_return",
+        "mode": "train",
+        "service_number": "TEST-G002",
+        "departure_place": "杭州东站",
+        "arrival_place": "上海虹桥站",
+        "departure_time": {
+          "display_text": "16:00",
+          "utc": "2026-08-03T08:00:00Z",
+          "local_iso": "2026-08-03T16:00:00+08:00",
+          "timezone": "Asia/Shanghai",
+          "beijing_iso": "2026-08-03T16:00:00+08:00"
+        },
+        "arrival_time": {
+          "display_text": "17:00",
+          "utc": "2026-08-03T09:00:00Z",
+          "local_iso": "2026-08-03T17:00:00+08:00",
+          "timezone": "Asia/Shanghai",
+          "beijing_iso": "2026-08-03T17:00:00+08:00"
+        },
+        "source_status": "realtime_verified",
+        "availability": "available",
+        "source_refs": ["src_transport_fixture"],
+        "verified_at": "2026-07-17T09:55:00+08:00"
+      }
+    ]
+  },
+  "map_guidance": {
+    "status": "degraded",
+    "status_reason": "契约样本不包含真实 geometry",
+    "formal_location_ids": [
+      "act_hz_1",
+      "anchor_hz_arrival",
+      "act_hz_2",
+      "anchor_hz_lodging_departure",
+      "anchor_hz_lodging_return",
+      "act_hz_3",
+      "anchor_hz_departure"
+    ],
+    "day_routes": [
+      {"day": 1, "status": "unavailable", "legs": []},
+      {"day": 2, "status": "unavailable", "legs": []},
+      {"day": 3, "status": "unavailable", "legs": []}
+    ],
+    "candidates_visible_by_default": false
+  },
+  "sources": [
+    {
+      "source_id": "src_map_hz",
+      "title": "杭州地图契约数据",
+      "source_name": "契约测试地图 Provider",
+      "status": "map_reference",
+      "updated_at": "2026-07-17T09:50:00+08:00",
+      "related_fields": [],
+      "related_place_ids": []
+    },
+    {
+      "source_id": "src_transport_fixture",
+      "title": "交通契约测试快照",
+      "source_name": "契约测试实时 Provider",
+      "status": "realtime_verified",
+      "updated_at": "2026-07-17T09:55:00+08:00",
+      "related_fields": [],
+      "related_place_ids": []
+    }
+  ],
+  "delivery": {
+    "markdown_filename": "杭州三日契约样本.md",
+    "pdf_filename": "杭州三日契约样本.pdf",
+    "markdown_enabled": true,
+    "pdf_enabled": true
+  },
+  "validation": {
+    "valid": true,
+    "degraded": true,
+    "issues": [{"code": "ROUTE_GEOMETRY_UNAVAILABLE", "message": "契约样本不包含真实路线 geometry", "severity": "warning"}]
+  }
+}

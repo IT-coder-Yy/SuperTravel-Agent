@@ -1,0 +1,2177 @@
+{
+  "$defs": {
+    "BudgetCategoryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "enum": [
+            "transport",
+            "lodging",
+            "food",
+            "activities",
+            "shopping",
+            "other"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "amount": {
+          "$ref": "#/$defs/MoneyV3"
+        }
+      },
+      "required": [
+        "category",
+        "amount"
+      ],
+      "title": "BudgetCategoryV3",
+      "type": "object"
+    },
+    "BudgetSummaryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "total_budget": {
+          "$ref": "#/$defs/MoneyV3"
+        },
+        "estimated_total": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "categories": {
+          "items": {
+            "$ref": "#/$defs/BudgetCategoryV3"
+          },
+          "title": "Categories",
+          "type": "array"
+        },
+        "unknown_cost_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Unknown Cost Count",
+          "type": "integer"
+        },
+        "over_budget": {
+          "default": false,
+          "title": "Over Budget",
+          "type": "boolean"
+        },
+        "overrun_amount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "warnings": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Warnings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "total_budget"
+      ],
+      "title": "BudgetSummaryV3",
+      "type": "object"
+    },
+    "CoordinatesV3": {
+      "additionalProperties": false,
+      "properties": {
+        "latitude": {
+          "maximum": 90,
+          "minimum": -90,
+          "title": "Latitude",
+          "type": "number"
+        },
+        "longitude": {
+          "maximum": 180,
+          "minimum": -180,
+          "title": "Longitude",
+          "type": "number"
+        },
+        "coordinate_system": {
+          "enum": [
+            "WGS84",
+            "BD09LL"
+          ],
+          "title": "Coordinate System",
+          "type": "string"
+        }
+      },
+      "required": [
+        "latitude",
+        "longitude",
+        "coordinate_system"
+      ],
+      "title": "CoordinatesV3",
+      "type": "object"
+    },
+    "DayRouteV3": {
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "maximum": 7,
+          "minimum": 1,
+          "title": "Day",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "partial",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "legs": {
+          "items": {
+            "$ref": "#/$defs/RouteLegV3"
+          },
+          "title": "Legs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "day",
+        "status"
+      ],
+      "title": "DayRouteV3",
+      "type": "object"
+    },
+    "DeliveryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "markdown_filename": {
+          "minLength": 1,
+          "title": "Markdown Filename",
+          "type": "string"
+        },
+        "pdf_filename": {
+          "minLength": 1,
+          "title": "Pdf Filename",
+          "type": "string"
+        },
+        "markdown_enabled": {
+          "default": true,
+          "title": "Markdown Enabled",
+          "type": "boolean"
+        },
+        "pdf_enabled": {
+          "default": true,
+          "title": "Pdf Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "markdown_filename",
+        "pdf_filename"
+      ],
+      "title": "DeliveryV3",
+      "type": "object"
+    },
+    "DestinationOverviewV3": {
+      "additionalProperties": false,
+      "properties": {
+        "name_zh": {
+          "minLength": 1,
+          "title": "Name Zh",
+          "type": "string"
+        },
+        "name_en": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Name En"
+        },
+        "country_code": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Country Code"
+        },
+        "country_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Country Name"
+        },
+        "timezone": {
+          "minLength": 1,
+          "title": "Timezone",
+          "type": "string"
+        },
+        "currency": {
+          "maxLength": 3,
+          "minLength": 3,
+          "title": "Currency",
+          "type": "string"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "themes": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Themes",
+          "type": "array"
+        },
+        "cover_image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageAssetV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "name_zh",
+        "timezone",
+        "currency"
+      ],
+      "title": "DestinationOverviewV3",
+      "type": "object"
+    },
+    "ImageAssetV3": {
+      "additionalProperties": false,
+      "properties": {
+        "image_id": {
+          "minLength": 1,
+          "title": "Image Id",
+          "type": "string"
+        },
+        "url": {
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        },
+        "alt": {
+          "default": "",
+          "title": "Alt",
+          "type": "string"
+        },
+        "mime_type": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mime Type"
+        },
+        "width": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Width"
+        },
+        "height": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Height"
+        },
+        "display_allowed": {
+          "default": true,
+          "title": "Display Allowed",
+          "type": "boolean"
+        },
+        "export_allowed": {
+          "default": false,
+          "title": "Export Allowed",
+          "type": "boolean"
+        },
+        "attribution_required": {
+          "default": true,
+          "title": "Attribution Required",
+          "type": "boolean"
+        },
+        "attribution_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribution Text"
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Ref"
+        },
+        "checked_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Checked At"
+        }
+      },
+      "required": [
+        "image_id",
+        "url"
+      ],
+      "title": "ImageAssetV3",
+      "type": "object"
+    },
+    "ItineraryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "items": {
+            "$ref": "#/$defs/TripDayV3"
+          },
+          "maxItems": 7,
+          "minItems": 1,
+          "title": "Days",
+          "type": "array"
+        }
+      },
+      "required": [
+        "days"
+      ],
+      "title": "ItineraryV3",
+      "type": "object"
+    },
+    "LodgingOptionV3": {
+      "additionalProperties": false,
+      "properties": {
+        "lodging_id": {
+          "minLength": 1,
+          "title": "Lodging Id",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "area": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Area"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TripPlaceV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "nightly_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "total_price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rating": {
+          "anyOf": [
+            {
+              "maximum": 5,
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rating"
+        },
+        "reasons": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Reasons",
+          "type": "array"
+        },
+        "booking_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Booking Url"
+        },
+        "source_status": {
+          "default": "user_confirmation_required",
+          "enum": [
+            "realtime_verified",
+            "official_reference",
+            "map_reference",
+            "guide_reference",
+            "user_confirmation_required"
+          ],
+          "title": "Source Status",
+          "type": "string"
+        },
+        "source_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "lodging_id",
+        "name"
+      ],
+      "title": "LodgingOptionV3",
+      "type": "object"
+    },
+    "LodgingPlanV3": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "degraded",
+            "unavailable",
+            "user_confirmation_required"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "status_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status Reason"
+        },
+        "planning_lodging_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Planning Lodging Id"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/LodgingOptionV3"
+          },
+          "title": "Options",
+          "type": "array"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "LodgingPlanV3",
+      "type": "object"
+    },
+    "MapGuidanceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "ready",
+            "degraded",
+            "unavailable",
+            "user_confirmation_required"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "status_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status Reason"
+        },
+        "formal_location_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Formal Location Ids",
+          "type": "array"
+        },
+        "day_routes": {
+          "items": {
+            "$ref": "#/$defs/DayRouteV3"
+          },
+          "title": "Day Routes",
+          "type": "array"
+        },
+        "candidates_visible_by_default": {
+          "const": false,
+          "default": false,
+          "title": "Candidates Visible By Default",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "title": "MapGuidanceV3",
+      "type": "object"
+    },
+    "MoneyV3": {
+      "additionalProperties": false,
+      "properties": {
+        "amount": {
+          "minimum": 0,
+          "title": "Amount",
+          "type": "number"
+        },
+        "currency": {
+          "default": "CNY",
+          "maxLength": 3,
+          "minLength": 3,
+          "title": "Currency",
+          "type": "string"
+        },
+        "cny_reference_amount": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cny Reference Amount"
+        },
+        "exchange_rate_as_of": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exchange Rate As Of"
+        },
+        "source_status": {
+          "default": "user_confirmation_required",
+          "enum": [
+            "realtime_verified",
+            "official_reference",
+            "map_reference",
+            "guide_reference",
+            "user_confirmation_required"
+          ],
+          "title": "Source Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "amount"
+      ],
+      "title": "MoneyV3",
+      "type": "object"
+    },
+    "ReservationInfoV3": {
+      "additionalProperties": false,
+      "properties": {
+        "required": {
+          "default": false,
+          "title": "Required",
+          "type": "boolean"
+        },
+        "status": {
+          "default": "needs_confirmation",
+          "enum": [
+            "not_required",
+            "needs_confirmation",
+            "recommended"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "guidance": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guidance"
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Ref"
+        }
+      },
+      "title": "ReservationInfoV3",
+      "type": "object"
+    },
+    "ReviewSummaryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "source_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "title": "ReviewSummaryV3",
+      "type": "object"
+    },
+    "RouteLegV3": {
+      "additionalProperties": false,
+      "properties": {
+        "from_id": {
+          "minLength": 1,
+          "title": "From Id",
+          "type": "string"
+        },
+        "to_id": {
+          "minLength": 1,
+          "title": "To Id",
+          "type": "string"
+        },
+        "mode": {
+          "minLength": 1,
+          "title": "Mode",
+          "type": "string"
+        },
+        "distance_meters": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Distance Meters"
+        },
+        "duration_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Minutes"
+        },
+        "estimated_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "coordinate_system": {
+          "anyOf": [
+            {
+              "enum": [
+                "WGS84",
+                "BD09LL"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coordinate System"
+        },
+        "geometry": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Geometry"
+        },
+        "calculated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Calculated At"
+        },
+        "status": {
+          "default": "unavailable",
+          "enum": [
+            "ready",
+            "unavailable"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "from_id",
+        "to_id",
+        "mode"
+      ],
+      "title": "RouteLegV3",
+      "type": "object"
+    },
+    "TransportOptionV3": {
+      "additionalProperties": false,
+      "properties": {
+        "option_id": {
+          "minLength": 1,
+          "title": "Option Id",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "train",
+            "intercity_bus",
+            "flight"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "service_number": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Service Number"
+        },
+        "departure_place": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Departure Place"
+        },
+        "arrival_place": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Arrival Place"
+        },
+        "departure_time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransportTimeV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arrival_time": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TransportTimeV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Minutes"
+        },
+        "transfers": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Transfers"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "availability": {
+          "default": "unknown",
+          "enum": [
+            "available",
+            "limited",
+            "unknown"
+          ],
+          "title": "Availability",
+          "type": "string"
+        },
+        "booking_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Booking Url"
+        },
+        "source_status": {
+          "default": "user_confirmation_required",
+          "enum": [
+            "realtime_verified",
+            "official_reference",
+            "map_reference",
+            "guide_reference",
+            "user_confirmation_required"
+          ],
+          "title": "Source Status",
+          "type": "string"
+        },
+        "source_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "verified_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Verified At"
+        }
+      },
+      "required": [
+        "option_id",
+        "mode"
+      ],
+      "title": "TransportOptionV3",
+      "type": "object"
+    },
+    "TransportSectionV3": {
+      "additionalProperties": false,
+      "properties": {
+        "direction": {
+          "enum": [
+            "outbound",
+            "return"
+          ],
+          "title": "Direction",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "domestic",
+            "international"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "ready",
+            "degraded",
+            "unavailable",
+            "user_confirmation_required"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "status_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Status Reason"
+        },
+        "selected_option_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selected Option Id"
+        },
+        "options": {
+          "items": {
+            "$ref": "#/$defs/TransportOptionV3"
+          },
+          "maxItems": 3,
+          "title": "Options",
+          "type": "array"
+        },
+        "official_query_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Official Query Url"
+        }
+      },
+      "required": [
+        "direction",
+        "scope",
+        "status"
+      ],
+      "title": "TransportSectionV3",
+      "type": "object"
+    },
+    "TransportTimeV3": {
+      "additionalProperties": false,
+      "properties": {
+        "display_text": {
+          "minLength": 1,
+          "title": "Display Text",
+          "type": "string"
+        },
+        "utc": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Utc"
+        },
+        "local_iso": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Local Iso"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        },
+        "beijing_iso": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Beijing Iso"
+        },
+        "day_offset": {
+          "default": 0,
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Day Offset",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "display_text"
+      ],
+      "title": "TransportTimeV3",
+      "type": "object"
+    },
+    "TravelerCountV3": {
+      "additionalProperties": false,
+      "properties": {
+        "adults": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Adults",
+          "type": "integer"
+        },
+        "children": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Children",
+          "type": "integer"
+        },
+        "seniors": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Seniors",
+          "type": "integer"
+        }
+      },
+      "title": "TravelerCountV3",
+      "type": "object"
+    },
+    "TripActionItemV3": {
+      "additionalProperties": false,
+      "properties": {
+        "action_id": {
+          "minLength": 1,
+          "title": "Action Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "checklist",
+            "reservation_reminder"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "trip",
+            "day",
+            "activity"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Id"
+        },
+        "text": {
+          "minLength": 1,
+          "title": "Text",
+          "type": "string"
+        },
+        "status": {
+          "default": "pending",
+          "enum": [
+            "pending",
+            "completed",
+            "overdue"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "due_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Due At"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        },
+        "source_ref": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Ref"
+        }
+      },
+      "required": [
+        "action_id",
+        "kind",
+        "scope",
+        "text"
+      ],
+      "title": "TripActionItemV3",
+      "type": "object"
+    },
+    "TripActivityV3": {
+      "additionalProperties": false,
+      "properties": {
+        "activity_id": {
+          "minLength": 1,
+          "title": "Activity Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "attraction",
+            "food",
+            "transport",
+            "hotel",
+            "shopping",
+            "free_time",
+            "other"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "day": {
+          "anyOf": [
+            {
+              "maximum": 7,
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Day"
+        },
+        "order": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Order"
+        },
+        "start_at": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{2}:\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start At"
+        },
+        "end_at": {
+          "anyOf": [
+            {
+              "pattern": "^\\d{2}:\\d{2}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End At"
+        },
+        "duration_minutes": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Minutes"
+        },
+        "fixed_time": {
+          "default": false,
+          "title": "Fixed Time",
+          "type": "boolean"
+        },
+        "place": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TripPlaceV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "images": {
+          "items": {
+            "$ref": "#/$defs/ImageAssetV3"
+          },
+          "maxItems": 3,
+          "title": "Images",
+          "type": "array"
+        },
+        "cover_image_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cover Image Id"
+        },
+        "estimated_cost": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reservation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReservationInfoV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "note_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note Id"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "route_to_next": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RouteLegV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "activity_id",
+        "kind",
+        "title"
+      ],
+      "title": "TripActivityV3",
+      "type": "object"
+    },
+    "TripAnchorV3": {
+      "additionalProperties": false,
+      "properties": {
+        "anchor_id": {
+          "minLength": 1,
+          "title": "Anchor Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "lodging_departure",
+            "lodging_return",
+            "arrival_hub",
+            "departure_hub"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "day": {
+          "maximum": 7,
+          "minimum": 1,
+          "title": "Day",
+          "type": "integer"
+        },
+        "place": {
+          "$ref": "#/$defs/TripPlaceV3"
+        },
+        "display_label": {
+          "minLength": 1,
+          "title": "Display Label",
+          "type": "string"
+        }
+      },
+      "required": [
+        "anchor_id",
+        "kind",
+        "day",
+        "place",
+        "display_label"
+      ],
+      "title": "TripAnchorV3",
+      "type": "object"
+    },
+    "TripDayV3": {
+      "additionalProperties": false,
+      "properties": {
+        "day": {
+          "maximum": 7,
+          "minimum": 1,
+          "title": "Day",
+          "type": "integer"
+        },
+        "date": {
+          "format": "date",
+          "title": "Date",
+          "type": "string"
+        },
+        "timezone": {
+          "minLength": 1,
+          "title": "Timezone",
+          "type": "string"
+        },
+        "theme": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Theme"
+        },
+        "note_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Note Id"
+        },
+        "activities": {
+          "items": {
+            "$ref": "#/$defs/TripActivityV3"
+          },
+          "title": "Activities",
+          "type": "array"
+        },
+        "anchors": {
+          "items": {
+            "$ref": "#/$defs/TripAnchorV3"
+          },
+          "title": "Anchors",
+          "type": "array"
+        }
+      },
+      "required": [
+        "day",
+        "date",
+        "timezone"
+      ],
+      "title": "TripDayV3",
+      "type": "object"
+    },
+    "TripIntentV3": {
+      "additionalProperties": false,
+      "properties": {
+        "origin": {
+          "minLength": 1,
+          "title": "Origin",
+          "type": "string"
+        },
+        "destination": {
+          "minLength": 1,
+          "title": "Destination",
+          "type": "string"
+        },
+        "start_date": {
+          "format": "date",
+          "title": "Start Date",
+          "type": "string"
+        },
+        "end_date": {
+          "format": "date",
+          "title": "End Date",
+          "type": "string"
+        },
+        "days": {
+          "maximum": 7,
+          "minimum": 1,
+          "title": "Days",
+          "type": "integer"
+        },
+        "travelers": {
+          "$ref": "#/$defs/TravelerCountV3"
+        },
+        "budget": {
+          "$ref": "#/$defs/MoneyV3"
+        },
+        "preferences": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Preferences",
+          "type": "array"
+        },
+        "dietary_preferences": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Dietary Preferences",
+          "type": "array"
+        },
+        "pace": {
+          "default": "balanced",
+          "enum": [
+            "relaxed",
+            "balanced",
+            "intensive"
+          ],
+          "title": "Pace",
+          "type": "string"
+        }
+      },
+      "required": [
+        "origin",
+        "destination",
+        "start_date",
+        "end_date",
+        "days",
+        "travelers",
+        "budget"
+      ],
+      "title": "TripIntentV3",
+      "type": "object"
+    },
+    "TripNoteV3": {
+      "additionalProperties": false,
+      "properties": {
+        "note_id": {
+          "minLength": 1,
+          "title": "Note Id",
+          "type": "string"
+        },
+        "scope": {
+          "enum": [
+            "trip",
+            "day",
+            "activity"
+          ],
+          "title": "Scope",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Id"
+        },
+        "content": {
+          "minLength": 1,
+          "title": "Content",
+          "type": "string"
+        },
+        "updated_at": {
+          "format": "date-time",
+          "title": "Updated At",
+          "type": "string"
+        }
+      },
+      "required": [
+        "note_id",
+        "scope",
+        "content",
+        "updated_at"
+      ],
+      "title": "TripNoteV3",
+      "type": "object"
+    },
+    "TripPlaceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "poi_id": {
+          "minLength": 1,
+          "title": "Poi Id",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "category": {
+          "enum": [
+            "attraction",
+            "food",
+            "transport",
+            "hotel",
+            "shopping",
+            "free_time",
+            "other"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "city": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "City"
+        },
+        "address": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Address"
+        },
+        "phone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Phone"
+        },
+        "opening_hours": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Opening Hours"
+        },
+        "timezone": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timezone"
+        },
+        "coordinates": {
+          "$ref": "#/$defs/CoordinatesV3"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "review_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ReviewSummaryV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Evidence Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "poi_id",
+        "name",
+        "category",
+        "coordinates"
+      ],
+      "title": "TripPlaceV3",
+      "type": "object"
+    },
+    "TripSourceV3": {
+      "additionalProperties": false,
+      "properties": {
+        "source_id": {
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        },
+        "source_name": {
+          "minLength": 1,
+          "title": "Source Name",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "realtime_verified",
+            "official_reference",
+            "map_reference",
+            "guide_reference",
+            "user_confirmation_required"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Url"
+        },
+        "updated_at": {
+          "anyOf": [
+            {
+              "format": "date-time",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Updated At"
+        },
+        "related_fields": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Related Fields",
+          "type": "array"
+        },
+        "related_place_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Related Place Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_id",
+        "title",
+        "source_name",
+        "status"
+      ],
+      "title": "TripSourceV3",
+      "type": "object"
+    },
+    "ValidationIssueV3": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        },
+        "severity": {
+          "enum": [
+            "info",
+            "warning",
+            "error"
+          ],
+          "title": "Severity",
+          "type": "string"
+        },
+        "target_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Id"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "severity"
+      ],
+      "title": "ValidationIssueV3",
+      "type": "object"
+    },
+    "ValidationSummaryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "valid": {
+          "default": true,
+          "title": "Valid",
+          "type": "boolean"
+        },
+        "degraded": {
+          "default": false,
+          "title": "Degraded",
+          "type": "boolean"
+        },
+        "issues": {
+          "items": {
+            "$ref": "#/$defs/ValidationIssueV3"
+          },
+          "title": "Issues",
+          "type": "array"
+        }
+      },
+      "title": "ValidationSummaryV3",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "3.0",
+      "default": "3.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "plan_id": {
+      "minLength": 1,
+      "title": "Plan Id",
+      "type": "string"
+    },
+    "revision": {
+      "minimum": 1,
+      "title": "Revision",
+      "type": "integer"
+    },
+    "status": {
+      "enum": [
+        "formal",
+        "degraded"
+      ],
+      "title": "Status",
+      "type": "string"
+    },
+    "title": {
+      "minLength": 1,
+      "title": "Title",
+      "type": "string"
+    },
+    "generated_at": {
+      "format": "date-time",
+      "title": "Generated At",
+      "type": "string"
+    },
+    "locale": {
+      "default": "zh-CN",
+      "title": "Locale",
+      "type": "string"
+    },
+    "intent": {
+      "$ref": "#/$defs/TripIntentV3"
+    },
+    "destination_overview": {
+      "$ref": "#/$defs/DestinationOverviewV3"
+    },
+    "outbound_transport": {
+      "$ref": "#/$defs/TransportSectionV3"
+    },
+    "lodging_plan": {
+      "$ref": "#/$defs/LodgingPlanV3"
+    },
+    "itinerary": {
+      "$ref": "#/$defs/ItineraryV3"
+    },
+    "candidate_pool": {
+      "items": {
+        "$ref": "#/$defs/TripActivityV3"
+      },
+      "maxItems": 15,
+      "title": "Candidate Pool",
+      "type": "array"
+    },
+    "action_items": {
+      "items": {
+        "$ref": "#/$defs/TripActionItemV3"
+      },
+      "title": "Action Items",
+      "type": "array"
+    },
+    "notes": {
+      "items": {
+        "$ref": "#/$defs/TripNoteV3"
+      },
+      "title": "Notes",
+      "type": "array"
+    },
+    "budget": {
+      "$ref": "#/$defs/BudgetSummaryV3"
+    },
+    "return_transport": {
+      "$ref": "#/$defs/TransportSectionV3"
+    },
+    "map_guidance": {
+      "$ref": "#/$defs/MapGuidanceV3"
+    },
+    "sources": {
+      "items": {
+        "$ref": "#/$defs/TripSourceV3"
+      },
+      "title": "Sources",
+      "type": "array"
+    },
+    "delivery": {
+      "$ref": "#/$defs/DeliveryV3"
+    },
+    "validation": {
+      "$ref": "#/$defs/ValidationSummaryV3"
+    }
+  },
+  "required": [
+    "plan_id",
+    "revision",
+    "status",
+    "title",
+    "generated_at",
+    "intent",
+    "destination_overview",
+    "outbound_transport",
+    "lodging_plan",
+    "itinerary",
+    "budget",
+    "return_transport",
+    "map_guidance",
+    "delivery",
+    "validation"
+  ],
+  "title": "TravelPlanDocumentV3",
+  "type": "object"
+}

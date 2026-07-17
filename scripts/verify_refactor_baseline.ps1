@@ -9,7 +9,8 @@ $ErrorActionPreference = "Stop"
 $projectRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $demoRoot = Join-Path $projectRoot "examples\fastapi_react_demo"
 $frontendRoot = Join-Path $demoRoot "frontend"
-$pytestTemp = Join-Path $demoRoot "outputs\pytest-baseline"
+$pytestRunId = [Guid]::NewGuid().ToString("N")
+$pytestTemp = Join-Path $demoRoot "outputs\pytest-baseline-$pytestRunId"
 
 function Assert-LastExitCode {
     param([string]$Step)
@@ -19,7 +20,8 @@ function Assert-LastExitCode {
 }
 
 if (-not $SkipBackend) {
-    Write-Host "[1/4] Running backend tests (325 baseline tests)..."
+    Write-Host "[1/4] Running backend test suite..."
+    Write-Host "Using unique pytest temp directory: $pytestTemp"
     Push-Location $demoRoot
     try {
         & $Python -m pytest backend/tests -q -p no:cacheprovider --basetemp $pytestTemp
@@ -37,7 +39,7 @@ try {
     & npm run type-check
     Assert-LastExitCode "TypeScript type check"
 
-    Write-Host "[3/4] Running frontend unit tests (52 baseline tests)..."
+    Write-Host "[3/4] Running frontend unit test suite..."
     & npm test
     Assert-LastExitCode "Frontend unit tests"
 

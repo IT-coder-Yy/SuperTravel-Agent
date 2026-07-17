@@ -1,0 +1,369 @@
+{
+  "$defs": {
+    "AgentStagePayload": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "enum": [
+            "requirements_analysis",
+            "research",
+            "route_planning",
+            "realtime_verification",
+            "validation_completed"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "agent_name": {
+          "minLength": 1,
+          "title": "Agent Name",
+          "type": "string"
+        },
+        "task": {
+          "minLength": 1,
+          "title": "Task",
+          "type": "string"
+        },
+        "data_sources": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Data Sources",
+          "type": "array"
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Summary"
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Duration Ms"
+        },
+        "status": {
+          "enum": [
+            "running",
+            "retrying",
+            "completed",
+            "degraded",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "agent_name",
+        "task",
+        "status"
+      ],
+      "title": "AgentStagePayload",
+      "type": "object"
+    },
+    "PlanCompletedPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "completed",
+            "completed_degraded"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "checksum": {
+          "minLength": 1,
+          "title": "Checksum",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "revision",
+        "status",
+        "checksum"
+      ],
+      "title": "PlanCompletedPayload",
+      "type": "object"
+    },
+    "PlanRevisionStartedPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "operation_id": {
+          "minLength": 1,
+          "title": "Operation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "revision",
+        "operation_id"
+      ],
+      "title": "PlanRevisionStartedPayload",
+      "type": "object"
+    },
+    "PlanSectionPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "revision": {
+          "minimum": 1,
+          "title": "Revision",
+          "type": "integer"
+        },
+        "section": {
+          "enum": [
+            "destination_overview",
+            "outbound_transport",
+            "lodging_plan",
+            "itinerary",
+            "budget_and_reminders",
+            "map_guidance",
+            "delivery",
+            "sources"
+          ],
+          "title": "Section",
+          "type": "string"
+        },
+        "content": {
+          "additionalProperties": true,
+          "title": "Content",
+          "type": "object"
+        }
+      },
+      "required": [
+        "plan_id",
+        "revision",
+        "section",
+        "content"
+      ],
+      "title": "PlanSectionPayload",
+      "type": "object"
+    },
+    "PlanningErrorPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "minLength": 1,
+          "title": "Code",
+          "type": "string"
+        },
+        "user_message": {
+          "minLength": 1,
+          "title": "User Message",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "title": "Retryable",
+          "type": "boolean"
+        },
+        "actions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Actions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "code",
+        "user_message"
+      ],
+      "title": "PlanningErrorPayload",
+      "type": "object"
+    },
+    "RunCancelledPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "reason": {
+          "minLength": 1,
+          "title": "Reason",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason"
+      ],
+      "title": "RunCancelledPayload",
+      "type": "object"
+    },
+    "RunStartedPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "const": "planning",
+          "default": "planning",
+          "title": "Status",
+          "type": "string"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "title": "RunStartedPayload",
+      "type": "object"
+    },
+    "SoftTimeoutPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "elapsed_seconds": {
+          "minimum": 180,
+          "title": "Elapsed Seconds",
+          "type": "integer"
+        },
+        "message": {
+          "minLength": 1,
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "elapsed_seconds",
+        "message"
+      ],
+      "title": "SoftTimeoutPayload",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "event_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Event Version",
+      "type": "integer"
+    },
+    "event_id": {
+      "minLength": 1,
+      "title": "Event Id",
+      "type": "string"
+    },
+    "run_id": {
+      "minLength": 1,
+      "title": "Run Id",
+      "type": "string"
+    },
+    "request_id": {
+      "minLength": 1,
+      "title": "Request Id",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "occurred_at": {
+      "format": "date-time",
+      "title": "Occurred At",
+      "type": "string"
+    },
+    "type": {
+      "enum": [
+        "run_started",
+        "agent_stage_started",
+        "agent_stage_updated",
+        "agent_stage_retrying",
+        "agent_stage_completed",
+        "run_soft_timeout",
+        "final_plan_section",
+        "trip_plan_completed",
+        "plan_revision_started",
+        "plan_revision_section",
+        "plan_revision_completed",
+        "run_cancelled",
+        "error"
+      ],
+      "title": "Type",
+      "type": "string"
+    },
+    "payload": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RunStartedPayload"
+        },
+        {
+          "$ref": "#/$defs/AgentStagePayload"
+        },
+        {
+          "$ref": "#/$defs/SoftTimeoutPayload"
+        },
+        {
+          "$ref": "#/$defs/PlanSectionPayload"
+        },
+        {
+          "$ref": "#/$defs/PlanCompletedPayload"
+        },
+        {
+          "$ref": "#/$defs/PlanRevisionStartedPayload"
+        },
+        {
+          "$ref": "#/$defs/RunCancelledPayload"
+        },
+        {
+          "$ref": "#/$defs/PlanningErrorPayload"
+        }
+      ],
+      "title": "Payload"
+    }
+  },
+  "required": [
+    "event_id",
+    "run_id",
+    "request_id",
+    "sequence",
+    "occurred_at",
+    "type",
+    "payload"
+  ],
+  "title": "PlanningEventEnvelope",
+  "type": "object"
+}

@@ -1,0 +1,196 @@
+{
+  "schema_version": "3.0",
+  "plan_id": "plan_fixture_tokyo_5d",
+  "revision": 1,
+  "status": "degraded",
+  "title": "东京五日契约样本",
+  "generated_at": "2026-07-17T10:00:00+08:00",
+  "locale": "zh-CN",
+  "intent": {
+    "origin": "北京",
+    "destination": "东京",
+    "start_date": "2026-10-01",
+    "end_date": "2026-10-05",
+    "days": 5,
+    "travelers": {"adults": 2, "children": 1, "seniors": 0},
+    "budget": {
+      "amount": 500000,
+      "currency": "JPY",
+      "cny_reference_amount": 25000,
+      "exchange_rate_as_of": "2026-07-17",
+      "source_status": "official_reference"
+    },
+    "preferences": ["城市漫步", "亲子"],
+    "dietary_preferences": [],
+    "pace": "balanced"
+  },
+  "destination_overview": {
+    "name_zh": "东京",
+    "name_en": "Tokyo",
+    "country_code": "JP",
+    "country_name": "日本",
+    "timezone": "Asia/Tokyo",
+    "currency": "JPY",
+    "summary": "用于验证国际双时区和双币种契约，不作为实时旅行建议。",
+    "themes": ["城市", "亲子"],
+    "evidence_refs": ["src_map_tokyo"]
+  },
+  "outbound_transport": {
+    "direction": "outbound",
+    "scope": "international",
+    "status": "ready",
+    "selected_option_id": "flight_fixture_out",
+    "options": [
+      {
+        "option_id": "flight_fixture_out",
+        "mode": "flight",
+        "service_number": "TEST-FLIGHT-001",
+        "departure_place": "北京契约机场",
+        "arrival_place": "东京契约机场",
+        "departure_time": {
+          "display_text": "当地时间 09:00 / 北京时间 09:00",
+          "utc": "2026-10-01T01:00:00Z",
+          "local_iso": "2026-10-01T09:00:00+08:00",
+          "timezone": "Asia/Shanghai",
+          "beijing_iso": "2026-10-01T09:00:00+08:00"
+        },
+        "arrival_time": {
+          "display_text": "当地时间 14:00 / 北京时间 13:00",
+          "utc": "2026-10-01T05:00:00Z",
+          "local_iso": "2026-10-01T14:00:00+09:00",
+          "timezone": "Asia/Tokyo",
+          "beijing_iso": "2026-10-01T13:00:00+08:00"
+        },
+        "duration_minutes": 240,
+        "price": {
+          "amount": 80000,
+          "currency": "JPY",
+          "cny_reference_amount": 4000,
+          "source_status": "realtime_verified"
+        },
+        "availability": "available",
+        "source_status": "realtime_verified",
+        "source_refs": ["src_transport_international_fixture"],
+        "verified_at": "2026-07-17T09:55:00+08:00"
+      }
+    ]
+  },
+  "lodging_plan": {
+    "status": "ready",
+    "planning_lodging_id": "lodging_tokyo_1",
+    "options": [
+      {
+        "lodging_id": "lodging_tokyo_1",
+        "name": "东京契约样本住宿",
+        "area": "契约测试区域",
+        "place": {
+          "poi_id": "poi_tokyo_lodging",
+          "name": "东京契约样本住宿",
+          "category": "hotel",
+          "city": "东京",
+          "timezone": "Asia/Tokyo",
+          "coordinates": {"latitude": 35.68, "longitude": 139.76, "coordinate_system": "WGS84"},
+          "evidence_refs": ["src_map_tokyo"]
+        },
+        "nightly_price": {"amount": 30000, "currency": "JPY", "cny_reference_amount": 1500, "source_status": "map_reference"},
+        "reasons": ["仅用于契约测试"],
+        "source_status": "map_reference",
+        "source_refs": ["src_map_tokyo"]
+      }
+    ]
+  },
+  "itinerary": {
+    "days": [
+      {
+        "day": 1,
+        "date": "2026-10-01",
+        "timezone": "Asia/Tokyo",
+        "theme": "抵达",
+        "activities": [{"activity_id": "act_tokyo_1", "kind": "attraction", "title": "东京契约地点一", "day": 1, "order": 1, "start_at": "16:00", "end_at": "18:00", "place": {"poi_id": "poi_tokyo_1", "name": "东京契约地点一", "category": "attraction", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.681, "longitude": 139.767, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}, "evidence_refs": ["src_map_tokyo"]}],
+        "anchors": [{"anchor_id": "anchor_tokyo_arrival", "kind": "arrival_hub", "day": 1, "display_label": "从东京契约机场抵达", "place": {"poi_id": "poi_tokyo_airport", "name": "东京契约机场", "category": "transport", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.77, "longitude": 140.39, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}}]
+      },
+      {
+        "day": 2,
+        "date": "2026-10-02",
+        "timezone": "Asia/Tokyo",
+        "theme": "城市",
+        "activities": [{"activity_id": "act_tokyo_2", "kind": "attraction", "title": "东京契约地点二", "day": 2, "order": 1, "start_at": "09:30", "end_at": "11:30", "place": {"poi_id": "poi_tokyo_2", "name": "东京契约地点二", "category": "attraction", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.69, "longitude": 139.7, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}, "evidence_refs": ["src_map_tokyo"]}],
+        "anchors": []
+      },
+      {
+        "day": 3,
+        "date": "2026-10-03",
+        "timezone": "Asia/Tokyo",
+        "theme": "亲子",
+        "activities": [{"activity_id": "act_tokyo_3", "kind": "attraction", "title": "东京契约地点三", "day": 3, "order": 1, "start_at": "10:00", "end_at": "12:00", "place": {"poi_id": "poi_tokyo_3", "name": "东京契约地点三", "category": "attraction", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.71, "longitude": 139.81, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}, "evidence_refs": ["src_map_tokyo"]}],
+        "anchors": []
+      },
+      {
+        "day": 4,
+        "date": "2026-10-04",
+        "timezone": "Asia/Tokyo",
+        "theme": "街区",
+        "activities": [{"activity_id": "act_tokyo_4", "kind": "food", "title": "东京契约餐厅", "day": 4, "order": 1, "start_at": "12:00", "end_at": "13:00", "place": {"poi_id": "poi_tokyo_4", "name": "东京契约餐厅", "category": "food", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.66, "longitude": 139.7, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}, "evidence_refs": ["src_map_tokyo"]}],
+        "anchors": []
+      },
+      {
+        "day": 5,
+        "date": "2026-10-05",
+        "timezone": "Asia/Tokyo",
+        "theme": "返程",
+        "activities": [{"activity_id": "act_tokyo_5", "kind": "shopping", "title": "东京契约购物地点", "day": 5, "order": 1, "start_at": "10:00", "end_at": "11:30", "place": {"poi_id": "poi_tokyo_5", "name": "东京契约购物地点", "category": "shopping", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.67, "longitude": 139.76, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}, "evidence_refs": ["src_map_tokyo"]}],
+        "anchors": [{"anchor_id": "anchor_tokyo_departure", "kind": "departure_hub", "day": 5, "display_label": "前往东京契约机场", "place": {"poi_id": "poi_tokyo_airport", "name": "东京契约机场", "category": "transport", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.77, "longitude": 140.39, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}}]
+      }
+    ]
+  },
+  "candidate_pool": [{"activity_id": "candidate_tokyo_1", "kind": "attraction", "title": "东京候选契约地点", "place": {"poi_id": "poi_tokyo_candidate", "name": "东京候选契约地点", "category": "attraction", "city": "东京", "timezone": "Asia/Tokyo", "coordinates": {"latitude": 35.72, "longitude": 139.78, "coordinate_system": "WGS84"}, "evidence_refs": ["src_map_tokyo"]}, "evidence_refs": ["src_map_tokyo"]}],
+  "action_items": [{"action_id": "action_tokyo_1", "kind": "reservation_reminder", "scope": "trip", "text": "出发前重新核验国际交通信息", "status": "pending", "source_ref": "src_transport_international_fixture"}],
+  "notes": [],
+  "budget": {
+    "total_budget": {"amount": 500000, "currency": "JPY", "cny_reference_amount": 25000, "exchange_rate_as_of": "2026-07-17", "source_status": "official_reference"},
+    "estimated_total": {"amount": 420000, "currency": "JPY", "cny_reference_amount": 21000, "exchange_rate_as_of": "2026-07-17", "source_status": "guide_reference"},
+    "categories": [],
+    "unknown_cost_count": 2,
+    "over_budget": false,
+    "warnings": []
+  },
+  "return_transport": {
+    "direction": "return",
+    "scope": "international",
+    "status": "ready",
+    "selected_option_id": "flight_fixture_return",
+    "options": [{
+      "option_id": "flight_fixture_return",
+      "mode": "flight",
+      "service_number": "TEST-FLIGHT-002",
+      "departure_place": "东京契约机场",
+      "arrival_place": "北京契约机场",
+      "departure_time": {"display_text": "当地时间 16:00 / 北京时间 15:00", "utc": "2026-10-05T07:00:00Z", "local_iso": "2026-10-05T16:00:00+09:00", "timezone": "Asia/Tokyo", "beijing_iso": "2026-10-05T15:00:00+08:00"},
+      "arrival_time": {"display_text": "当地时间 19:00 / 北京时间 19:00", "utc": "2026-10-05T11:00:00Z", "local_iso": "2026-10-05T19:00:00+08:00", "timezone": "Asia/Shanghai", "beijing_iso": "2026-10-05T19:00:00+08:00"},
+      "duration_minutes": 240,
+      "availability": "available",
+      "source_status": "realtime_verified",
+      "source_refs": ["src_transport_international_fixture"],
+      "verified_at": "2026-07-17T09:55:00+08:00"
+    }]
+  },
+  "map_guidance": {
+    "status": "degraded",
+    "status_reason": "契约样本不包含真实 geometry",
+    "formal_location_ids": ["act_tokyo_1", "anchor_tokyo_arrival", "act_tokyo_2", "act_tokyo_3", "act_tokyo_4", "act_tokyo_5", "anchor_tokyo_departure"],
+    "day_routes": [
+      {"day": 1, "status": "unavailable", "legs": []},
+      {"day": 2, "status": "unavailable", "legs": []},
+      {"day": 3, "status": "unavailable", "legs": []},
+      {"day": 4, "status": "unavailable", "legs": []},
+      {"day": 5, "status": "unavailable", "legs": []}
+    ],
+    "candidates_visible_by_default": false
+  },
+  "sources": [
+    {"source_id": "src_map_tokyo", "title": "东京地图契约数据", "source_name": "契约测试地图 Provider", "status": "map_reference", "updated_at": "2026-07-17T09:50:00+08:00", "related_fields": [], "related_place_ids": []},
+    {"source_id": "src_transport_international_fixture", "title": "国际交通契约测试快照", "source_name": "契约测试实时 Provider", "status": "realtime_verified", "updated_at": "2026-07-17T09:55:00+08:00", "related_fields": [], "related_place_ids": []}
+  ],
+  "delivery": {"markdown_filename": "东京五日契约样本.md", "pdf_filename": "东京五日契约样本.pdf", "markdown_enabled": true, "pdf_enabled": true},
+  "validation": {"valid": true, "degraded": true, "issues": [{"code": "ROUTE_GEOMETRY_UNAVAILABLE", "message": "契约样本不包含真实路线 geometry", "severity": "warning"}]}
+}
