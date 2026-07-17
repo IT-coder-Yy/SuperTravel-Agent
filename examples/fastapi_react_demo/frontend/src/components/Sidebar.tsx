@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Layout, Menu, Button, Dropdown, Modal, Input } from 'antd';
+import { Layout, Menu, Button, Dropdown, Modal, Input, message } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   PlusOutlined,
@@ -23,7 +23,7 @@ const { confirm } = Modal;
 interface SidebarProps {
   collapsed: boolean;
   currentChatId?: string;
-  onChatSelect?: (chat: ChatHistoryItem) => void;
+  onChatSelect?: (chat: ChatHistoryItem) => void | Promise<void>;
   onChatDeleted?: (chatId: string) => void;
   onHistoryCleared?: () => void;
   onNewChat?: () => void;
@@ -33,7 +33,7 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelect, onChatDeleted, onHistoryCleared, onNewChat, onToggleCollapse }) => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { history, deleteChat, clearHistory } = useChatHistory();
+  const { history, deleteChat, clearHistory, hasMore, loadMore, isLoading } = useChatHistory();
   const [historyQuery, setHistoryQuery] = useState('');
 
   const filteredHistory = useMemo(() => {
@@ -46,7 +46,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
         .map((message) => `${message.content || ''} ${message.displayContent || ''}`)
         .join(' ')
         .toLowerCase();
-      return title.includes(query) || content.includes(query);
+      const preview = item.preview?.toLowerCase() || '';
+      return title.includes(query) || preview.includes(query) || content.includes(query);
     });
   }, [history, historyQuery]);
 
@@ -116,25 +117,35 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
       okText: '删除',
       okType: 'danger',
       cancelText: '取消',
-      onOk() {
-        deleteChat(chatId);
-        onChatDeleted?.(chatId);
+      async onOk() {
+        try {
+          await deleteChat(chatId);
+          onChatDeleted?.(chatId);
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '删除旅程失败');
+          throw error;
+        }
       },
     });
   };
 
   const handleClearHistory = () => {
     confirm({
-      title: '清空历史',
+      title: '删除全部旅程',
       icon: <ExclamationCircleOutlined />,
-      content: '确定要清空所有旅程历史吗？此操作不可恢复。',
+      content: '将永久删除当前设备下的全部旅程、消息、正式版本和草稿。此操作不可恢复。',
       centered: true,
-      okText: '清空',
+      okText: '永久删除全部旅程',
       okType: 'danger',
       cancelText: '取消',
-      onOk() {
-        clearHistory();
-        onHistoryCleared?.();
+      async onOk() {
+        try {
+          await clearHistory();
+          onHistoryCleared?.();
+        } catch (error) {
+          message.error(error instanceof Error ? error.message : '删除全部旅程失败');
+          throw error;
+        }
       },
     });
   };
@@ -407,6 +418,17 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                     </div>
                   );
                 })}
+                {hasMore && !historyQuery && (
+                  <Button
+                    type="text"
+                    size="small"
+                    loading={isLoading}
+                    onClick={() => void loadMore()}
+                    style={{ color: 'var(--travel-primary)', marginTop: '6px' }}
+                  >
+                    加载更多
+                  </Button>
+                )}
               </div>
             )}
           </div>

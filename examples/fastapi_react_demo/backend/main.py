@@ -8,11 +8,12 @@ Sage FastAPI + React Demo Backend
 
 import sys
 import asyncio
+import uuid
 from pathlib import Path
 from typing import List
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Query, Response, Header
+from fastapi import FastAPI, HTTPException, Query, Request, Response, Header
 from fastapi.responses import HTMLResponse
 import uvicorn
 
@@ -49,6 +50,15 @@ from services.unsplash_tracking_service import track_document_cover_download
 from services.app_factory_service import create_fastapi_app
 from services.server_bootstrap_service import run_backend_server
 from services.runtime_state_service import create_runtime_state
+from services.trip_repository import TripRepository, default_trip_database_path
+from services.trip_repository import ActivePlanningRunError, TripRepositoryError
+from services.anonymous_device_service import (
+    DEVICE_COOKIE_NAME,
+    resolve_anonymous_device,
+    set_anonymous_device_cookie,
+)
+from services.planning_run_service import attach_persisted_planning_run
+from routes.trip_persistence_routes import create_trip_persistence_router
 from schemas.api_models import (
     ChatMessage,
     ChatRequest,
@@ -85,10 +95,15 @@ async def lifespan(app: FastAPI):
 
 # 创建FastAPI应用
 app = create_fastapi_app(lifespan=lifespan)
+app.include_router(
+    create_trip_persistence_router(lambda: runtime_state.trip_repository)
+)
 
 
 async def initialize_system():
     """初始化系统组件"""
+    runtime_state.trip_repository = TripRepository(default_trip_database_path())
+    runtime_state.trip_repository.initialize()
     runtime_state.tool_manager, runtime_state.controller = await initialize_runtime_with_boundary()
 
 
@@ -331,12 +346,64 @@ async def chat_endpoint(request: ChatRequest):
 
 
 @app.post("/api/chat-stream")
-async def chat_stream(request: ChatRequest):
+async def chat_stream(request: ChatRequest, http_request: Request = None):
     """处理聊天请求并返回流式响应"""
     await ensure_tool_manager_ready()
-    return build_chat_stream_request_runtime_route(
-        request=request,
-        runtime_state=runtime_state,
+    repository = runtime_state.trip_repository
+    trip_id = (request.trip_id or request.session_id or "").strip()
+    if repository is None or not trip_id or http_request is None:
+        return build_chat_stream_request_runtime_route(
+            request=request,
+            runtime_state=runtime_state,
+        )
+
+    identity = resolve_anonymous_device(
+        repository,
+        http_request.cookies.get(DEVICE_COOKIE_NAME),
+    )
+    latest_user_message = next(
+        (message.content for message in reversed(request.messages) if message.role == "user"),
+        "新旅程",
+    )
+    repository.ensure_trip(identity.device_id, trip_id, latest_user_message[:20])
+    run_id = request.request_id or str(uuid.uuid4())
+    request.request_id = run_id
+    try:
+        repository.begin_planning_run(
+            identity.device_id,
+            trip_id,
+            run_id,
+            run_id,
+        )
+        stream_response = build_chat_stream_request_runtime_route(
+            request=request,
+            runtime_state=runtime_state,
+        )
+    except ActivePlanningRunError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": error.code, "message": str(error)},
+        ) from None
+    except TripRepositoryError as error:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": error.code, "message": str(error)},
+        ) from None
+    except Exception:
+        repository.finish_planning_run(identity.device_id, run_id, "failed")
+        raise
+
+    set_anonymous_device_cookie(
+        stream_response,
+        identity,
+        secure=http_request.url.scheme == "https",
+    )
+    return attach_persisted_planning_run(
+        stream_response,
+        repository=repository,
+        device_id=identity.device_id,
+        trip_id=trip_id,
+        run_id=run_id,
     )
 
 

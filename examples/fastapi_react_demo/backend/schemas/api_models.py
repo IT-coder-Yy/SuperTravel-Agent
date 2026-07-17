@@ -17,6 +17,7 @@ class ChatRequest(BaseModel):
     use_deepthink: bool = True
     use_multi_agent: bool = True
     session_id: Optional[str] = None
+    trip_id: Optional[str] = None
     selected_mcp_servers: Optional[List[str]] = None
     selected_skill_ids: Optional[List[str]] = Field(default_factory=list)
     profile: Optional[Dict[str, Any]] = Field(default_factory=dict)

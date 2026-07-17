@@ -2549,6 +2549,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         const requestData = {
           type: 'chat',
           request_id: requestId,
+          trip_id: requestChatId,
+          session_id: requestChatId,
           messages: requestMessages.map(msg => ({
             role: msg.role,
             content: msg.content,
@@ -2584,7 +2586,16 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          let userMessage = '';
+          try {
+            const body = await response.json();
+            userMessage = safeText(body?.detail?.message || body?.message).trim();
+          } catch (_error) {
+            userMessage = '';
+          }
+          const requestError = new Error(`HTTP ${response.status}`) as Error & { userMessage?: string };
+          requestError.userMessage = userMessage;
+          throw requestError;
         }
 
         // 处理流式响应
@@ -2747,11 +2758,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         if (requestIdsByChatIdRef.current[requestChatId] === requestId && isMountedRef.current) {
           setChatLoadingForId(requestChatId, false);
           setPlanningStatus('error');
+          const userMessage = safeText((error as Error & { userMessage?: string }).userMessage).trim()
+            || '网络连接异常，请检查网络后重试。';
           setChatMessagesForId(requestChatId, prev => [...prev, {
             id: uuidv4(),
             role: 'system',
-            content: '网络连接异常，请检查网络后重试。',
-            displayContent: '网络连接异常，请检查网络后重试。',
+            content: userMessage,
+            displayContent: userMessage,
             timestamp: new Date(),
             type: 'error'
           }]);
@@ -2996,6 +3009,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           const requestData = {
             type: 'chat',
             request_id: requestId,
+          trip_id: requestChatId,
+          session_id: requestChatId,
           messages: regenerateHistory.map((msg) => ({
             role: msg.role,
             content: msg.content,
@@ -3029,7 +3044,16 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         });
 
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          let userMessage = '';
+          try {
+            const body = await response.json();
+            userMessage = safeText(body?.detail?.message || body?.message).trim();
+          } catch (_error) {
+            userMessage = '';
+          }
+          const requestError = new Error(`HTTP ${response.status}`) as Error & { userMessage?: string };
+          requestError.userMessage = userMessage;
+          throw requestError;
         }
 
         const reader = response.body?.getReader();
@@ -3140,11 +3164,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         console.error('重新回答失败:', error);
         if (requestIdsByChatIdRef.current[requestChatId] === requestId && isMountedRef.current) {
           setChatLoadingForId(requestChatId, false);
+          const userMessage = safeText((error as Error & { userMessage?: string }).userMessage).trim()
+            || '重新生成时网络连接异常，请稍后重试。';
           setChatMessagesForId(requestChatId, (prev) => [...prev, {
             id: uuidv4(),
             role: 'system',
-            content: '重新生成时网络连接异常，请稍后重试。',
-            displayContent: '重新生成时网络连接异常，请稍后重试。',
+            content: userMessage,
+            displayContent: userMessage,
             timestamp: new Date(),
             type: 'error'
           }]);

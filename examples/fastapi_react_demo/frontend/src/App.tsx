@@ -33,8 +33,9 @@ const AppContent: React.FC = () => {
   const [loadedTripPlan, setLoadedTripPlan] = useState<Record<string, unknown> | null>(null);
   const [loadedTripDocument, setLoadedTripDocument] = useState<Record<string, unknown> | null>(null);
   const [loadedTripWorkspace, setLoadedTripWorkspace] = useState<Record<string, unknown> | null>(null);
-  const { history } = useChatHistory();
+  const { history, getChat } = useChatHistory();
   const hasAutoRestoredRef = useRef(false);
+  const restoreRequestRef = useRef(0);
   const chatInterfaceRef = useRef<{
     startNewChat: () => void;
     loadChat: (
@@ -64,11 +65,15 @@ const AppContent: React.FC = () => {
 
     const latestChat = history[0];
     hasAutoRestoredRef.current = true;
-    setCurrentChatId(latestChat.id);
-    setLoadedMessages([...latestChat.messages]);
-    setLoadedTripPlan(latestChat.tripPlan || null);
-    setLoadedTripDocument(latestChat.tripDocument || null);
-    setLoadedTripWorkspace(latestChat.tripWorkspace || null);
+    const requestNumber = ++restoreRequestRef.current;
+    void getChat(latestChat.id).then((detail) => {
+      if (!detail || requestNumber !== restoreRequestRef.current) return;
+      setCurrentChatId(detail.id);
+      setLoadedMessages([...detail.messages]);
+      setLoadedTripPlan(detail.tripPlan || null);
+      setLoadedTripDocument(detail.tripDocument || null);
+      setLoadedTripWorkspace(detail.tripWorkspace || null);
+    });
   }, [history]);
 
   // 处理新对话
@@ -114,19 +119,20 @@ const AppContent: React.FC = () => {
   };
 
   // 处理选择历史对话
-  const handleChatSelect = (chat: ChatHistoryItem) => {
+  const handleChatSelect = async (chat: ChatHistoryItem) => {
     console.log('App.tsx - handleChatSelect被调用，chatId:', chat.id, '消息数量:', chat.messages.length);
 
     // 导航到首页
     navigate('/');
 
-    setCurrentChatId(chat.id);
-    // 通过 loadedMessages 的变化来触发 ChatInterface 的 useEffect
-    // 不再直接调用 loadChat 方法，避免重复处理
-    setLoadedTripPlan(chat.tripPlan || null);
-    setLoadedTripDocument(chat.tripDocument || null);
-    setLoadedTripWorkspace(chat.tripWorkspace || null);
-    setLoadedMessages([...chat.messages]); // 使用新数组确保触发 useEffect
+    const requestNumber = ++restoreRequestRef.current;
+    const detail = await getChat(chat.id);
+    if (!detail || requestNumber !== restoreRequestRef.current) return;
+    setCurrentChatId(detail.id);
+    setLoadedTripPlan(detail.tripPlan || null);
+    setLoadedTripDocument(detail.tripDocument || null);
+    setLoadedTripWorkspace(detail.tripWorkspace || null);
+    setLoadedMessages([...detail.messages]);
   };
 
   const handleChatDeleted = (chatId: string) => {

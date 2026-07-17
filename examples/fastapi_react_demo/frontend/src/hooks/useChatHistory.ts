@@ -1,20 +1,32 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  ensureLegacyHistoryMigration,
+  tripHistoryApi,
+  TripDetailPayload,
+  TripHistorySummaryPayload,
+  TripUpsertPayload,
+} from '../services/tripHistoryApi';
+
+export interface ChatHistoryMessage {
+  id: string;
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  displayContent: string;
+  timestamp: Date;
+  type?: string;
+  agentType?: string;
+}
 
 export interface ChatHistoryItem {
   id: string;
   title: string;
-  messages: Array<{
-    id: string;
-    role: 'user' | 'assistant' | 'system';
-    content: string;
-    displayContent: string;
-    timestamp: Date;
-    type?: string;
-    agentType?: string;
-  }>;
+  messages: ChatHistoryMessage[];
   createdAt: Date;
   updatedAt: Date;
   contentUpdatedAt: Date;
+  status?: string;
+  preview?: string;
+  currentRevision?: number;
   tripPlan?: Record<string, unknown> | null;
   tripDocument?: Record<string, unknown> | null;
   tripWorkspace?: Record<string, unknown> | null;
@@ -28,179 +40,216 @@ export interface SaveChatOptions {
   tripWorkspace?: Record<string, unknown> | null;
 }
 
-const STORAGE_KEY = 'sage_chat_history';
-const MAX_HISTORY_ITEMS = 50;
-const HISTORY_UPDATED_EVENT = 'sage_chat_history_updated';
+const LEGACY_STORAGE_KEY = 'sage_chat_history';
+const MIRROR_STORAGE_KEY = 'sage_trip_history_mirror_v1';
+const MIGRATION_MARKER_KEY = 'sage_trip_history_migrated_v1';
+const HISTORY_UPDATED_EVENT = 'sage_trip_history_updated';
+const saveQueues = new Map<string, Promise<unknown>>();
 
-const normalizeHistory = (parsed: any[]): ChatHistoryItem[] => {
-  return parsed.map((item: any) => ({
-    ...item,
-    createdAt: new Date(item.createdAt),
-    updatedAt: new Date(item.updatedAt),
-    contentUpdatedAt: new Date(item.contentUpdatedAt || item.updatedAt || item.createdAt),
-    messages: (item.messages || []).map((msg: any) => ({
-      ...msg,
-      content: typeof msg.content === 'string' ? msg.content : '',
-      displayContent: typeof msg.displayContent === 'string'
-        ? msg.displayContent
-        : (typeof msg.content === 'string' ? msg.content : ''),
-      timestamp: new Date(msg.timestamp)
-    }))
-  })).sort((a, b) => b.contentUpdatedAt.getTime() - a.contentUpdatedAt.getTime());
-};
+const normalizeMessage = (message: Record<string, unknown>): ChatHistoryMessage => ({
+  ...message,
+  id: String(message.id || ''),
+  role: message.role === 'user' || message.role === 'system' ? message.role : 'assistant',
+  content: typeof message.content === 'string' ? message.content : '',
+  displayContent: typeof message.displayContent === 'string'
+    ? message.displayContent
+    : (typeof message.content === 'string' ? message.content : ''),
+  timestamp: new Date(String(message.timestamp || new Date().toISOString())),
+});
 
-const readHistoryFromStorage = (): ChatHistoryItem[] => {
+const normalizeSummary = (item: TripHistorySummaryPayload): ChatHistoryItem => ({
+  id: item.id,
+  title: item.title,
+  messages: [],
+  createdAt: new Date(item.createdAt),
+  updatedAt: new Date(item.updatedAt),
+  contentUpdatedAt: new Date(item.contentUpdatedAt),
+  status: item.status,
+  preview: item.preview,
+  currentRevision: item.currentRevision,
+});
+
+const normalizeDetail = (item: TripDetailPayload): ChatHistoryItem => ({
+  ...normalizeSummary({
+    id: item.id,
+    title: item.title,
+    status: item.status,
+    preview: item.preview || '',
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+    contentUpdatedAt: item.contentUpdatedAt,
+    currentRevision: item.currentRevision,
+  }),
+  messages: (item.messages || []).map(normalizeMessage),
+  tripPlan: item.tripPlan,
+  tripDocument: item.tripDocument,
+  tripWorkspace: item.tripWorkspace,
+});
+
+const readLegacyItems = (): unknown[] => {
+  if (localStorage.getItem(MIGRATION_MARKER_KEY) === '1') return [];
   try {
-    const savedHistory = localStorage.getItem(STORAGE_KEY);
-    if (!savedHistory) return [];
-    const parsed = JSON.parse(savedHistory);
-    return normalizeHistory(Array.isArray(parsed) ? parsed : []);
-  } catch (error) {
-    console.error('加载对话历史失败:', error);
+    const raw = localStorage.getItem(LEGACY_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (_error) {
     return [];
   }
 };
 
+const markMigrationComplete = (): void => {
+  localStorage.setItem(MIGRATION_MARKER_KEY, '1');
+  localStorage.removeItem(LEGACY_STORAGE_KEY);
+};
+
+const readMirror = (): ChatHistoryItem[] => {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(MIRROR_STORAGE_KEY) || '[]');
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((item) => normalizeSummary(item));
+  } catch (_error) {
+    return [];
+  }
+};
+
+const writeMirror = (items: ChatHistoryItem[]): void => {
+  const mirror = items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    status: item.status || 'draft',
+    preview: item.preview || '',
+    createdAt: item.createdAt.toISOString(),
+    updatedAt: item.updatedAt.toISOString(),
+    contentUpdatedAt: item.contentUpdatedAt.toISOString(),
+    currentRevision: item.currentRevision || 0,
+  }));
+  localStorage.setItem(MIRROR_STORAGE_KEY, JSON.stringify(mirror));
+};
+
+const notifyHistoryUpdated = (): void => {
+  window.dispatchEvent(new Event(HISTORY_UPDATED_EVENT));
+};
+
+const generateTitle = (messages: ChatHistoryMessage[]): string => {
+  const firstUserMessage = messages.find((message) => message.role === 'user');
+  if (!firstUserMessage) return '新旅程';
+  const content = firstUserMessage.content || firstUserMessage.displayContent;
+  return content.length > 20 ? `${content.substring(0, 20)}...` : content;
+};
+
 export const useChatHistory = () => {
-  const [history, setHistory] = useState<ChatHistoryItem[]>([]);
+  const [history, setHistory] = useState<ChatHistoryItem[]>(() => readMirror());
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const pageRef = useRef(1);
 
-  // 从 localStorage 加载历史记录
-  useEffect(() => {
-    const loadLatest = () => {
-      setHistory(readHistoryFromStorage());
-    };
-
-    const onStorage = (event: StorageEvent) => {
-      if (!event.key || event.key === STORAGE_KEY) {
-        loadLatest();
-      }
-    };
-
-    const onHistoryUpdated = () => {
-      loadLatest();
-    };
-
-    loadLatest();
-    window.addEventListener('storage', onStorage);
-    window.addEventListener(HISTORY_UPDATED_EVENT, onHistoryUpdated as EventListener);
-
-    return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener(HISTORY_UPDATED_EVENT, onHistoryUpdated as EventListener);
-    };
+  const loadHistory = useCallback(async (page = 1, append = false) => {
+    try {
+      await ensureLegacyHistoryMigration(readLegacyItems, markMigrationComplete);
+      const payload = await tripHistoryApi.list(page);
+      const next = payload.items.map(normalizeSummary);
+      setHistory((current) => {
+        const merged = append
+          ? [...current, ...next.filter((item) => !current.some((existing) => existing.id === item.id))]
+          : next;
+        writeMirror(merged);
+        return merged;
+      });
+      pageRef.current = page;
+      setHasMore(payload.has_more);
+    } catch (error) {
+      console.error('加载旅程历史失败:', error);
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
 
-  // 保存历史记录到 localStorage
-  const saveToStorage = (newHistory: ChatHistoryItem[]) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
-      window.dispatchEvent(new Event(HISTORY_UPDATED_EVENT));
-    } catch (error) {
-      console.error('保存对话历史失败:', error);
-    }
-  };
+  useEffect(() => {
+    void loadHistory();
+    const onHistoryUpdated = () => void loadHistory();
+    const onStorage = (event: StorageEvent) => {
+      if (event.key === MIRROR_STORAGE_KEY) setHistory(readMirror());
+    };
+    window.addEventListener(HISTORY_UPDATED_EVENT, onHistoryUpdated);
+    window.addEventListener('storage', onStorage);
+    return () => {
+      window.removeEventListener(HISTORY_UPDATED_EVENT, onHistoryUpdated);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [loadHistory]);
 
-  // 生成对话标题（取第一条用户消息的前20个字符）
-  const generateTitle = (messages: ChatHistoryItem['messages']): string => {
-    const firstUserMessage = messages.find(msg => msg.role === 'user');
-    if (firstUserMessage) {
-      const content = firstUserMessage.content || firstUserMessage.displayContent;
-      return content.length > 20 ? content.substring(0, 20) + '...' : content;
-    }
-    return '新对话';
-  };
-
-  // 添加或更新对话
   const saveChat = (
     chatId: string,
-    messages: ChatHistoryItem['messages'],
+    messages: ChatHistoryMessage[],
     title?: string,
     options: SaveChatOptions = {},
   ): void => {
-    if (messages.length === 0) return;
+    if (!chatId || messages.length === 0) return;
+    const payload: TripUpsertPayload = {
+      title: title || generateTitle(messages),
+      messages,
+      change_reason: options.touchUpdatedAt === false
+        ? 'system'
+        : (options.changeReason || 'user_message'),
+    };
+    if (options.tripPlan !== undefined) payload.trip_plan = options.tripPlan;
+    if (options.tripDocument !== undefined) payload.trip_document = options.tripDocument;
+    if (options.tripWorkspace !== undefined) payload.trip_workspace = options.tripWorkspace;
 
-    const now = new Date();
-    const chatTitle = title || generateTitle(messages);
-    const latestHistory = readHistoryFromStorage();
-    const existingIndex = latestHistory.findIndex(item => item.id === chatId);
-    let newHistory: ChatHistoryItem[];
-
-    if (existingIndex >= 0) {
-      const existing = latestHistory[existingIndex];
-      const nextTripPlan = options.tripPlan === undefined ? existing.tripPlan : options.tripPlan;
-      const nextTripDocument = options.tripDocument === undefined ? existing.tripDocument : options.tripDocument;
-      const nextTripWorkspace = options.tripWorkspace === undefined ? existing.tripWorkspace : options.tripWorkspace;
-      const contentChanged = JSON.stringify(existing.messages) !== JSON.stringify(messages)
-        || JSON.stringify(existing.tripPlan ?? null) !== JSON.stringify(nextTripPlan ?? null)
-        || JSON.stringify(existing.tripDocument ?? null) !== JSON.stringify(nextTripDocument ?? null)
-        || JSON.stringify(existing.tripWorkspace ?? null) !== JSON.stringify(nextTripWorkspace ?? null)
-        || existing.title !== chatTitle;
-      const shouldTouch = options.touchUpdatedAt ?? contentChanged;
-      // 更新现有对话
-      newHistory = [...latestHistory];
-      newHistory[existingIndex] = {
-        ...existing,
-        title: chatTitle,
-        messages: [...messages],
-        tripPlan: nextTripPlan,
-        tripDocument: nextTripDocument,
-        tripWorkspace: nextTripWorkspace,
-        updatedAt: shouldTouch ? now : existing.updatedAt,
-        contentUpdatedAt: shouldTouch ? now : existing.contentUpdatedAt,
-      };
-    } else {
-      // 添加新对话
-      const newItem: ChatHistoryItem = {
-        id: chatId,
-        title: chatTitle,
-        messages: [...messages],
-        createdAt: now,
-        updatedAt: now,
-        contentUpdatedAt: now,
-        tripPlan: options.tripPlan,
-        tripDocument: options.tripDocument,
-        tripWorkspace: options.tripWorkspace,
-      };
-      newHistory = [newItem, ...latestHistory];
-    }
-
-    // 限制历史记录数量
-    if (newHistory.length > MAX_HISTORY_ITEMS) {
-      newHistory = newHistory.slice(0, MAX_HISTORY_ITEMS);
-    }
-
-    // 按更新时间排序
-    newHistory.sort((a, b) => b.contentUpdatedAt.getTime() - a.contentUpdatedAt.getTime());
-
-    saveToStorage(newHistory);
-    setHistory(newHistory);
+    const previous = saveQueues.get(chatId) || Promise.resolve();
+    const queued = previous
+      .catch(() => undefined)
+      .then(() => tripHistoryApi.upsert(chatId, payload))
+      .then(() => notifyHistoryUpdated())
+      .catch((error) => console.error('保存旅程失败:', error))
+      .finally(() => {
+        if (saveQueues.get(chatId) === queued) saveQueues.delete(chatId);
+      });
+    saveQueues.set(chatId, queued);
   };
 
-  // 删除单个对话
-  const deleteChat = (chatId: string): void => {
-    const latestHistory = readHistoryFromStorage();
-    const newHistory = latestHistory.filter(item => item.id !== chatId);
-    saveToStorage(newHistory);
-    setHistory(newHistory);
+  const deleteChat = async (chatId: string): Promise<void> => {
+    await tripHistoryApi.delete(chatId);
+    setHistory((current) => {
+      const next = current.filter((item) => item.id !== chatId);
+      writeMirror(next);
+      return next;
+    });
+    notifyHistoryUpdated();
   };
 
-  // 清空所有历史记录
-  const clearHistory = (): void => {
+  const clearHistory = async (): Promise<void> => {
+    await tripHistoryApi.deleteAll();
     setHistory([]);
-    localStorage.removeItem(STORAGE_KEY);
-    window.dispatchEvent(new Event(HISTORY_UPDATED_EVENT));
+    writeMirror([]);
+    notifyHistoryUpdated();
   };
 
-  // 获取对话
-  const getChat = (chatId: string): ChatHistoryItem | undefined => {
-    return history.find(item => item.id === chatId);
+  const getChat = async (chatId: string): Promise<ChatHistoryItem | undefined> => {
+    try {
+      await ensureLegacyHistoryMigration(readLegacyItems, markMigrationComplete);
+      return normalizeDetail(await tripHistoryApi.get(chatId));
+    } catch (error) {
+      console.error('加载旅程详情失败:', error);
+      return undefined;
+    }
+  };
+
+  const loadMore = async (): Promise<void> => {
+    if (!hasMore || isLoading) return;
+    setIsLoading(true);
+    await loadHistory(pageRef.current + 1, true);
   };
 
   return {
     history,
+    hasMore,
+    isLoading,
     saveChat,
     deleteChat,
     clearHistory,
-    getChat
+    getChat,
+    loadMore,
   };
 };

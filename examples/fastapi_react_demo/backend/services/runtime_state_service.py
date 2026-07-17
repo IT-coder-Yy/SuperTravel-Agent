@@ -16,6 +16,7 @@ class RuntimeState:
     tool_manager: Optional[ToolManager] = None
     controller: Optional[AgentController] = None
     active_sessions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
+    trip_repository: Optional[Any] = None
 
 
 def create_runtime_state() -> RuntimeState:

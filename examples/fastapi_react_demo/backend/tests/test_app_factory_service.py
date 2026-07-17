@@ -40,7 +40,7 @@ class AppFactoryServiceTests(unittest.TestCase):
             options = getattr(cors_middlewares[0], "kwargs", {})
         self.assertEqual(
             options["allow_origins"],
-            ["http://localhost:8080", "http://127.0.0.1:8080", "*"],
+            ["http://localhost:8080", "http://127.0.0.1:8080"],
         )
         self.assertEqual(options["allow_credentials"], True)
         self.assertEqual(options["allow_methods"], ["*"])
