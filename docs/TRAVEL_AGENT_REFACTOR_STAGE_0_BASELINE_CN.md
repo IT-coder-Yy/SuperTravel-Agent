@@ -13,6 +13,7 @@
 - 侧栏主导航保留旅行规划和旅行照片；次级区域按“用户画像、知识库、MCP、工具、设置”排序，并保留全部现有路由。
 - 旅行照片工作台保留 PowerPaint 功能，本轮只统一外层导航、色彩、控件和状态样式。
 - 视觉依据为“湖山青绿”方案 A；没有原参考图片时，以已确认色值、信息层级和 Ant Design 标准控件为准。
+- 真实启动、后端测试和阶段验收统一使用 Conda `travel` 环境，不再使用 `base` 环境。
 
 ## 2. 重构前代码事实
 
@@ -58,6 +59,8 @@
 
 用户复验时发现原脚本复用了固定的 `outputs/pytest-baseline`，当旧目录无法删除时会在 pytest 启动阶段失败。阶段 1 开始前已改为每次生成带 GUID 的全新临时目录，避免后续运行再次争用或删除旧目录。
 
+2026-07-17 按用户指定的 Conda `travel` 环境重新验证当前阶段 0～2 基线：Python 为 `D:\Anaconda\anaconda3\envs\travel\python.exe`，后端 352 项及 29 个子测试、前端 55 项、TypeScript 和生产构建全部通过；pytest 使用唯一目录 `pytest-baseline-0cde70427db847928fffeb26ac8e2586`。
+
 ## 5. 开发者自动复验方式
 
 该命令用于开发过程中的自动回归，由开发者负责执行；除非同时提供真实页面或真实功能变化，不再要求用户运行自动化脚本验收。
@@ -65,11 +68,11 @@
 在项目根目录执行：
 
 ```powershell
-.\scripts\verify_refactor_baseline.ps1 -Python "D:\Anaconda\anaconda3\python.exe"
+.\scripts\verify_refactor_baseline.ps1
 ```
 
-成功标准：命令最后显示 `Stage 0 baseline verification passed.`，且退出码为 0。只想快速检查前端时可以执行：
+脚本默认解析 Conda `travel` 环境；只有明确验证其他解释器时才传入 `-Python`。成功标准：命令最后显示 `Stage 0 baseline verification passed.`，且退出码为 0。只想快速检查前端时可以执行：
 
 ```powershell
-.\scripts\verify_refactor_baseline.ps1 -Python "D:\Anaconda\anaconda3\python.exe" -SkipBackend
+.\scripts\verify_refactor_baseline.ps1 -SkipBackend
 ```

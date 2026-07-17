@@ -99,6 +99,7 @@ SAGE_OUTPUT_ROOT=D:/vscode/project/SuperTravelAgent/outputs
 
 **方法1: 使用启动脚本（推荐）**
 ```bash
+conda activate travel
 cd examples/fastapi_react_demo
 python start_backend.py
 ```
@@ -113,6 +114,7 @@ python start_backend.py
 
 **方法2: 直接启动**
 ```bash
+conda activate travel
 cd examples/fastapi_react_demo/backend
 python main.py
 ```
@@ -435,4 +437,4 @@ CMD ["python", "backend/main.py"]
 如遇问题，请：
 1. 查看本README的故障排除部分
 2. 检查项目Issues
-3. 查看Sage框架主文档 
+3. 查看Sage框架主文档

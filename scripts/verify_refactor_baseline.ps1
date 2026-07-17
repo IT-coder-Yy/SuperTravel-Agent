@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [string]$Python = "python",
+    [string]$Python = "",
+    [string]$CondaEnvironment = "travel",
     [switch]$SkipBackend,
     [switch]$SkipBuild
 )
@@ -18,6 +19,22 @@ function Assert-LastExitCode {
         throw "$Step failed with exit code $LASTEXITCODE"
     }
 }
+
+if ([string]::IsNullOrWhiteSpace($Python)) {
+    $pythonCandidates = @(
+        & conda run -n $CondaEnvironment python -c "import sys; print(sys.executable)"
+    )
+    Assert-LastExitCode "Resolve Conda environment '$CondaEnvironment'"
+    $Python = $pythonCandidates |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_) } |
+        Select-Object -Last 1
+    if ([string]::IsNullOrWhiteSpace($Python)) {
+        throw "Could not resolve Python executable for Conda environment '$CondaEnvironment'."
+    }
+}
+
+Write-Host "Using Python runtime: $Python"
 
 if (-not $SkipBackend) {
     Write-Host "[1/4] Running backend test suite..."
