@@ -132,6 +132,9 @@ mcp:
 
 ```bash
 export BAIDU_MAP_API_KEY="your_api_key_here"
+export BAIDU_MAP_MAX_REQUESTS_PER_SCOPE="10"
+export BAIDU_MAP_MAX_CONCURRENCY="1"
+export BAIDU_MAP_MIN_INTERVAL_SECONDS="0.45"
 ```
 
 ### 全局MCP配置
@@ -267,4 +270,4 @@ python start_backend.py
 
 ---
 
-如有问题，请查看项目主README或提交Issue。 
+如有问题，请查看项目主README或提交Issue。

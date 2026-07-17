@@ -21,12 +21,29 @@ class ApiModelsContractTests(unittest.TestCase):
         self.assertEqual(request.use_deepthink, True)
         self.assertEqual(request.use_multi_agent, True)
         self.assertEqual(request.session_id, None)
-        self.assertEqual(request.selected_mcp_servers, [])
+        self.assertIsNone(request.selected_mcp_servers)
         self.assertEqual(request.selected_skill_ids, [])
+        self.assertEqual(request.profile, {})
+        self.assertEqual(request.planning_mode, None)
+        self.assertEqual(request.allow_web_search, True)
+        self.assertEqual(request.clarification_answers, {})
+        self.assertIsNone(request.request_id)
+        self.assertEqual(request.selected_knowledge_context, [])
 
         another = ChatRequest(messages=[ChatMessage(role="user", content="world")])
-        self.assertIsNot(request.selected_mcp_servers, another.selected_mcp_servers)
+        self.assertIsNone(another.selected_mcp_servers)
         self.assertIsNot(request.selected_skill_ids, another.selected_skill_ids)
+        self.assertIsNot(request.profile, another.profile)
+        self.assertIsNot(request.clarification_answers, another.clarification_answers)
+        self.assertIsNot(request.selected_knowledge_context, another.selected_knowledge_context)
+
+    def test_chat_request_accepts_disabling_web_search(self):
+        request = ChatRequest(
+            messages=[ChatMessage(role="user", content="hello")],
+            allow_web_search=False,
+        )
+
+        self.assertFalse(request.allow_web_search)
 
     def test_config_request_defaults_are_stable(self):
         config = ConfigRequest(api_key="k-1")

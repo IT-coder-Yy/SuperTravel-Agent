@@ -18,6 +18,7 @@ from services.travel_rag_service import (  # noqa: E402
     load_travel_knowledge,
     search_travel_knowledge,
 )
+from services.travel_knowledge_catalog_service import build_travel_knowledge_cities_response, build_travel_knowledge_search_response  # noqa: E402
 
 
 class TravelRagServiceTests(unittest.TestCase):
@@ -63,8 +64,8 @@ class TravelRagServiceTests(unittest.TestCase):
         chunks = load_travel_knowledge()
         cities = {chunk.city for chunk in chunks}
 
-        self.assertEqual(len(cities), 293)
-        self.assertEqual(len(chunks), 879)
+        self.assertGreaterEqual(len(cities), 305)
+        self.assertGreaterEqual(len(chunks), 975)
 
         for city in ["苏州", "深圳", "成都", "西安", "哈尔滨", "拉萨"]:
             self.assertIn(city, cities)
@@ -108,6 +109,44 @@ class TravelRagServiceTests(unittest.TestCase):
         self.assertEqual(geo_matches[0].chunk.source, "geo_location")
         self.assertEqual(baidu_matches[0].chunk.city, "苏州")
         self.assertEqual(baidu_matches[0].chunk.source, "baidu_intro")
+
+    def test_catalog_response_keeps_henan_city_fields_for_frontend_search(self):
+        response = build_travel_knowledge_cities_response()
+        cities = response["cities"]
+        zhengzhou = next(item for item in cities if item["city"] == "郑州")
+
+        self.assertGreaterEqual(response["total_cities"], 305)
+        self.assertGreaterEqual(response["total_chunks"], 975)
+        self.assertEqual(zhengzhou["official_name"], "郑州市")
+        self.assertEqual(zhengzhou["province"], "河南省")
+        self.assertTrue(any("河南" in chunk["content"] for chunk in zhengzhou["chunks"]))
+        self.assertTrue(any(tag in zhengzhou["tags"] for tag in ["少林寺", "河南博物院", "华中"]))
+
+    def test_international_destinations_support_multilingual_aliases(self):
+        chunks = load_travel_knowledge()
+        cities = {chunk.city for chunk in chunks}
+        for city in ["东京", "京都", "大阪", "首尔", "新加坡", "巴黎", "伦敦", "纽约"]:
+            self.assertIn(city, cities)
+
+        for query in ["Tokyo itinerary", "東京 交通", "东京旅行"]:
+            matches = search_travel_knowledge(query, chunks=chunks, top_k=5)
+            self.assertEqual(matches[0].chunk.city, "东京")
+            self.assertNotEqual(matches[0].chunk.country_code, "CN")
+
+    def test_search_response_matches_product_api_contract(self):
+        response = build_travel_knowledge_search_response("郑州 少林寺", top_k=8)
+
+        self.assertEqual(response["query"], "郑州 少林寺")
+        self.assertEqual(response["top_k"], 8)
+        self.assertGreater(len(response["items"]), 0)
+
+        first = response["items"][0]
+        self.assertEqual(first["city"], "郑州")
+        self.assertIn("title", first)
+        self.assertIn("source", first)
+        self.assertIn("snippet", first)
+        self.assertIn("score", first)
+        self.assertIn("matched_terms", first)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ $env:HF_HUB_DISABLE_SYMLINKS_WARNING = "1"
 
 $pptPython = "D:\Anaconda\anaconda3\envs\ppt\python.exe"
 if (Test-Path -LiteralPath $pptPython) {
-    & $pptPython -u app.py --port 7860
+    & $pptPython -u app.py --port 7860 --local_files_only
 } else {
-    conda run -n ppt python app.py --port 7860
+    conda run -n ppt python app.py --port 7860 --local_files_only
 }

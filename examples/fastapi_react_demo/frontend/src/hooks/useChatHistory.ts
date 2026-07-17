@@ -14,6 +14,18 @@ export interface ChatHistoryItem {
   }>;
   createdAt: Date;
   updatedAt: Date;
+  contentUpdatedAt: Date;
+  tripPlan?: Record<string, unknown> | null;
+  tripDocument?: Record<string, unknown> | null;
+  tripWorkspace?: Record<string, unknown> | null;
+}
+
+export interface SaveChatOptions {
+  changeReason?: 'user_message' | 'final_answer' | 'trip_edit' | 'import' | 'checklist' | 'note' | 'rename' | 'system';
+  touchUpdatedAt?: boolean;
+  tripPlan?: Record<string, unknown> | null;
+  tripDocument?: Record<string, unknown> | null;
+  tripWorkspace?: Record<string, unknown> | null;
 }
 
 const STORAGE_KEY = 'sage_chat_history';
@@ -25,6 +37,7 @@ const normalizeHistory = (parsed: any[]): ChatHistoryItem[] => {
     ...item,
     createdAt: new Date(item.createdAt),
     updatedAt: new Date(item.updatedAt),
+    contentUpdatedAt: new Date(item.contentUpdatedAt || item.updatedAt || item.createdAt),
     messages: (item.messages || []).map((msg: any) => ({
       ...msg,
       content: typeof msg.content === 'string' ? msg.content : '',
@@ -33,7 +46,7 @@ const normalizeHistory = (parsed: any[]): ChatHistoryItem[] => {
         : (typeof msg.content === 'string' ? msg.content : ''),
       timestamp: new Date(msg.timestamp)
     }))
-  }));
+  })).sort((a, b) => b.contentUpdatedAt.getTime() - a.contentUpdatedAt.getTime());
 };
 
 const readHistoryFromStorage = (): ChatHistoryItem[] => {
@@ -101,7 +114,8 @@ export const useChatHistory = () => {
   const saveChat = (
     chatId: string,
     messages: ChatHistoryItem['messages'],
-    title?: string
+    title?: string,
+    options: SaveChatOptions = {},
   ): void => {
     if (messages.length === 0) return;
 
@@ -112,13 +126,27 @@ export const useChatHistory = () => {
     let newHistory: ChatHistoryItem[];
 
     if (existingIndex >= 0) {
+      const existing = latestHistory[existingIndex];
+      const nextTripPlan = options.tripPlan === undefined ? existing.tripPlan : options.tripPlan;
+      const nextTripDocument = options.tripDocument === undefined ? existing.tripDocument : options.tripDocument;
+      const nextTripWorkspace = options.tripWorkspace === undefined ? existing.tripWorkspace : options.tripWorkspace;
+      const contentChanged = JSON.stringify(existing.messages) !== JSON.stringify(messages)
+        || JSON.stringify(existing.tripPlan ?? null) !== JSON.stringify(nextTripPlan ?? null)
+        || JSON.stringify(existing.tripDocument ?? null) !== JSON.stringify(nextTripDocument ?? null)
+        || JSON.stringify(existing.tripWorkspace ?? null) !== JSON.stringify(nextTripWorkspace ?? null)
+        || existing.title !== chatTitle;
+      const shouldTouch = options.touchUpdatedAt ?? contentChanged;
       // 更新现有对话
       newHistory = [...latestHistory];
       newHistory[existingIndex] = {
-        ...newHistory[existingIndex],
+        ...existing,
         title: chatTitle,
         messages: [...messages],
-        updatedAt: now
+        tripPlan: nextTripPlan,
+        tripDocument: nextTripDocument,
+        tripWorkspace: nextTripWorkspace,
+        updatedAt: shouldTouch ? now : existing.updatedAt,
+        contentUpdatedAt: shouldTouch ? now : existing.contentUpdatedAt,
       };
     } else {
       // 添加新对话
@@ -127,7 +155,11 @@ export const useChatHistory = () => {
         title: chatTitle,
         messages: [...messages],
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        contentUpdatedAt: now,
+        tripPlan: options.tripPlan,
+        tripDocument: options.tripDocument,
+        tripWorkspace: options.tripWorkspace,
       };
       newHistory = [newItem, ...latestHistory];
     }
@@ -138,7 +170,7 @@ export const useChatHistory = () => {
     }
 
     // 按更新时间排序
-    newHistory.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+    newHistory.sort((a, b) => b.contentUpdatedAt.getTime() - a.contentUpdatedAt.getTime());
 
     saveToStorage(newHistory);
     setHistory(newHistory);
@@ -171,4 +203,4 @@ export const useChatHistory = () => {
     clearHistory,
     getChat
   };
-}; 
+};

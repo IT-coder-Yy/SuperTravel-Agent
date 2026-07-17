@@ -111,6 +111,8 @@ def _infer_mcp_server_name(tool_name: str) -> str:
         return "baidu-map"
     if "xhs" in tool_name or "xiaohongshu" in tool_name:
         return "xhs-mcp"
+    if "unsplash" in tool_name:
+        return "unsplash-mcp"
     if "serper" in tool_name or "web_search" in tool_name:
         return "serper_web_search"
     if "fetch" in tool_name:

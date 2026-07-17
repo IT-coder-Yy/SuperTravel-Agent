@@ -196,9 +196,9 @@ class ConfigLoader:
         
         # MCP配置
         mcp_config = None
+        servers = {}
         mcp_data = self._config_data.get('mcp', {})
         if mcp_data and 'servers' in mcp_data:
-            servers = {}
             for server_name, server_data in mcp_data['servers'].items():
                 auto_start_data = server_data.get('auto_start')
                 auto_start_config = None
@@ -219,6 +219,18 @@ class ConfigLoader:
                     description=server_data.get('description'),
                     auto_start=auto_start_config,
                 )
+        unsplash_server = Path(__file__).resolve().parents[3] / "mcp_servers" / "unsplash-mcp" / "main.py"
+        if unsplash_server.exists() and "unsplash-mcp" not in servers:
+            servers["unsplash-mcp"] = MCPServerConfig(
+                command=os.sys.executable,
+                args=[str(unsplash_server)],
+                env={
+                    "UNSPLASH_ACCESS_KEY": "${UNSPLASH_ACCESS_KEY}",
+                    "UNSPLASH_APP_NAME": "${UNSPLASH_APP_NAME}",
+                },
+                description="搜索并提供带版权署名的旅行图片。",
+            )
+        if servers:
             mcp_config = MCPConfig(servers=servers)
         
         return AppConfig(model=model_config, server=server_config, mcp=mcp_config)

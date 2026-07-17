@@ -320,7 +320,7 @@ class TicketQueryFixTests(unittest.TestCase):
 
         self.assertEqual(state["status"], "error")
 
-    def test_success_status_note_keeps_partial_failure_reason(self):
+    def test_success_status_note_hides_internal_partial_failure_details(self):
         bundle = {
             "has_valid_results": True,
             "direct_rows": [{"trip_no": "G101"}],
@@ -334,7 +334,9 @@ class TicketQueryFixTests(unittest.TestCase):
             },
         }
 
-        self.assertIn("部分查询失败：中转票查询失败", _build_ticket_status_note(bundle))
+        status_note = _build_ticket_status_note(bundle)
+        self.assertIn("部分渠道未返回", status_note)
+        self.assertNotIn("中转票查询失败", status_note)
 
     def test_empty_prequery_does_not_overwrite_later_valid_answer(self):
         later_answer = "已通过后续查询确认火车车次 G123。\n\n火车和高铁票信息表\n| 班次 |\n| --- |\n| G123 |"
@@ -388,7 +390,7 @@ class TicketQueryFixTests(unittest.TestCase):
         self.assertIn("MU100", merged)
         self.assertIn("G101", merged)
 
-    def test_rag_fallback_does_not_override_later_valid_ticket_result(self):
+    def test_empty_ticket_bundle_returns_directly_without_waiting_for_later_agent_result(self):
         class FakeController:
             def __init__(self):
                 self.messages = []
@@ -434,9 +436,9 @@ class TicketQueryFixTests(unittest.TestCase):
                         use_multi_agent=False,
                     )
 
-        self.assertTrue(any(message.get("type") == "system_travel_rag_context" for message in controller.messages))
-        self.assertIn("G123", payload["result"]["final_output"]["content"])
-        self.assertNotIn("未找到可确认的票务结果", payload["result"]["final_output"]["content"])
+        self.assertEqual(controller.messages, [])
+        self.assertIn("未找到可确认的票务结果", payload["result"]["final_output"]["content"])
+        self.assertNotIn("G123", payload["result"]["final_output"]["content"])
 
 
 class AgentTicketContextAndGuardTests(unittest.TestCase):

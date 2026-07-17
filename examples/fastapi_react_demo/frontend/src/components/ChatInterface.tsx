@@ -6,20 +6,17 @@ import {
   Spin,
   Tag,
   Divider,
-  Collapse,
   Dropdown,
   Checkbox,
   Table,
-  Typography
+  Typography,
+  Segmented
 } from 'antd';
 import {
   SendOutlined,
   StopOutlined,
-  RobotOutlined,
   BranchesOutlined,
   ThunderboltOutlined,
-  DownOutlined,
-  UpOutlined,
   CloudServerOutlined,
   CopyOutlined,
   CheckOutlined,
@@ -28,7 +25,9 @@ import {
   LikeOutlined,
   LikeFilled,
   DislikeOutlined,
-  DislikeFilled
+  DislikeFilled,
+  MessageOutlined,
+  CalendarOutlined
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -38,11 +37,25 @@ import { v4 as uuidv4 } from 'uuid';
 import { useChatHistory, ChatHistoryItem } from '../hooks/useChatHistory';
 import { apiClient, SkillInfo } from '../services/apiClient';
 import { getChatMessages, setChatMessages } from '../utils/chatSessionRuntime';
-import MapComponent from './MapComponent';
+import MapComponent, { DayRouteGeometry } from './MapComponent';
+import ClarificationPanel, { ClarificationQuestion } from './ClarificationPanel';
+import TripWorkspace, {
+  TripWorkspaceBudget,
+  TripWorkspaceIssue,
+  TripWorkspaceRepair,
+  TripWorkspaceSource,
+  TripWorkspaceState,
+  TripWorkspaceValidation
+} from './TripWorkspace';
+import TripProductTools from './TripProductTools';
+import { statusAfterCompletion, statusAfterStreamClosed, type PlanningStatus } from './planningState';
+import { normalizeTripDays, upsertTripDayPayload } from './tripViewModel';
+import { useAppSettings } from '../hooks/useAppSettings';
+import { useUserTravelProfile } from '../hooks/useUserTravelProfile';
+import { useSelectedKnowledgeContext } from '../hooks/useSelectedKnowledgeContext';
 import '../styles/markdown.css';
 
 const { TextArea } = Input;
-const { Panel } = Collapse;
 const { Text } = Typography;
 
 interface Message {
@@ -96,9 +109,102 @@ interface RegenerateRequestContext {
 interface ChatInterfaceProps {
   currentChatId?: string;
   loadedMessages?: ChatHistoryItem['messages'] | null;
+  loadedTripPlan?: Record<string, unknown> | null;
+  loadedTripDocument?: Record<string, unknown> | null;
+  loadedTripWorkspace?: Record<string, unknown> | null;
 }
 
+interface PendingClarification {
+  chatId: string;
+  requestMessages: Message[];
+  question: ClarificationQuestion;
+  answers: Record<string, string>;
+  answeredCount: number;
+  intent?: Record<string, unknown>;
+}
+
+type MobilePrimaryView = 'chat' | 'trip' | 'map';
+
+const SIDE_PANEL_MAP_PERCENT_STORAGE_KEY = 'supertravelagent.sidePanelMapPercent';
+const CLARIFICATION_SKIP_VALUE = '__skip__';
+
 const safeText = (value: unknown): string => (typeof value === 'string' ? value : '');
+const tripSnapshotSignature = (
+  plan: Record<string, unknown> | null,
+  document: Record<string, unknown> | null,
+) => {
+  if (!plan) return '';
+  const guidance = document?.map_guidance as Record<string, unknown> | undefined;
+  return `${safeText(plan.plan_id)}:${Number(plan.version) || 0}:${JSON.stringify({
+    dayRoutes: guidance?.day_routes || [],
+    checklist: document?.checklist || [],
+    notes: document?.notes || [],
+    delivery: document?.delivery || {},
+  })}`;
+};
+
+const readSidePanelMapPercent = (): number => {
+  const saved = Number(window.localStorage.getItem(SIDE_PANEL_MAP_PERCENT_STORAGE_KEY));
+  return Number.isFinite(saved) ? Math.min(65, Math.max(55, saved)) : 60;
+};
+
+const getClarificationProfileDefault = (
+  field: string,
+  profile: Record<string, unknown>,
+): string => {
+  const normalizedField = field.trim().toLowerCase();
+  const mappings: Array<[RegExp, string]> = [
+    [/(budget|cost|price|预算|花费)/, 'preferred_budget_level'],
+    [/(people|traveler|party|companion|人员|人数|同行)/, 'default_people_type'],
+    [/(style|interest|preference|玩法|风格|偏好)/, 'travel_style'],
+    [/(diet|food|meal|饮食|餐饮|忌口)/, 'dietary_preferences'],
+    [/(pace|intensity|节奏|强度)/, 'pace'],
+    [/(hotel|stay|accommodation|住宿|酒店)/, 'hotel_preference'],
+    [/(transport|traffic|交通|出行方式)/, 'transport_preference'],
+    [/(accessibility|mobility|无障碍|行动)/, 'accessibility_needs'],
+    [/(dislike|avoid|不喜欢|避开)/, 'disliked_items'],
+  ];
+  const profileField = mappings.find(([pattern]) => pattern.test(normalizedField))?.[1];
+  if (!profileField) return '';
+  const value = profile[profileField];
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())).join('、');
+  }
+  return safeText(value).trim();
+};
+
+const createEmptyTripWorkspace = (): TripWorkspaceState => ({
+  days: [],
+  locations: [],
+  sources: [],
+  budget: null,
+  validation: null,
+  repair: null,
+});
+
+const restorePlanFromWorkspace = (
+  workspace: TripWorkspaceState,
+  document: Record<string, unknown> | null,
+): Record<string, unknown> | null => {
+  if (!Array.isArray(workspace.days) || workspace.days.length === 0) return null;
+  const tripDays = workspace.days.map((day) => ({
+    ...day,
+    activities: day.activities.map((activity) => ({ ...activity, activity_id: activity.id })),
+  }));
+  return {
+    plan_id: document?.plan_id || 'workspace-restored-draft',
+    version: Number(document?.version || 1),
+    title: document?.title || '恢复的旅行规划',
+    intent: document?.intent || { days: tripDays.length },
+    days: tripDays.length,
+    trip_days: tripDays,
+    activities: tripDays.flatMap((day) => day.activities),
+    map_locations: workspace.locations,
+    budget_summary: workspace.budget || {},
+    source_references: workspace.sources,
+    warnings: ['该方案由历史工作台恢复，实时字段仍需按来源重新确认'],
+  };
+};
 
 const stripLeadingArtifactZero = (value: unknown): string => {
   const text = safeText(value);
@@ -131,25 +237,129 @@ const buildStableLocationId = (loc: Partial<LocationPoint>): string => {
 
 export interface ChatInterfaceRef {
   startNewChat: () => void;
-  loadChat: (messages: ChatHistoryItem['messages']) => void;
+  loadChat: (
+    messages: ChatHistoryItem['messages'],
+    tripPlan?: Record<string, unknown> | null,
+    tripWorkspace?: Record<string, unknown> | null,
+    tripDocument?: Record<string, unknown> | null,
+  ) => void;
 }
 
 const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
-  ({ currentChatId, loadedMessages }, ref) => {
+  ({ currentChatId, loadedMessages, loadedTripPlan, loadedTripDocument, loadedTripWorkspace }, ref) => {
     const { saveChat } = useChatHistory();
+    const { settings } = useAppSettings();
+    const { profile } = useUserTravelProfile();
+    const { selectedKnowledgeContext, clearSelectedKnowledgeContext } = useSelectedKnowledgeContext();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputTextState] = useState('');
     const [isInputEmpty, setIsInputEmpty] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
+    const [planningStatus, setPlanningStatus] = useState<PlanningStatus>('idle');
     const [useDeepThink, setUseDeepThink] = useState(true);
     const [useMultiAgent, setUseMultiAgent] = useState(true);
     const [sessionId, setSessionId] = useState(() => uuidv4());
-    const [showMap, setShowMap] = useState(true);
-    const [chatPanelWidthPercent, setChatPanelWidthPercent] = useState(60);
+    const [showMap, setShowMap] = useState(settings.showMapDefault);
+    const [chatPanelWidthPercent, setChatPanelWidthPercent] = useState(70.6);
     const [mapLocations, setMapLocations] = useState<LocationPoint[]>([]);
     const [mapSuppressed, setMapSuppressed] = useState(false);
     const [messageFeedback, setMessageFeedback] = useState<Record<string, FeedbackType>>({});
     const [answerPageByUserMessageId, setAnswerPageByUserMessageId] = useState<Record<string, number>>({});
+    const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null);
+    const [tripWorkspace, setTripWorkspace] = useState<TripWorkspaceState>(() => createEmptyTripWorkspace());
+    const [activeTripPlan, setActiveTripPlan] = useState<Record<string, unknown> | null>(null);
+    const [activeTripDocument, setActiveTripDocument] = useState<Record<string, unknown> | null>(null);
+    const [previousTripPlan, setPreviousTripPlan] = useState<Record<string, unknown> | null>(null);
+    const [isTripEditLoading, setIsTripEditLoading] = useState(false);
+    const [dayRoutes, setDayRoutes] = useState<DayRouteGeometry[]>([]);
+    const [activeMapGroupId, setActiveMapGroupId] = useState('');
+    const [selectedLocationId, setSelectedLocationId] = useState('');
+    const [sidePanelMapPercent, setSidePanelMapPercent] = useState(readSidePanelMapPercent);
+    const [mobilePrimaryView, setMobilePrimaryView] = useState<MobilePrimaryView>('chat');
+    const [isNarrowLayout, setIsNarrowLayout] = useState(
+      () => window.matchMedia('(max-width: 768px)').matches
+    );
+    const activeTripPlanRef = useRef<Record<string, unknown> | null>(null);
+    const activeTripDocumentRef = useRef<Record<string, unknown> | null>(null);
+    const tripWorkspaceRef = useRef<TripWorkspaceState>(createEmptyTripWorkspace());
+    const skipNextAutoSaveRef = useRef(false);
+    const lastPersistedPlanSignatureRef = useRef('');
+    const backgroundDocumentUpdateRef = useRef(false);
+
+    useEffect(() => {
+      activeTripPlanRef.current = activeTripPlan;
+    }, [activeTripPlan]);
+
+    useEffect(() => {
+      activeTripDocumentRef.current = activeTripDocument;
+    }, [activeTripDocument]);
+
+    useEffect(() => {
+      tripWorkspaceRef.current = tripWorkspace;
+    }, [tripWorkspace]);
+
+    useEffect(() => {
+      if (!activeTripPlan) {
+        setDayRoutes([]);
+        return;
+      }
+      const version = Number(activeTripPlan.version);
+      const rawDays = Array.isArray(activeTripPlan.trip_days)
+        ? activeTripPlan.trip_days as Array<Record<string, unknown>>
+        : [];
+      if (!Number.isInteger(version) || rawDays.length === 0) {
+        setDayRoutes([]);
+        return;
+      }
+      const destination = safeText((activeTripPlan.intent as Record<string, unknown> | undefined)?.destination);
+      const internationalDestinations = /东京|京都|大阪|首尔|新加坡|曼谷|吉隆坡|巴黎|伦敦|罗马|悉尼|纽约|Tokyo|Kyoto|Osaka|Seoul|Singapore|Bangkok|Paris|London|Rome|Sydney|New York/i;
+      const controller = new AbortController();
+      Promise.all(rawDays.map(async (day) => {
+        const response = await fetch('/api/routes/day', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal,
+          body: JSON.stringify({
+            day: Number(day.day), plan_version: version,
+            scope: internationalDestinations.test(destination) ? 'international' : 'domestic',
+            activities: Array.isArray(day.activities) ? day.activities : [],
+          }),
+        });
+        if (!response.ok) throw new Error('ROUTE_UNAVAILABLE');
+        return response.json() as Promise<DayRouteGeometry>;
+      })).then((routes) => {
+        setDayRoutes(routes);
+        setActiveTripDocument((current) => {
+          if (!current) return current;
+          backgroundDocumentUpdateRef.current = true;
+          return {
+            ...current,
+            map_guidance: {
+              ...(current.map_guidance as Record<string, unknown> || {}),
+              status: routes.some((route) => route.status === 'ready' || route.status === 'partial') ? 'ready' : 'unavailable',
+              status_reason: routes.some((route) => route.status === 'ready' || route.status === 'partial')
+                ? '已按日计算真实道路路线'
+                : '真实路线暂不可用，当前仅显示日程地点',
+              day_routes: routes,
+              unavailable_segments: routes.flatMap((route) => route.legs.filter((leg) => leg.status === 'unavailable')),
+            },
+          };
+        });
+      }).catch((error) => {
+        if (error?.name !== 'AbortError') setDayRoutes([]);
+      });
+      return () => controller.abort();
+    }, [activeTripPlan]);
+
+    useEffect(() => {
+      const mediaQuery = window.matchMedia('(max-width: 768px)');
+      const handleLayoutChange = (event: MediaQueryListEvent | MediaQueryList) => {
+        setIsNarrowLayout(event.matches);
+      };
+      handleLayoutChange(mediaQuery);
+      mediaQuery.addEventListener('change', handleLayoutChange);
+      return () => mediaQuery.removeEventListener('change', handleLayoutChange);
+    }, []);
 
     // 强制清理地点数据的函数
     const forceCleanMapLocations = () => {
@@ -162,6 +372,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     // MCP服务器相关状态
     const [mcpServers, setMcpServers] = useState<any[]>([]);
     const [selectedMcpServers, setSelectedMcpServers] = useState<string[]>([]);
+    const [mcpServersLoaded, setMcpServersLoaded] = useState(false);
     const [mcpModalVisible, setMcpModalVisible] = useState(false);
     const [mcpLoading, setMcpLoading] = useState(false);
     const [skills, setSkills] = useState<SkillInfo[]>([]);
@@ -172,7 +383,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const messagesEndRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<any>(null);
     const chatMapLayoutRef = useRef<HTMLDivElement>(null);
+    const tripSidePanelRef = useRef<HTMLDivElement>(null);
     const isChatMapResizingRef = useRef(false);
+    const isSidePanelResizingRef = useRef(false);
     const inputValueRef = useRef('');
     const isComposingRef = useRef(false);
     const isMountedRef = useRef(true);
@@ -189,6 +402,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const abortControllersByChatIdRef = useRef<Record<string, AbortController>>({});
     const regenerateContextsByChatIdRef = useRef<Record<string, RegenerateRequestContext | null>>({});
     const saveTimersByChatIdRef = useRef<Record<string, number>>({});
+    const lastAutoOpenedMapSignatureRef = useRef('');
+    const hasStructuredTripLocationsRef = useRef(false);
 
     currentChatIdRef.current = currentChatId || '';
     sessionIdRef.current = sessionId;
@@ -203,6 +418,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       event.preventDefault();
       isChatMapResizingRef.current = true;
       document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    };
+
+    const startSidePanelResize = (event: React.MouseEvent<HTMLDivElement>) => {
+      event.preventDefault();
+      isSidePanelResizingRef.current = true;
+      document.body.style.cursor = 'row-resize';
       document.body.style.userSelect = 'none';
     };
 
@@ -248,6 +470,38 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         stopChatMapResize();
       };
     }, [showMap]);
+
+    useEffect(() => {
+      const stopSidePanelResize = () => {
+        if (!isSidePanelResizingRef.current) return;
+        isSidePanelResizingRef.current = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      };
+
+      const handleMouseMove = (event: MouseEvent) => {
+        if (!isSidePanelResizingRef.current || isNarrowLayout) return;
+        const container = tripSidePanelRef.current;
+        if (!container) return;
+
+        const rect = container.getBoundingClientRect();
+        if (rect.height <= 0) return;
+        const nextPercent = Math.min(65, Math.max(55, ((event.clientY - rect.top) / rect.height) * 100));
+        setSidePanelMapPercent(nextPercent);
+      };
+
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('mouseup', stopSidePanelResize);
+      return () => {
+        window.removeEventListener('mousemove', handleMouseMove);
+        window.removeEventListener('mouseup', stopSidePanelResize);
+        stopSidePanelResize();
+      };
+    }, [isNarrowLayout]);
+
+    useEffect(() => {
+      window.localStorage.setItem(SIDE_PANEL_MAP_PERCENT_STORAGE_KEY, sidePanelMapPercent.toFixed(2));
+    }, [sidePanelMapPercent]);
 
     const areLocationsEquivalent = (a: LocationPoint[], b: LocationPoint[]): boolean => {
       if (a.length !== b.length) return false;
@@ -339,7 +593,11 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       saveTimersByChatIdRef.current[chatId] = window.setTimeout(() => {
         const latestMessages = getChatMessages(messagesByChatIdRef.current, chatId);
         if (latestMessages.length > 0) {
-          saveChat(chatId, latestMessages);
+          saveChat(chatId, latestMessages, undefined, {
+            tripPlan: activeTripPlanRef.current,
+            tripDocument: activeTripDocumentRef.current,
+            tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+          });
         }
         delete saveTimersByChatIdRef.current[chatId];
       }, 500);
@@ -421,7 +679,11 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         const nextMessages = withInterruptedResponseIfNeeded(currentMessages);
         if (nextMessages !== currentMessages && nextMessages.length > 0) {
           messagesByChatIdRef.current = setChatMessages(messagesByChatIdRef.current, chatId, nextMessages);
-          saveChat(chatId, nextMessages);
+          saveChat(chatId, nextMessages, undefined, {
+            tripPlan: activeTripPlanRef.current,
+            tripDocument: activeTripDocumentRef.current,
+            tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+          });
         }
       });
     };
@@ -1176,6 +1438,386 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         (hasLocationContent || hasLocationJson);
     };
 
+    const normalizeTripEventLocations = (payload: unknown): LocationPoint[] => {
+      if (!Array.isArray(payload)) return [];
+      const normalized = payload
+        .map((raw, index) => {
+          if (!raw || typeof raw !== 'object') return null;
+          const item = raw as Record<string, unknown>;
+          const name = safeText(item.name).trim();
+          const rawLat = Number(item.lat);
+          const rawLng = Number(item.lng);
+          if (!name || !Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return null;
+          const lat = Number(rawLat.toFixed(6));
+          const lng = Number(rawLng.toFixed(6));
+          return {
+            id: buildStableLocationId({
+              id: safeText(item.id),
+              name,
+              lat,
+              lng,
+            }),
+            name,
+            lat,
+            lng,
+            description: safeText(item.description),
+            category: safeText(item.category),
+            day: item.day as number | string | undefined,
+            order: item.order as number | string | undefined || index + 1,
+            poi_id: safeText(item.poi_id) || undefined,
+            address: safeText(item.address) || undefined,
+            city: safeText(item.city) || undefined,
+            rating: Number.isFinite(Number(item.rating)) ? Number(item.rating) : null,
+            images: Array.isArray(item.images) ? item.images.map(safeText).filter(Boolean) : [],
+            summary: safeText(item.summary) || undefined,
+            suggested_duration_minutes: Number.isFinite(Number(item.suggested_duration_minutes)) ? Number(item.suggested_duration_minutes) : null,
+            opening_hours: item.opening_hours,
+            reservation: item.reservation,
+            price: item.price,
+            suitable_for: Array.isArray(item.suitable_for) ? item.suitable_for.map(safeText).filter(Boolean) : [],
+            unsuitable_for: Array.isArray(item.unsuitable_for) ? item.unsuitable_for.map(safeText).filter(Boolean) : [],
+            source: safeText(item.source) || undefined,
+            sources: Array.isArray(item.sources) ? item.sources.filter((source): source is Record<string, unknown> => Boolean(source) && typeof source === 'object') : [],
+            field_evidence: item.field_evidence && typeof item.field_evidence === 'object' ? item.field_evidence as Record<string, Record<string, unknown>> : {},
+            updated_at: safeText(item.updated_at) || undefined,
+          } as LocationPoint;
+        })
+        .filter((item): item is LocationPoint => Boolean(item));
+
+      const deduped = new Map<string, LocationPoint>();
+      normalized.forEach((location) => {
+        if (!deduped.has(location.id)) {
+          deduped.set(location.id, location);
+        }
+      });
+      return Array.from(deduped.values());
+    };
+
+    const normalizeTripSources = (payload: unknown): TripWorkspaceSource[] => {
+      if (!Array.isArray(payload)) return [];
+      const normalized = payload
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === 'object')
+        .map((item) => ({
+          type: safeText(item.type),
+          title: safeText(item.title),
+          source: safeText(item.source),
+          url: safeText(item.url),
+          snippet: safeText(item.snippet),
+          data_type: safeText(item.data_type),
+          updated_at: safeText(item.updated_at),
+          confidence: Number.isFinite(Number(item.confidence)) ? Number(item.confidence) : null,
+          related_fields: Array.isArray(item.related_fields) ? item.related_fields.map(safeText).filter(Boolean) : [],
+          related_places: Array.isArray(item.related_places) ? item.related_places.map(safeText).filter(Boolean) : [],
+        }))
+        .filter((item) => item.title || item.snippet || item.url);
+      return Array.from(new Map(normalized.map((item) => [`${item.url}|${item.title}|${item.type}`, item])).values());
+    };
+
+    const normalizeTripDayLocations = (payload: unknown): LocationPoint[] => {
+      if (!payload || typeof payload !== 'object') return [];
+      const dayPayload = payload as Record<string, unknown>;
+      const day = dayPayload.day as number | string | undefined;
+      const activities = Array.isArray(dayPayload.activities) ? dayPayload.activities : [];
+      return normalizeTripEventLocations(activities.flatMap((activity, index) => {
+        if (!activity || typeof activity !== 'object') return [];
+        const activityPayload = activity as Record<string, unknown>;
+        const place = activityPayload.place;
+        if (!place || typeof place !== 'object') return [];
+        return [{
+          ...(place as Record<string, unknown>),
+          id: safeText(activityPayload.activity_id) || safeText(activityPayload.id),
+          description: safeText((place as Record<string, unknown>).summary) || (Array.isArray(activityPayload.notes)
+            ? activityPayload.notes.map((note) => safeText(note)).filter(Boolean).join('；')
+            : ''),
+          day,
+          order: index + 1,
+        }];
+      }));
+    };
+
+    const normalizeTripBudget = (payload: unknown): TripWorkspaceBudget | null => {
+      if (!payload || typeof payload !== 'object') return null;
+      const item = payload as Record<string, unknown>;
+      return {
+        ...item,
+        currency: safeText(item.currency) || 'CNY',
+        budget_total: Number.isFinite(Number(item.budget_total)) ? Number(item.budget_total) : null,
+        budget_per_person: Number.isFinite(Number(item.budget_per_person)) ? Number(item.budget_per_person) : null,
+        people_count: Number.isFinite(Number(item.people_count)) ? Number(item.people_count) : null,
+        estimated_total: Number.isFinite(Number(item.estimated_total)) ? Number(item.estimated_total) : null,
+        known_total: Number.isFinite(Number(item.known_total)) ? Number(item.known_total) : null,
+        unknown_count: Number.isFinite(Number(item.unknown_count)) ? Number(item.unknown_count) : null,
+        unknown_items: Array.isArray(item.unknown_items) ? item.unknown_items.map(safeText).filter(Boolean) : [],
+        categories: item.categories && typeof item.categories === 'object' ? item.categories as Record<string, number> : {},
+        over_budget: item.over_budget === true,
+        overrun_amount: Number.isFinite(Number(item.overrun_amount)) ? Number(item.overrun_amount) : null,
+        source_label: safeText(item.source_label),
+        updated_at: safeText(item.updated_at),
+        confidence: safeText(item.confidence),
+        data_type: safeText(item.data_type),
+      };
+    };
+
+    const normalizeTripValidation = (payload: unknown): TripWorkspaceValidation | null => {
+      if (!payload || typeof payload !== 'object') return null;
+      const item = payload as Record<string, unknown>;
+      const issuesPayload = Array.isArray(item.issues) ? item.issues : [];
+      const issues: TripWorkspaceIssue[] = issuesPayload
+        .filter((issue): issue is Record<string, unknown> => Boolean(issue) && typeof issue === 'object')
+        .map((issue) => ({
+          code: safeText(issue.code),
+          message: safeText(issue.message),
+          severity: safeText(issue.severity),
+          repair_hint: safeText(issue.repair_hint),
+        }));
+      return {
+        valid: typeof item.valid === 'boolean' ? item.valid : issues.every((issue) => issue.severity !== 'error'),
+        issues,
+      };
+    };
+
+    const normalizeStringList = (payload: unknown): string[] => {
+      if (!Array.isArray(payload)) return [];
+      return Array.from(new Set(payload.map((item) => safeText(item).trim()).filter(Boolean)));
+    };
+
+    const normalizeTripRepair = (payload: unknown): TripWorkspaceRepair | null => {
+      if (!payload || typeof payload !== 'object') return null;
+      const item = payload as Record<string, unknown>;
+      const hasRepairFields = [
+        'repaired',
+        'attempted_issue_codes',
+        'resolved_issue_codes',
+        'remaining_issue_codes',
+        'remaining_validation',
+      ].some((key) => key in item);
+      if (!hasRepairFields) return null;
+
+      return {
+        repaired: item.repaired === true,
+        attempted_issue_codes: normalizeStringList(item.attempted_issue_codes),
+        resolved_issue_codes: normalizeStringList(item.resolved_issue_codes),
+        remaining_issue_codes: normalizeStringList(item.remaining_issue_codes),
+        notes: normalizeStringList(item.notes),
+        remaining_validation: normalizeTripValidation(item.remaining_validation),
+      };
+    };
+
+    const mergeTripPlanPayload = (plan: Record<string, unknown>) => {
+      const locations = normalizeTripEventLocations(plan.map_locations);
+      const sources = normalizeTripSources(plan.source_references);
+      const budget = normalizeTripBudget(plan.budget_summary);
+      const days = normalizeTripDays(plan);
+      if (safeText(plan.plan_id) && Number.isInteger(Number(plan.version))) {
+        setActiveTripPlan(plan);
+      }
+      setTripWorkspace((prev) => ({
+        days: days.length > 0 ? days : prev.days,
+        locations: locations.length > 0 ? locations : prev.locations,
+        sources: sources.length > 0 ? sources : prev.sources,
+        budget: budget || prev.budget,
+        validation: prev.validation,
+        repair: prev.repair,
+      }));
+      if (locations.length > 0) {
+        hasStructuredTripLocationsRef.current = true;
+        setMapSuppressed(false);
+        setMapLocations((prevLocations) => (
+          areLocationsEquivalent(prevLocations, locations) ? prevLocations : locations
+        ));
+      }
+    };
+
+    const applyTripRepairPayload = (payload: unknown) => {
+      if (!payload || typeof payload !== 'object') return;
+      const item = payload as Record<string, unknown>;
+      const repairPayload = item.repair && typeof item.repair === 'object'
+        ? item.repair as Record<string, unknown>
+        : item;
+      const repair = normalizeTripRepair(repairPayload);
+      const plan = repairPayload.plan || item.plan;
+      if (plan && typeof plan === 'object') {
+        mergeTripPlanPayload(plan as Record<string, unknown>);
+      }
+      if (!repair) return;
+
+      const finalValidation = normalizeTripValidation(item.final_validation)
+        || repair.remaining_validation;
+
+      setTripWorkspace((prev) => ({
+        ...prev,
+        validation: finalValidation || prev.validation,
+        repair,
+      }));
+    };
+
+    const handleImportedTripDocument = (document: Record<string, unknown>) => {
+      const importedPlan = document.plan;
+      if (!importedPlan || typeof importedPlan !== 'object') return;
+      setPreviousTripPlan(activeTripPlan);
+      setActiveTripPlan(importedPlan as Record<string, unknown>);
+      if (safeText(document.schema_version) === '2.0') {
+        setActiveTripDocument(document);
+      }
+      mergeTripPlanPayload(importedPlan as Record<string, unknown>);
+      const importedValidation = normalizeTripValidation(document.validation);
+      setTripWorkspace((previous) => ({ ...previous, validation: importedValidation || previous.validation }));
+      setPlanningStatus('completed');
+      setShowMap(true);
+    };
+
+    const handleTripStructuredEvent = (data: any, targetChatId: string) => {
+      if (!isMountedRef.current || activeChatIdRef.current !== targetChatId) return;
+      if (!isNarrowLayout) {
+        setShowMap(true);
+      }
+
+      if (data.type === 'trip_locations') {
+        const locations = normalizeTripEventLocations(data.locations);
+        setTripWorkspace((prev) => ({
+          ...prev,
+          locations: locations.length > 0 ? locations : prev.locations,
+        }));
+        if (locations.length > 0) {
+          hasStructuredTripLocationsRef.current = true;
+          setMapSuppressed(false);
+          setMapLocations((prevLocations) => (
+            areLocationsEquivalent(prevLocations, locations) ? prevLocations : locations
+          ));
+        }
+        return;
+      }
+
+      if (data.type === 'trip_day_upsert') {
+        const dayPayload = data.day || data.trip_day;
+        const dayLocations = normalizeTripDayLocations(dayPayload);
+        setTripWorkspace((prev) => ({
+          ...prev,
+          days: upsertTripDayPayload(prev.days || [], dayPayload),
+          locations: dayLocations.length > 0
+            ? Array.from(new Map(
+                [...prev.locations, ...dayLocations].map((location) => [location.id, location])
+              ).values())
+            : prev.locations,
+        }));
+        if (dayLocations.length > 0) {
+          hasStructuredTripLocationsRef.current = true;
+          setMapSuppressed(false);
+          setMapLocations((previous) => Array.from(new Map(
+            [...previous, ...dayLocations].map((location) => [location.id, location])
+          ).values()));
+        }
+        return;
+      }
+
+      if (data.type === 'trip_sources') {
+        const sources = normalizeTripSources(data.sources);
+        setTripWorkspace((prev) => ({
+          ...prev,
+          sources: sources.length > 0 ? sources : prev.sources,
+        }));
+        return;
+      }
+
+      if (data.type === 'trip_budget') {
+        const budget = normalizeTripBudget(data.budget);
+        setTripWorkspace((prev) => ({
+          ...prev,
+          budget: budget || prev.budget,
+        }));
+        return;
+      }
+
+      if (data.type === 'trip_validation') {
+        const validationPayload = data.validation || { valid: data.valid, issues: data.issues };
+        const nestedRepair = validationPayload && typeof validationPayload === 'object'
+          ? (validationPayload as Record<string, unknown>).repair
+          : undefined;
+        const repair = normalizeTripRepair(data.repair || nestedRepair);
+        const validation = repair?.remaining_validation || normalizeTripValidation(validationPayload);
+        setTripWorkspace((prev) => ({
+          ...prev,
+          validation: validation || prev.validation,
+          repair: repair || prev.repair,
+        }));
+        return;
+      }
+
+      if (data.type === 'trip_plan_repair') {
+        applyTripRepairPayload(data);
+        return;
+      }
+
+      if ((data.type === 'trip_plan' || data.type === 'trip_plan_delta') && data.plan && typeof data.plan === 'object') {
+        if (data.document && typeof data.document === 'object') {
+          const tripDocument = data.document as Record<string, any>;
+          setActiveTripDocument(tripDocument);
+          const documentSources = normalizeTripSources(tripDocument.sources);
+          const documentBudget = normalizeTripBudget(tripDocument.budget);
+          setTripWorkspace((previous) => ({
+            ...previous,
+            sources: documentSources.length > 0 ? documentSources : previous.sources,
+            budget: documentBudget || previous.budget,
+          }));
+        }
+        mergeTripPlanPayload(data.plan);
+      } else if (data.type === 'trip_plan_delta' && data.delta && typeof data.delta === 'object') {
+        mergeTripPlanPayload(data.delta);
+      }
+    };
+
+    const applyTripEditOperation = async (type: string, payload: Record<string, unknown>) => {
+      if (!activeTripPlan || isTripEditLoading) return;
+      const planId = safeText(activeTripPlan.plan_id);
+      const version = Number(activeTripPlan.version);
+      if (!planId || !Number.isInteger(version)) return;
+
+      setIsTripEditLoading(true);
+      try {
+        const response = await fetch('/api/trip-edit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            plan: activeTripPlan,
+            operation: {
+              operation_id: uuidv4(),
+              plan_id: planId,
+              base_version: version,
+              type,
+              payload,
+            },
+          }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result?.plan || typeof result.plan !== 'object') {
+          throw new Error('TRIP_EDIT_FAILED');
+        }
+        if (result.previous_plan && typeof result.previous_plan === 'object') {
+          setPreviousTripPlan(result.previous_plan);
+        }
+        mergeTripPlanPayload(result.plan as Record<string, unknown>);
+      } catch (_error) {
+        const requestChatId = getActiveChatId();
+        setChatMessagesForId(requestChatId, (previous) => [...previous, {
+          id: uuidv4(),
+          role: 'system',
+          content: '行程修改未能完成，当前版本已保留，请稍后重试。',
+          displayContent: '行程修改未能完成，当前版本已保留，请稍后重试。',
+          timestamp: new Date(),
+          type: 'error',
+        }]);
+      } finally {
+        setIsTripEditLoading(false);
+      }
+    };
+
+    const undoLastTripEdit = () => {
+      if (!previousTripPlan) return;
+      const restoredPlan = previousTripPlan;
+      setPreviousTripPlan(activeTripPlan);
+      mergeTripPlanPayload(restoredPlan);
+    };
+
     // 暴露给父组件的方法
     useImperativeHandle(ref, () => ({
       startNewChat: () => {
@@ -1193,14 +1835,21 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         setMessageFeedback({});
         setAnswerPageByUserMessageId({});
         setMapSuppressed(false);
+        setShowMap(false);
+        lastAutoOpenedMapSignatureRef.current = '';
         setMapLocations([]); // 清空地图地点
+        hasStructuredTripLocationsRef.current = false;
+        setTripWorkspace(createEmptyTripWorkspace());
+        setActiveTripPlan(null);
+        setActiveTripDocument(null);
+        setPreviousTripPlan(null);
         console.log('地图位置已清空');
         setSessionId(nextSessionId);
         clearInputText();
         setIsLoading(false);
         console.log('=== startNewChat 完成 ===');
       },
-      loadChat: (messages: ChatHistoryItem['messages']) => {
+      loadChat: (messages, restoredPlan = null, restoredWorkspace = null, restoredDocument = null) => {
         console.log('=== loadChat 开始 ===');
         console.log('加载消息数量:', messages.length);
         console.log('清空前的地图位置:', mapLocations.map(loc => loc.name));
@@ -1208,34 +1857,32 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
         // 先清空地图位置，避免显示之前的地点
         setMapSuppressed(false);
+        setShowMap(false);
+        lastAutoOpenedMapSignatureRef.current = '';
         setMapLocations([]);
+        hasStructuredTripLocationsRef.current = false;
+        const workspace = restoredWorkspace
+          ? restoredWorkspace as unknown as TripWorkspaceState
+          : createEmptyTripWorkspace();
+        const effectiveRestoredPlan = restoredPlan || restorePlanFromWorkspace(workspace, restoredDocument);
+        const restoredLocations = effectiveRestoredPlan ? normalizeTripEventLocations(workspace.locations) : [];
+        setTripWorkspace(effectiveRestoredPlan ? workspace : createEmptyTripWorkspace());
+        lastPersistedPlanSignatureRef.current = tripSnapshotSignature(effectiveRestoredPlan, restoredDocument);
+        setActiveTripPlan(effectiveRestoredPlan);
+        setActiveTripDocument(restoredDocument);
+        setPreviousTripPlan(null);
         console.log('地图位置已清空');
 
         const mappedMessages = withInterruptedResponseIfNeeded(messages.map(msg => normalizeMessage(msg)));
         const targetChatId = currentChatIdRef.current || sessionIdRef.current;
-        const visibleMessages = syncActiveChatFromRuntime(targetChatId, mappedMessages);
+        syncActiveChatFromRuntime(targetChatId, mappedMessages);
         setMessageFeedback({});
         setAnswerPageByUserMessageId({});
 
-        // 只从最后一条final_answer消息中提取地点信息
-        let lastFinalAnswerLocations: LocationPoint[] = [];
-        // 从后往前查找最后一条final_answer消息
-        for (let i = visibleMessages.length - 1; i >= 0; i--) {
-          const msg = visibleMessages[i];
-          if (msg.role === 'assistant' && shouldExtractLocations(msg.type || '', msg.agentType || '', msg.displayContent)) {
-            console.log('找到最后一条final_answer消息，提取地点信息:', msg.type, msg.agentType);
-            const locations = extractMapLocations(msg.displayContent);
-            if (locations.length > 0) {
-              console.log('从最后一条final_answer消息中提取到地点:', locations.map(loc => loc.name));
-              lastFinalAnswerLocations = locations;
-              break; // 找到后就停止查找
-            }
-          }
-        }
-
-        console.log('从loadChat中提取到的最终地点信息:', lastFinalAnswerLocations.map(loc => loc.name));
         setMapSuppressed(false);
-        setMapLocations(lastFinalAnswerLocations);
+        setMapLocations(restoredLocations);
+        hasStructuredTripLocationsRef.current = restoredLocations.length > 0;
+        setShowMap(restoredLocations.length > 0);
         sessionIdRef.current = targetChatId;
         setSessionId(targetChatId);
         console.log('=== loadChat 完成 ===');
@@ -1265,6 +1912,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     // 当加载的消息改变时，通过 loadChat 方法处理
     useEffect(() => {
       if (loadedMessages !== null && loadedMessages !== undefined) {
+        skipNextAutoSaveRef.current = true;
         console.log('useEffect 检测到 loadedMessages 变化，消息数量:', loadedMessages.length);
         clearInputText();
         const targetChatId = currentChatId || sessionIdRef.current;
@@ -1279,31 +1927,30 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
         // 先清空地图位置，避免显示之前的地点
         setMapSuppressed(false);
+        setShowMap(false);
+        lastAutoOpenedMapSignatureRef.current = '';
         setMapLocations([]);
 
         if (loadedMessages.length > 0) {
           const mappedMessages = withInterruptedResponseIfNeeded(loadedMessages.map(msg => normalizeMessage(msg)));
-          const visibleMessages = syncActiveChatFromRuntime(targetChatId, mappedMessages);
+          syncActiveChatFromRuntime(targetChatId, mappedMessages);
           setMessageFeedback({});
           setAnswerPageByUserMessageId({});
 
-          // 只从最后一条final_answer消息中提取地点信息
-          let lastFinalAnswerLocations: LocationPoint[] = [];
-          // 从后往前查找最后一条final_answer消息
-          for (let i = visibleMessages.length - 1; i >= 0; i--) {
-            const msg = visibleMessages[i];
-            if (msg.role === 'assistant' && shouldExtractLocations(msg.type || '', msg.agentType || '', msg.displayContent)) {
-              const locations = extractMapLocations(msg.displayContent);
-              if (locations.length > 0) {
-                lastFinalAnswerLocations = locations;
-                break; // 找到后就停止查找
-              }
-            }
-          }
-
-          console.log('从useEffect中提取到地点信息:', lastFinalAnswerLocations);
+          const workspace = loadedTripWorkspace
+            ? loadedTripWorkspace as unknown as TripWorkspaceState
+            : createEmptyTripWorkspace();
+          const restoredPlan = loadedTripPlan || restorePlanFromWorkspace(workspace, loadedTripDocument || null);
+          const restoredLocations = restoredPlan ? normalizeTripEventLocations(workspace.locations) : [];
           setMapSuppressed(false);
-          setMapLocations(lastFinalAnswerLocations);
+          setMapLocations(restoredLocations);
+          hasStructuredTripLocationsRef.current = restoredLocations.length > 0;
+          setTripWorkspace(restoredPlan ? workspace : createEmptyTripWorkspace());
+          lastPersistedPlanSignatureRef.current = tripSnapshotSignature(restoredPlan, loadedTripDocument || null);
+          setActiveTripPlan(restoredPlan);
+          setActiveTripDocument(loadedTripDocument || null);
+          setPreviousTripPlan(null);
+          setShowMap(restoredLocations.length > 0);
         } else {
           // 如果是空数组，清空消息和地图
           console.log('loadedMessages为空数组，清空消息和地图');
@@ -1316,10 +1963,17 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           setMessageFeedback({});
           setAnswerPageByUserMessageId({});
           setMapSuppressed(false);
+          setShowMap(false);
+          lastAutoOpenedMapSignatureRef.current = '';
           setMapLocations([]);
+          hasStructuredTripLocationsRef.current = false;
+          setTripWorkspace(createEmptyTripWorkspace());
+          setActiveTripPlan(null);
+          setActiveTripDocument(null);
+          setPreviousTripPlan(null);
         }
       }
-    }, [loadedMessages]);
+    }, [loadedMessages, loadedTripDocument, loadedTripPlan, loadedTripWorkspace]);
 
     // 获取MCP服务器列表
     const fetchMcpServers = async () => {
@@ -1332,10 +1986,11 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           setMcpServers(data.servers || []);
           // 默认选择所有可用的服务器（状态为connected或未禁用的）
           const availableServers = data.servers.filter((server: any) =>
-            (server.status === 'connected' || !server.disabled || server.status === undefined)
+            server.disabled !== true && (server.status === 'connected' || server.status === undefined)
           ).map((server: any) => server.name);
           console.log('可用的服务器:', availableServers);
           setSelectedMcpServers(availableServers);
+          setMcpServersLoaded(true);
         }
       } catch (error) {
         console.error('获取MCP服务器失败:', error);
@@ -1384,12 +2039,20 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       const cachedMessages = getChatMessages(messagesByChatIdRef.current, chatId);
       const messagesToSave = cachedMessages.length > 0 ? cachedMessages : messagesRef.current;
       if (messagesToSave.length > 0) {
-        saveChat(chatId, messagesToSave);
+        saveChat(chatId, messagesToSave, undefined, {
+          tripPlan: activeTripPlanRef.current,
+          tripDocument: activeTripDocumentRef.current,
+          tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+        });
       }
     };
 
     // 在每次消息更新后保存对话
     useEffect(() => {
+      if (skipNextAutoSaveRef.current) {
+        skipNextAutoSaveRef.current = false;
+        return;
+      }
       if (messages.length > 0) {
         // 延迟保存，避免频繁更新
         const timer = setTimeout(() => {
@@ -1398,6 +2061,25 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         return () => clearTimeout(timer);
       }
     }, [messages, currentChatId, sessionId]);
+
+    useEffect(() => {
+      if (!activeTripPlan) return;
+      const signature = tripSnapshotSignature(activeTripPlan, activeTripDocument);
+      if (!safeText(activeTripPlan.plan_id) || signature === lastPersistedPlanSignatureRef.current) return;
+      lastPersistedPlanSignatureRef.current = signature;
+      const chatId = getActiveChatId();
+      const currentMessages = getChatMessages(messagesByChatIdRef.current, chatId);
+      const isBackgroundUpdate = backgroundDocumentUpdateRef.current;
+      backgroundDocumentUpdateRef.current = false;
+      if (currentMessages.length === 0) return;
+      saveChat(chatId, currentMessages, undefined, {
+        changeReason: isBackgroundUpdate ? 'system' : Number(activeTripPlan.version) > 1 ? 'trip_edit' : 'final_answer',
+        touchUpdatedAt: !isBackgroundUpdate,
+        tripPlan: activeTripPlan,
+        tripDocument: activeTripDocument,
+        tripWorkspace: tripWorkspace as unknown as Record<string, unknown>,
+      });
+    }, [activeTripDocument, activeTripPlan, tripWorkspace]);
 
     useEffect(() => {
       const persistOnPageLeave = () => {
@@ -1533,11 +2215,6 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       }
     };
 
-    // 计算深度思考总耗时
-    const calculateDeepThinkTotalDuration = (deepThinkMessages: Message[]): number => {
-      return deepThinkMessages.reduce((total, msg) => total + (msg.duration || 0), 0);
-    };
-
     const normalizeMarkdownForDisplay = (content: string): string => {
       let normalized = content;
 
@@ -1623,270 +2300,35 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       return normalizedForDisplay;
     };
 
-    // 检测并格式化工具调用结果为JSON
-    const formatToolCallResult = (content: any): string => {
-      if (!content || typeof content !== 'string') return '';
-      const trimmedContent = content.trim();
-
-      // 处理转义后的JSON字符串
-      if (trimmedContent.startsWith('"') && trimmedContent.endsWith('"')) {
-        try {
-          const unescapedJson = JSON.parse(trimmedContent);
-          const parsed = JSON.parse(unescapedJson);
-          return `\`\`\`json\n${JSON.stringify(parsed, null, 2)}\n\`\`\``;
-        } catch (e) { /* continue */ }
-      }
-
-      // 处理普通JSON对象
-      if (trimmedContent.startsWith('{') && trimmedContent.endsWith('}')) {
-        try {
-          const parsed = JSON.parse(trimmedContent);
-          return `\`\`\`json\n${JSON.stringify(parsed, null, 2)}\n\`\`\``;
-        } catch (e) { /* continue */ }
-      }
-
-      return stripLeadingArtifactZero(content);
-    };
-
     // 渲染深度思考气泡框（统一显示深度思考 + 多智能体规划执行过程）
     const renderDeepThinkBubble = (deepThinkMessages: Message[]) => {
       if (!deepThinkMessages.length) return null;
 
-      const totalDuration = calculateDeepThinkTotalDuration(deepThinkMessages);
-
-      // 动态标题：若存在多智能体规划/执行类型消息则显示"智能体思考过程"，否则显示"深度思考过程"
-      const hasAgentPlanMessages = deepThinkMessages.some(m =>
-        m.type && ['planning_result', 'do_subtask', 'do_subtask_result', 'task_decomposition', 'observation_result'].includes(m.type)
-      );
-      const panelTitle = hasAgentPlanMessages ? '智能体思考过程' : '深度思考过程';
-
+      const generatedDays = tripWorkspace.days?.length || 0;
+      const hasValidation = Boolean(tripWorkspace.validation || tripWorkspace.repair)
+        || deepThinkMessages.some((message) => /observation|validation|repair/i.test(safeText(message.type)));
+      const hasResearch = tripWorkspace.sources.length > 0
+        || deepThinkMessages.some((message) => /tool_progress|research|search/i.test(safeText(message.type)));
+      const effectivePlanningStatus: PlanningStatus = planningStatus === 'idle' && generatedDays > 0
+        ? 'completed'
+        : planningStatus;
+      const statusLabels: Record<PlanningStatus, string> = {
+          idle: pendingClarification ? '等待你的回答' : '等待开始',
+        planning: hasValidation ? '正在校验行程' : hasResearch ? '正在检索与整理资料' : '正在规划行程',
+        completed: '规划已完成',
+        cancelled: '规划已取消，草稿已保留',
+        error: '规划暂时中断，草稿已保留',
+      };
       return (
-        <div style={{
-          marginBottom: '16px',
-          display: 'flex',
-          justifyContent: 'flex-start'
-        }}>
-          <div style={{
-            maxWidth: '75%',
-            minWidth: '300px',
-            width: '100%'
-          }}>
-            {/* 顶部信息栏：动态标题 + 总耗时 */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: '6px'
-            }}>
-              <div style={{ fontSize: '12px', color: '#8b5cf6', fontWeight: 500 }}>
-                {panelTitle}
-              </div>
-              {totalDuration > 0 && (
-                <div style={{
-                  fontSize: '11px',
-                  color: '#9ca3af',
-                  background: '#f8fafc',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  border: '1px solid #f1f5f9'
-                }}>
-                  总耗时 {formatDuration(totalDuration)}
-                </div>
-              )}
-            </div>
-
-            {/* 可折叠内容 */}
-            <Collapse
-              ghost
-              size="small"
-              className="deep-think-collapse"
-              style={{
-                background: '#f8fafc',
-                borderRadius: '12px',
-                border: '1px solid #e2e8f0',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)'
-              }}
-              expandIcon={({ isActive }) => (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  fontSize: '13px',
-                  color: '#6b7280',
-                  fontWeight: 500,
-                  padding: '4px 8px',
-                  borderRadius: '6px',
-                  background: isActive ? '#e0e7ff' : '#f3f4f6',
-                  border: '1px solid',
-                  borderColor: isActive ? '#c7d2fe' : '#e5e7eb',
-                  transition: 'all 0.2s ease'
-                }}>
-                  {isActive ? <UpOutlined style={{ fontSize: '11px' }} /> : <DownOutlined style={{ fontSize: '11px' }} />}
-                  <span>{isActive ? '收起' : '展开'}</span>
-                </div>
-              )}
-            >
-              <Panel
-                header={
-                  <div style={{
-                    fontSize: '14px',
-                    color: '#374151',
-                    fontWeight: 500,
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px'
-                  }}>
-                    <div style={{
-                      width: '6px',
-                      height: '6px',
-                      borderRadius: '50%',
-                      background: '#8b5cf6',
-                      animation: 'deepThinkPulse 2s infinite'
-                    }} />
-                    {panelTitle}
-                  </div>
-                }
-                key="1"
-                style={{
-                  border: 'none',
-                  borderRadius: '12px'
-                }}
-              >
-                <div
-                  className="deep-think-content"
-                  style={{
-                    maxHeight: '300px',
-                    overflowY: 'auto',
-                    overflowX: 'hidden',
-                    padding: '4px 0',
-                    scrollbarWidth: 'thin',
-                    scrollbarColor: '#cbd5e1 transparent',
-                    wordWrap: 'break-word',
-                    wordBreak: 'break-word'
-                  }}
-                >
-                  {deepThinkMessages.map((message, index) => (
-                    <div
-                      key={message.id}
-                      className="message-bubble"
-                      style={{
-                        marginBottom: index < deepThinkMessages.length - 1 ? '8px' : '0',
-                        padding: '8px 12px',
-                        background: '#ffffff',
-                        borderRadius: '8px',
-                        border: '1px solid #f1f5f9',
-                        fontSize: '13px',
-                        lineHeight: '1.5',
-                        wordWrap: 'break-word',
-                        wordBreak: 'break-word',
-                        overflowWrap: 'break-word',
-                        width: '100%',
-                        boxSizing: 'border-box',
-                        position: 'relative'
-                      }}
-                    >
-                      {/* 每条消息的智能体标签 + 耗时（同行显示） */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        marginBottom: message.agentType || (message.duration ?? 0) > 0 ? '4px' : '0'
-                      }}>
-                        {message.agentType && (
-                          <span style={{
-                            fontSize: '11px',
-                            color: '#8b5cf6',
-                            fontWeight: 500,
-                            background: '#f5f3ff',
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            border: '1px solid #e9d5ff'
-                          }}>
-                            {message.agentType}
-                          </span>
-                        )}
-                        {(message.duration ?? 0) > 0 && (
-                          <span style={{
-                            fontSize: '10px',
-                            color: '#9ca3af',
-                            background: 'rgba(255, 255, 255, 0.9)',
-                            padding: '1px 4px',
-                            borderRadius: '3px',
-                            border: '1px solid #f1f5f9',
-                            marginLeft: 'auto'
-                          }}>
-                            {formatDuration(Number(message.duration ?? 0))}
-                          </span>
-                        )}
-                      </div>
-                      <ReactMarkdown
-                        components={{
-                          p: ({ children }) => (
-                            <div style={{
-                              margin: '2px 0',
-                              fontSize: '13px',
-                              lineHeight: '1.5',
-                              color: '#374151'
-                            }}>
-                              {children}
-                            </div>
-                          ),
-                          code: ({ className, children }) => {
-                            const match = /language-(\w+)/.exec(className || '');
-                            const language = match ? match[1] : '';
-
-                            // 如果是代码块
-                            if (match) {
-                              return (
-                                <CodeBlock language={language} isInline={false}>
-                                  {String(children).replace(/\n$/, '')}
-                                </CodeBlock>
-                              );
-                            }
-
-                            // 内联代码
-                            return (
-                              <code style={{
-                                background: '#f1f5f9',
-                                color: '#4338ca',
-                                padding: '1px 4px',
-                                borderRadius: '3px',
-                                fontSize: '12px',
-                                fontFamily: 'SF Mono, Monaco, Consolas, monospace',
-                                wordBreak: 'break-all',
-                                overflowWrap: 'break-word'
-                              }}>
-                                {children}
-                              </code>
-                            );
-                          },
-                          ul: ({ children }) => (
-                            <ul style={{
-                              margin: '4px 0',
-                              paddingLeft: '14px',
-                              fontSize: '13px',
-                              lineHeight: '1.5'
-                            }}>
-                              {children}
-                            </ul>
-                          ),
-                          li: ({ children }) => (
-                            <li style={{ marginBottom: '1px' }}>
-                              {children}
-                            </li>
-                          )
-                        }}
-                      >
-                        {formatToolCallResult(safeText(message.displayContent) || safeText(message.content))}
-                      </ReactMarkdown>
-                    </div>
-                  ))}
-                </div>
-              </Panel>
-            </Collapse>
-          </div>
+        <div className="planning-progress-panel" role="status" aria-live="polite">
+          <strong>规划进度</strong>
+          <span>{statusLabels[effectivePlanningStatus]}</span>
+          <span>已生成 {generatedDays} 天</span>
+          {hasResearch && <span>资料检索已执行</span>}
+          {hasValidation && <span>质量校验已执行</span>}
         </div>
       );
+
     };
 
     // 处理消息块
@@ -1961,7 +2403,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               };
 
               // 只从最终答案中提取地点信息，并替换之前的地点
-              if (shouldExtractLocations(data.step_type, data.agent_type, updatedDisplayContent)) {
+              if (!hasStructuredTripLocationsRef.current && shouldExtractLocations(data.step_type, data.agent_type, updatedDisplayContent)) {
                 const locations = extractMapLocations(updatedDisplayContent);
                 if (locations.length > 0 && isMountedRef.current && activeChatIdRef.current === targetChatId) {
                   console.log('从最终答案提取到地点信息，替换之前的地点:', locations);
@@ -1996,7 +2438,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               };
 
               // 只从最终答案中提取地点信息，并替换之前的地点
-              if (shouldExtractLocations(data.step_type, data.agent_type, effectiveShowContent)) {
+              if (!hasStructuredTripLocationsRef.current && shouldExtractLocations(data.step_type, data.agent_type, effectiveShowContent)) {
                 const locations = extractMapLocations(effectiveShowContent);
                 if (locations.length > 0 && isMountedRef.current && activeChatIdRef.current === targetChatId) {
                   console.log('从最终答案提取到地点信息，替换之前的地点:', locations);
@@ -2024,11 +2466,24 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     };
 
     // 发送消息
-    const handleSendMessage = async (overrideInput?: string) => {
+    const handleSendMessage = async (
+      overrideInput?: string,
+      options?: {
+        requestMessagesOverride?: Message[];
+        clarificationAnswers?: Record<string, string>;
+        clarificationAnsweredCount?: number;
+        clarificationQuestionId?: string;
+        appendUserMessage?: boolean;
+      }
+    ) => {
+      const shouldAppendUserMessage = options?.appendUserMessage !== false;
       const currentInput = safeText(overrideInput ?? readInputText()).trim();
-      if (!currentInput || isLoading) return;
+      if (isLoading) return;
+      if (shouldAppendUserMessage && !currentInput) return;
+      if (!shouldAppendUserMessage && !options?.requestMessagesOverride?.length) return;
 
       const requestId = uuidv4();
+      setPlanningStatus('planning');
       const requestChatId = getActiveChatId();
       activeChatIdRef.current = requestChatId;
       requestIdsByChatIdRef.current = {
@@ -2057,31 +2512,43 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         activeAbortControllerRef.current = abortController;
       }
 
-      const userMessage: Message = {
-        id: uuidv4(),
-        role: 'user',
-        content: currentInput,
-        timestamp: new Date(),
-        displayContent: currentInput,
-        startTime: new Date(),
-        endTime: new Date(),
-        duration: 0
-      };
-
       const cachedMessages = getChatMessages(messagesByChatIdRef.current, requestChatId);
       const baseMessages = cachedMessages.length > 0 ? cachedMessages : messagesRef.current;
-      const requestMessages = [...baseMessages, userMessage];
+      const requestMessages = options?.requestMessagesOverride
+        ? options.requestMessagesOverride
+        : [
+            ...baseMessages,
+            {
+              id: uuidv4(),
+              role: 'user',
+              content: currentInput,
+              timestamp: new Date(),
+              displayContent: currentInput,
+              startTime: new Date(),
+              endTime: new Date(),
+              duration: 0
+            } as Message,
+          ];
       setChatMessagesForId(requestChatId, requestMessages);
       setChatLoadingForId(requestChatId, true);
-      if (!overrideInput) {
+      if (!overrideInput && shouldAppendUserMessage) {
         clearInputText();
       }
+      if (shouldAppendUserMessage) {
+        setPendingClarification(null);
+      }
+      hasStructuredTripLocationsRef.current = false;
+      setTripWorkspace(createEmptyTripWorkspace());
+      setActiveTripPlan(null);
+      setActiveTripDocument(null);
+      setPreviousTripPlan(null);
       // 保留当前地图，等新回复里出现有效地点后再替换，避免闪烁和上下文丢失。
 
       try {
         // 构建请求数据
         const requestData = {
           type: 'chat',
+          request_id: requestId,
           messages: requestMessages.map(msg => ({
             role: msg.role,
             content: msg.content,
@@ -2090,8 +2557,14 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           })),
           use_deepthink: useDeepThink,
           use_multi_agent: useMultiAgent,
-          selected_mcp_servers: selectedMcpServers,
-          selected_skill_ids: selectedSkillIds
+          selected_mcp_servers: mcpServersLoaded ? selectedMcpServers : undefined,
+          selected_skill_ids: selectedSkillIds,
+          profile: settings.useUserProfile ? profile : {},
+          planning_mode: settings.planningMode,
+          allow_web_search: settings.allowWebSearch,
+          clarification_answers: options?.clarificationAnswers || {},
+          clarification_question_id: options?.clarificationQuestionId,
+          selected_knowledge_context: selectedKnowledgeContext
         };
 
         console.log('发送请求参数:', {
@@ -2121,6 +2594,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }
 
         let streamBuffer = '';
+        let receivedClarification = false;
+        let receivedTerminalEvent = false;
+        let lastSequence = 0;
         const decoder = new TextDecoder();
 
         const isCurrentRequest = () => (
@@ -2132,6 +2608,12 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           if (!line.startsWith('data: ')) return;
           try {
             const data = JSON.parse(line.slice(6));
+            if (safeText(data.request_id) && data.request_id !== requestId) return;
+            const eventSequence = Number(data.sequence);
+            if (Number.isFinite(eventSequence)) {
+              if (eventSequence <= lastSequence) return;
+              lastSequence = eventSequence;
+            }
             console.log('收到流式数据:', data);
 
             switch (data.type) {
@@ -2140,29 +2622,64 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   handleMessageChunk(data, requestChatId);
                 }
                 break;
+              case 'clarification_required': {
+                if (isCurrentRequest()) {
+                  receivedClarification = true;
+                  const nextQuestion = Array.isArray(data.questions)
+                    ? data.questions[0] as ClarificationQuestion | undefined
+                    : undefined;
+                  if (!nextQuestion) {
+                    setPendingClarification(null);
+                    setChatLoadingForId(requestChatId, false);
+                    break;
+                  }
+
+                  const cumulativeAnswers = options?.clarificationAnswers || {};
+                  setChatLoadingForId(requestChatId, false);
+                  setPendingClarification({
+                    chatId: requestChatId,
+                    requestMessages,
+                    question: nextQuestion,
+                    answers: cumulativeAnswers,
+                    answeredCount: Number.isFinite(Number(data.answered_count))
+                      ? Number(data.answered_count)
+                      : options?.clarificationAnsweredCount ?? Object.keys(cumulativeAnswers).length,
+                    intent: data.intent || undefined,
+                  });
+                }
+                break;
+              }
+              case 'trip_sources':
+              case 'trip_day_upsert':
+              case 'trip_locations':
+              case 'trip_budget':
+              case 'trip_validation':
+              case 'trip_plan_repair':
+              case 'trip_plan_delta':
+              case 'trip_plan':
+                if (isCurrentRequest()) {
+                  setPendingClarification(null);
+                  handleTripStructuredEvent(data, requestChatId);
+                }
+                break;
               case 'chat_complete':
                 if (isCurrentRequest()) {
+                  receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
+                  setPlanningStatus(statusAfterCompletion(data.finish_reason));
+                  if (data.finish_reason !== 'clarification_required' && !receivedClarification) {
+                    setPendingClarification(null);
+                  }
                 }
                 console.log('聊天完成');
                 break;
               case 'error':
                 if (isCurrentRequest()) {
+                  receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
-                  const serverHint = safeText(data.hint).trim();
-                  const rawErrorMessage = safeText(data.message).trim() || '未知错误';
-                  const composedRawError = serverHint ? `${rawErrorMessage}。${serverHint}` : rawErrorMessage;
-                  const modelName = safeText(data.model_name).trim();
-                  const baseUrl = safeText(data.base_url).trim();
-                  const apiKeyMasked = safeText(data.api_key_masked).trim();
-                  const diagnostics = [
-                    modelName ? `模型=${modelName}` : '',
-                    baseUrl ? `API=${baseUrl}` : '',
-                    apiKeyMasked ? `Key=${apiKeyMasked}` : '',
-                  ].filter(Boolean).join('，');
-                  const composedError = diagnostics
-                    ? `错误: ${composedRawError}（${diagnostics}）`
-                    : `错误: ${composedRawError}`;
+                  setPlanningStatus('error');
+                  const composedError = safeText(data.user_message).trim()
+                    || '暂时无法完成这次规划，请稍后重试。';
 
                   setChatMessagesForId(requestChatId, prev => [...prev, {
                     id: uuidv4(),
@@ -2213,6 +2730,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
         if (isCurrentRequest()) {
           setChatLoadingForId(requestChatId, false);
+          if (!receivedTerminalEvent) {
+              setPlanningStatus(statusAfterStreamClosed(hasStructuredTripLocationsRef.current));
+          }
         }
 
       } catch (error) {
@@ -2226,11 +2746,12 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         console.error('发送消息失败:', error);
         if (requestIdsByChatIdRef.current[requestChatId] === requestId && isMountedRef.current) {
           setChatLoadingForId(requestChatId, false);
+          setPlanningStatus('error');
           setChatMessagesForId(requestChatId, prev => [...prev, {
             id: uuidv4(),
             role: 'system',
-            content: `连接错误: ${error}`,
-            displayContent: `连接错误: ${error}`,
+            content: '网络连接异常，请检查网络后重试。',
+            displayContent: '网络连接异常，请检查网络后重试。',
             timestamp: new Date(),
             type: 'error'
           }]);
@@ -2299,6 +2820,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       activeAbortControllerRef.current = null;
       activeRegenerateContextRef.current = null;
       setChatLoadingForId(activeChatId, false);
+      setPlanningStatus('cancelled');
       setChatMessagesForId(activeChatId, (prev) => withInterruptedResponseIfNeeded(prev));
       if (retryPrompt) {
         setInputText(retryPrompt, true);
@@ -2471,8 +2993,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       setChatLoadingForId(requestChatId, true);
 
       try {
-        const requestData = {
-          type: 'chat',
+          const requestData = {
+            type: 'chat',
+            request_id: requestId,
           messages: regenerateHistory.map((msg) => ({
             role: msg.role,
             content: msg.content,
@@ -2481,8 +3004,12 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           })),
           use_deepthink: useDeepThink,
           use_multi_agent: useMultiAgent,
-          selected_mcp_servers: selectedMcpServers,
-          selected_skill_ids: selectedSkillIds
+          selected_mcp_servers: mcpServersLoaded ? selectedMcpServers : undefined,
+          selected_skill_ids: selectedSkillIds,
+          profile: settings.useUserProfile ? profile : {},
+          planning_mode: settings.planningMode,
+          allow_web_search: settings.allowWebSearch,
+          clarification_answers: {}
         };
 
         console.log('重新回答请求参数:', {
@@ -2511,6 +3038,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }
 
         let streamBuffer = '';
+        let lastSequence = 0;
         const decoder = new TextDecoder();
 
         const isCurrentRequest = () => (
@@ -2522,6 +3050,12 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           if (!line.startsWith('data: ')) return;
           try {
             const data = JSON.parse(line.slice(6));
+            if (safeText(data.request_id) && data.request_id !== requestId) return;
+            const eventSequence = Number(data.sequence);
+            if (Number.isFinite(eventSequence)) {
+              if (eventSequence <= lastSequence) return;
+              lastSequence = eventSequence;
+            }
             console.log('收到重新回答流式数据:', data);
 
             switch (data.type) {
@@ -2542,20 +3076,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               case 'error':
                 if (isCurrentRequest()) {
                   setChatLoadingForId(requestChatId, false);
-                  const serverHint = safeText(data.hint).trim();
-                  const rawErrorMessage = safeText(data.message).trim() || '未知错误';
-                  const composedRawError = serverHint ? `${rawErrorMessage}。${serverHint}` : rawErrorMessage;
-                  const modelName = safeText(data.model_name).trim();
-                  const baseUrl = safeText(data.base_url).trim();
-                  const apiKeyMasked = safeText(data.api_key_masked).trim();
-                  const diagnostics = [
-                    modelName ? `模型=${modelName}` : '',
-                    baseUrl ? `API=${baseUrl}` : '',
-                    apiKeyMasked ? `Key=${apiKeyMasked}` : '',
-                  ].filter(Boolean).join('，');
-                  const composedError = diagnostics
-                    ? `错误: ${composedRawError}（${diagnostics}）`
-                    : `错误: ${composedRawError}`;
+                  const composedError = safeText(data.user_message).trim()
+                    || '暂时无法重新生成回答，请稍后重试。';
 
                   setChatMessagesForId(requestChatId, (prev) => [...prev, {
                     id: uuidv4(),
@@ -2621,8 +3143,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           setChatMessagesForId(requestChatId, (prev) => [...prev, {
             id: uuidv4(),
             role: 'system',
-            content: `重新回答失败: ${error}`,
-            displayContent: `重新回答失败: ${error}`,
+            content: '重新生成时网络连接异常，请稍后重试。',
+            displayContent: '重新生成时网络连接异常，请稍后重试。',
             timestamp: new Date(),
             type: 'error'
           }]);
@@ -2919,6 +3441,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       const isAssistantAnswer = isAssistantAnswerMessage(message);
       const feedback = messageFeedback[message.id];
       const regeneratePrompt = isAssistantAnswer ? getRegeneratePrompt(message.id) : '';
+      const copyableAnswer = formatMainChatContent(safeDisplayContent).trim();
 
       return (
         <div
@@ -2931,7 +3454,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           }}
         >
           <div style={{
-            maxWidth: '85%',  // 增加最大宽度以更好地显示表格
+            maxWidth: isUser ? '85%' : '100%',
+            width: isUser ? 'auto' : '100%',
             minWidth: '120px',
             position: 'relative'
           }}>
@@ -2939,7 +3463,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
             {!isUser && message.agentType && (
               <div style={{
                 fontSize: '12px',
-                color: '#8b5cf6',
+                color: 'var(--travel-primary-dark)',
                 marginBottom: '4px',
                 fontWeight: 500
               }}>
@@ -2952,10 +3476,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               className={`markdown-content ${isUser ? 'user-message' : ''}`}
               style={{
                 background: isUser
-                  ? '#6366f1'
+                  ? 'var(--travel-gradient-primary)'
                   : isError
                     ? '#fef2f2'
-                    : '#ffffff',
+                    : 'linear-gradient(145deg, color-mix(in oklch, var(--travel-surface) 74%, var(--travel-bg-soft) 26%), color-mix(in oklch, var(--travel-surface-muted) 42%, white 58%))',
                 color: isUser
                   ? '#ffffff'
                   : isError
@@ -2963,14 +3487,14 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                     : '#1f2937',
                 padding: '12px 16px',  // 增加内边距
                 borderRadius: isUser
-                  ? '16px 16px 4px 16px'
-                  : '16px 16px 16px 4px',
+                  ? '18px 18px 6px 18px'
+                  : '18px 18px 18px 6px',
                 boxShadow: isUser
-                  ? '0 1px 3px rgba(99, 102, 241, 0.3)'
-                  : '0 1px 3px rgba(0, 0, 0, 0.1)',
+                  ? '0 10px 18px rgba(46, 95, 138, 0.18)'
+                  : '0 4px 8px rgba(67, 76, 118, 0.06)',
                 border: isUser
                   ? 'none'
-                  : '1px solid #f1f5f9',
+                  : '1px solid color-mix(in oklch, var(--travel-border-soft) 72%, transparent)',
                 fontSize: '14px',
                 lineHeight: '1.6',  // 增加行高
                 wordBreak: 'break-word',
@@ -3142,9 +3666,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
-                          color: isUser ? '#ffffff' : '#6366f1',
+                          color: isUser ? '#ffffff' : 'var(--travel-primary-dark)',
                           textDecoration: 'underline',
-                          textDecorationColor: isUser ? 'rgba(255,255,255,0.5)' : '#6366f1'
+                          textDecorationColor: isUser ? 'rgba(255,255,255,0.5)' : 'var(--travel-primary)'
                         }}
                       >
                         {children}
@@ -3193,6 +3717,24 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                     aria-label="重新回答"
                     style={{
                       color: '#6b7280',
+                      fontSize: '12px',
+                      height: '24px',
+                      width: '24px',
+                      minWidth: '24px',
+                      padding: 0
+                    }}
+                  />
+
+                  <Button
+                    size="small"
+                    type="text"
+                    icon={copiedCode === copyableAnswer ? <CheckOutlined /> : <CopyOutlined />}
+                    onClick={() => copyToClipboard(copyableAnswer)}
+                    disabled={!copyableAnswer}
+                    title={copiedCode === copyableAnswer ? '已复制' : '复制回答'}
+                    aria-label={copiedCode === copyableAnswer ? '已复制' : '复制回答'}
+                    style={{
+                      color: copiedCode === copyableAnswer ? '#10b981' : '#6b7280',
                       fontSize: '12px',
                       height: '24px',
                       width: '24px',
@@ -3317,6 +3859,18 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }));
     };
 
+    const structuredLocationGroups = useMemo(() => {
+      if (tripWorkspace.locations.length === 0) return [];
+      const latestUserMessage = [...messages].reverse().find((message) => message.role === 'user');
+      return buildLocationGroupsForAnswer(
+        'structured_trip_workspace',
+        '结构化行程地点',
+        tripWorkspace.locations,
+        latestUserMessage?.id || '',
+        safeText(latestUserMessage?.displayContent || latestUserMessage?.content)
+      );
+    }, [tripWorkspace.locations, messages]);
+
     const groupedMapData = useMemo(() => {
       const groups: LocationGroupData[] = [];
       const seenSignatures = new Set<string>();
@@ -3361,20 +3915,93 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       [mapSuppressed, groupedMapData]
     );
 
-    const groupedLocationCount = useMemo(
-      () => effectiveLocationGroups.reduce((sum, group) => sum + group.locations.length, 0),
-      [effectiveLocationGroups]
+    const mapLocationGroupsForRender = useMemo(
+      () => structuredLocationGroups,
+      [structuredLocationGroups]
+    );
+    const workspaceLocationGroups = useMemo(
+      () => [...structuredLocationGroups, ...effectiveLocationGroups],
+      [effectiveLocationGroups, structuredLocationGroups]
     );
 
-    const latestGroupedLocations = useMemo(
-      () => (effectiveLocationGroups.length > 0 ? effectiveLocationGroups[effectiveLocationGroups.length - 1].locations : []),
-      [effectiveLocationGroups]
-    );
+    useEffect(() => {
+      if (mapLocationGroupsForRender.length === 0) {
+        setActiveMapGroupId('');
+        return;
+      }
+      setActiveMapGroupId((current) => (
+        mapLocationGroupsForRender.some((group) => group.groupId === current)
+          ? current
+          : mapLocationGroupsForRender[0].groupId
+      ));
+    }, [mapLocationGroupsForRender]);
 
     const effectiveMapLocations = useMemo(
-      () => (mapSuppressed ? [] : (latestGroupedLocations.length > 0 ? latestGroupedLocations : mapLocations)),
-      [mapSuppressed, latestGroupedLocations, mapLocations]
+      () => (mapSuppressed ? [] : tripWorkspace.locations),
+      [mapSuppressed, tripWorkspace.locations]
     );
+
+    useEffect(() => {
+      if (selectedLocationId && !effectiveMapLocations.some((location) => location.id === selectedLocationId)) {
+        setSelectedLocationId('');
+      }
+    }, [effectiveMapLocations, selectedLocationId]);
+
+    const mapDataSignature = useMemo(
+      () => effectiveMapLocations.map((loc) => `${loc.id}:${loc.name}:${loc.lat}:${loc.lng}`).join('|'),
+      [effectiveMapLocations]
+    );
+
+    const hasTripWorkspaceData = useMemo(
+      () => (
+        tripWorkspace.locations.length > 0
+        || (tripWorkspace.days?.length || 0) > 0
+        || tripWorkspace.sources.length > 0
+        || Boolean(tripWorkspace.budget)
+        || Boolean(tripWorkspace.validation)
+        || Boolean(tripWorkspace.repair)
+      ),
+      [tripWorkspace]
+    );
+
+    useEffect(() => {
+      if (!mapDataSignature || lastAutoOpenedMapSignatureRef.current === mapDataSignature) {
+        return;
+      }
+
+      lastAutoOpenedMapSignatureRef.current = mapDataSignature;
+      setShowMap(true);
+    }, [mapDataSignature]);
+
+    const activePendingClarification = pendingClarification?.chatId === getActiveChatId()
+      ? pendingClarification
+      : null;
+
+    const submitClarificationAnswer = (
+      clarification: PendingClarification,
+      answer: Record<string, string>,
+    ) => {
+      const cumulativeAnswers = { ...clarification.answers, ...answer };
+      const submittedField = Object.keys(answer)[0];
+      const answeredCount = submittedField
+        && Object.prototype.hasOwnProperty.call(clarification.answers, submittedField)
+        ? clarification.answeredCount
+        : clarification.answeredCount + 1;
+
+      setPendingClarification((current) => (
+        current && current.chatId === clarification.chatId
+          ? { ...current, answers: cumulativeAnswers, answeredCount }
+          : current
+      ));
+
+      void handleSendMessage('', {
+        appendUserMessage: false,
+        requestMessagesOverride: clarification.requestMessages,
+        clarificationAnswers: cumulativeAnswers,
+        clarificationAnsweredCount: answeredCount,
+        clarificationQuestionId: clarification.question.id,
+      });
+    };
 
     const renderedMessageGroups = useMemo(
       () => messageGroups.map((group, groupIndex) => (
@@ -3442,31 +4069,49 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           })()}
         </div>
       )),
-      [messageGroups, copiedCode, messageFeedback, isLoading, answerPageByUserMessageId]
+      [messageGroups, copiedCode, messageFeedback, isLoading, answerPageByUserMessageId, settings, profile]
     );
 
     return (
       <div
         ref={chatMapLayoutRef}
+        className={`chat-map-layout ${showMap ? 'chat-map-layout-open' : ''} mobile-view-${mobilePrimaryView}`}
         style={{
           height: '100vh',
           display: 'flex',
           flexDirection: 'row',
           overflow: 'hidden',
-          background: '#f8fafc'
+          background: 'var(--travel-gradient-page)',
+          position: 'relative'
         }}
       >
+        <div className="mobile-primary-view-switcher" aria-label="切换主要视图">
+          <Segmented
+            block
+            value={mobilePrimaryView}
+            options={[
+              { label: '对话', value: 'chat', icon: <MessageOutlined /> },
+              { label: '行程', value: 'trip', icon: <CalendarOutlined /> },
+              { label: '地图', value: 'map', icon: <EnvironmentOutlined /> },
+            ]}
+            onChange={(value) => {
+              const nextView = value as MobilePrimaryView;
+              setMobilePrimaryView(nextView);
+              if (nextView !== 'chat') setShowMap(true);
+            }}
+          />
+        </div>
         {/* 左侧聊天区域 */}
-        <div style={{
+        <div className="chat-panel" style={{
           flex: showMap ? `0 0 ${chatPanelWidthPercent}%` : 1,
           minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          borderRight: showMap ? '1px solid #e5e7eb' : 'none'
+          borderRight: showMap ? '1px solid var(--travel-border)' : 'none'
         }}>
           {/* 消息列表 - 豆包风格 */}
-          <div style={{
+          <div className="chat-scroll-region" style={{
             flex: 1,
             overflow: 'auto',
             display: 'flex',
@@ -3474,9 +4119,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
             alignItems: 'center'
           }}>
             <div style={{
-              width: '100%',
-              maxWidth: showMap ? 'none' : '768px',
-              padding: '16px 24px'
+              width: 'calc(100% - 48px)',
+              maxWidth: '768px',
+              padding: '16px 0'
             }}>
               {messages.length === 0 ? (
                 <div style={{
@@ -3493,21 +4138,21 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                     width: '64px',
                     height: '64px',
                     borderRadius: '16px',
-                    background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                    background: 'var(--travel-selected)',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     marginBottom: '20px',
-                    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.2)'
+                    boxShadow: 'none'
                   }}>
-                    <RobotOutlined style={{ fontSize: '28px', color: '#ffffff' }} />
+                    <EnvironmentOutlined style={{ fontSize: '28px', color: 'var(--travel-primary-dark)' }} />
                   </div>
 
-                  <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: '#1f2937' }}>
-                    您好，我是 SuperTravelAgent
+                  <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--travel-ink)' }}>
+                    开始一段轻松的旅行规划
                   </div>
                   <div style={{ fontSize: '14px', lineHeight: '1.5', marginBottom: '24px', maxWidth: '320px' }}>
-                    我是您的智能旅游规划助手，可以运用多智能体协作为您制定完美的旅行方案。
+                    告诉我目的地、天数、预算或旅行偏好，我会边聊边整理路线、景点和地图位置。
                   </div>
 
                   {/* 功能特色 */}
@@ -3520,10 +4165,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   }}>
                     <div style={{
                       padding: '12px 16px',
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      border: '1px solid #f1f5f9',
-                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                      background: 'linear-gradient(135deg, var(--travel-surface), color-mix(in oklch, var(--travel-surface-muted) 34%, white 66%))',
+                      borderRadius: '14px',
+                      border: '1px solid var(--travel-border-soft)',
+                      boxShadow: 'var(--travel-card-shadow)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px'
@@ -3536,10 +4181,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
                     <div style={{
                       padding: '12px 16px',
-                      background: '#ffffff',
-                      borderRadius: '8px',
-                      border: '1px solid #f1f5f9',
-                      boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                      background: 'linear-gradient(135deg, var(--travel-surface), color-mix(in oklch, var(--travel-surface-muted) 34%, white 66%))',
+                      borderRadius: '14px',
+                      border: '1px solid var(--travel-border-soft)',
+                      boxShadow: 'var(--travel-card-shadow)',
                       display: 'flex',
                       alignItems: 'center',
                       gap: '8px'
@@ -3596,22 +4241,24 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                           key={index}
                           style={{
                             padding: '16px',
-                            background: '#ffffff',
-                            borderRadius: '12px',
-                            border: '1px solid #f1f5f9',
-                            boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+                            background: 'radial-gradient(circle at 92% 14%, color-mix(in oklch, var(--travel-accent) 13%, transparent), transparent 30%), var(--travel-surface)',
+                            borderRadius: '16px',
+                            border: '1px solid var(--travel-border-soft)',
+                            boxShadow: 'var(--travel-card-shadow)',
                             cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             textAlign: 'left'
                           }}
                           onClick={() => setInputText(item.example, true)}
                           onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = '#e0e7ff';
-                            e.currentTarget.style.boxShadow = '0 4px 12px rgba(99, 102, 241, 0.1)';
+                            e.currentTarget.style.borderColor = 'color-mix(in oklch, var(--travel-primary-soft) 64%, var(--travel-border) 36%)';
+                            e.currentTarget.style.boxShadow = '0 10px 16px rgba(28, 52, 78, 0.10)';
+                            e.currentTarget.style.transform = 'translateY(-2px)';
                           }}
                           onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = '#f1f5f9';
-                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                            e.currentTarget.style.borderColor = 'var(--travel-border-soft)';
+                            e.currentTarget.style.boxShadow = 'var(--travel-card-shadow)';
+                            e.currentTarget.style.transform = 'translateY(0)';
                           }}
                         >
                           <div style={{
@@ -3668,7 +4315,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           {/* 豆包风格的输入区域 */}
           <div style={{
             padding: '16px 24px 20px',
-            background: '#f8fafc',
+            background: 'transparent',
             flexShrink: 0
           }}>
             {/* 输入框容器 - 豆包风格多行设计 */}
@@ -3676,17 +4323,47 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               maxWidth: '768px',
               margin: '0 auto'
             }}>
+              {selectedKnowledgeContext.length > 0 && (
+                <div className="selected-knowledge-context-bar">
+                  <div>
+                    <strong>知识库上下文</strong>
+                    <span>{selectedKnowledgeContext.slice(0, 2).map((item) => item.title || item.city).join('、')}</span>
+                    {selectedKnowledgeContext.length > 2 && <small>+{selectedKnowledgeContext.length - 2}</small>}
+                  </div>
+                  <Button size="small" type="text" onClick={clearSelectedKnowledgeContext}>
+                    清空
+                  </Button>
+                </div>
+              )}
+              {activePendingClarification && (
+                <div className="clarification-dock">
+                  <ClarificationPanel
+                    question={activePendingClarification.question}
+                    answeredCount={activePendingClarification.answeredCount}
+                    loading={isLoading}
+                    profileDefaultValue={activePendingClarification.question.profile_default_value
+                      || getClarificationProfileDefault(
+                        activePendingClarification.question.field,
+                        profile as unknown as Record<string, unknown>,
+                      )}
+                    onSubmit={(answer) => submitClarificationAnswer(activePendingClarification, answer)}
+                    onSkip={() => submitClarificationAnswer(activePendingClarification, {
+                      [activePendingClarification.question.field]: CLARIFICATION_SKIP_VALUE,
+                    })}
+                  />
+                </div>
+              )}
               <div
                 className="chat-input-container"
                 style={{
                   position: 'relative',
-                  borderRadius: '16px',
-                  background: '#ffffff',
+                  borderRadius: '18px',
+                  background: 'linear-gradient(145deg, color-mix(in oklch, var(--travel-bg) 78%, transparent), color-mix(in oklch, var(--travel-bg-soft) 58%, transparent))',
                   transition: 'all 0.2s ease',
                   minHeight: '140px',
                   display: 'flex',
                   flexDirection: 'column',
-                  border: '1px solid #f1f5f9'
+                  border: '1px solid var(--travel-border-soft)'
                 }}
               >
                 {/* 顶部功能开关行 */}
@@ -3696,7 +4373,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   justifyContent: 'flex-end',
                   alignItems: 'center',
                   padding: '12px 16px 8px 16px',
-                  borderBottom: '1px solid #f8fafc'
+                  borderBottom: '1px solid color-mix(in oklch, var(--travel-border-soft) 74%, transparent)'
                 }}>
                   {/* 隐藏左侧的控制开关 */}
                   {false && (
@@ -3778,7 +4455,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                               alignItems: 'center',
                               gap: '6px'
                             }}>
-                              <CloudServerOutlined style={{ color: '#6366f1' }} />
+                              <CloudServerOutlined style={{ color: 'var(--travel-primary)' }} />
                               选择MCP服务器 ({selectedMcpServers.length}/{mcpServers.length})
                             </div>
                             <Divider style={{ margin: '8px 0' }} />
@@ -3804,13 +4481,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                                       alignItems: 'center',
                                       justifyContent: 'space-between',
                                       padding: '8px 4px',
-                                      borderRadius: '6px',
+                                      borderRadius: '10px',
                                       transition: 'background 0.2s',
                                       cursor: (server.status !== 'error' && server.disabled !== true) ? 'pointer' : 'default'
                                     }}
                                     onMouseEnter={(e) => {
                                       if (server.status !== 'error' && server.disabled !== true) {
-                                        e.currentTarget.style.background = '#f8fafc';
+                                        e.currentTarget.style.background = 'color-mix(in oklch, var(--travel-hover) 72%, white 28%)';
                                       }
                                     }}
                                     onMouseLeave={(e) => {
@@ -4004,7 +4681,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                             alignItems: 'center',
                             gap: '6px'
                           }}>
-                            <ThunderboltOutlined style={{ color: '#7c3aed' }} />
+                            <ThunderboltOutlined style={{ color: 'var(--travel-primary)' }} />
                             选择旅行技能 ({selectedSkillIds.length}/{skills.length})
                           </div>
                           <Divider style={{ margin: '8px 0' }} />
@@ -4105,15 +4782,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                           alignItems: 'center',
                           justifyContent: 'center',
                           gap: '6px',
-                          color: selectedSkillIds.length > 0 ? '#7c3aed' : '#6b7280',
+                          color: selectedSkillIds.length > 0 ? 'var(--travel-primary-dark)' : 'var(--travel-muted)',
                           cursor: 'pointer',
                           padding: '0 8px',
                           width: '96px',
                           minWidth: '96px',
                           height: '24px',
-                          borderRadius: '6px',
-                          background: selectedSkillIds.length > 0 ? '#f5f3ff' : 'transparent',
-                          border: selectedSkillIds.length > 0 ? '1px solid #ddd6fe' : '1px solid transparent',
+                          borderRadius: '10px',
+                          background: selectedSkillIds.length > 0 ? 'linear-gradient(135deg, color-mix(in oklch, var(--travel-selected) 86%, white 14%), color-mix(in oklch, var(--travel-accent) 16%, white 84%))' : 'transparent',
+                          border: selectedSkillIds.length > 0 ? '1px solid var(--travel-primary-soft)' : '1px solid transparent',
                           transition: 'background 0.2s, border-color 0.2s, color 0.2s',
                           fontSize: '12px',
                           whiteSpace: 'nowrap'
@@ -4130,7 +4807,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                               lineHeight: '14px',
                               padding: '0 4px',
                               fontSize: '10px',
-                              background: '#7c3aed',
+                              background: 'var(--travel-gradient-primary)',
                               color: 'white',
                               border: 'none',
                               flexShrink: 0
@@ -4141,36 +4818,40 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         )}
                       </div>
                     </Dropdown>
-                    <Button
-                      type="text"
-                      size="small"
-                      icon={<EnvironmentOutlined />}
-                      onClick={() => {
-                        setShowMap(!showMap);
-                        // 如果显示地图且有地点，延迟一下再触发地图重新渲染
-                        if (!showMap && effectiveMapLocations.length > 0) {
-                          setTimeout(() => {
-                            // 触发地图重新渲染，会自动缩放到地点
-                            setMapSuppressed(false);
-                            setMapLocations([...effectiveMapLocations]);
-                          }, 300); // 增加延迟时间确保地图组件完全加载
-                        }
-                      }}
+                    <button
+                      type="button"
+                      onClick={() => setUseDeepThink((previous) => !previous)}
+                      title={useDeepThink ? '当前使用深度研究模型' : '当前使用快速对话模型'}
+                      aria-pressed={useDeepThink}
                       style={{
-                        color: showMap ? '#1890ff' : '#9ca3af',
-                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        color: useDeepThink ? 'var(--travel-primary-dark)' : 'var(--travel-muted)',
+                        cursor: 'pointer',
+                        padding: '0 9px',
+                        minWidth: '92px',
                         height: '24px',
-                        padding: '0 8px',
-                        borderRadius: '6px',
-                        background: showMap ? '#f0f9ff' : 'transparent'
+                        borderRadius: '10px',
+                        background: useDeepThink ? 'linear-gradient(135deg, color-mix(in oklch, var(--travel-selected) 86%, white 14%), color-mix(in oklch, var(--travel-violet) 14%, white 86%))' : 'transparent',
+                        border: useDeepThink ? '1px solid var(--travel-primary-soft)' : '1px solid transparent',
+                        transition: 'background 0.2s, border-color 0.2s, color 0.2s',
+                        fontSize: '12px',
+                        whiteSpace: 'nowrap'
                       }}
                     >
-                      地图{
-                        effectiveLocationGroups.length > 0
-                          ? `(${effectiveLocationGroups.length}组/${groupedLocationCount}点)`
-                          : (effectiveMapLocations.length > 0 ? `(${effectiveMapLocations.length})` : '')
-                      }
-                    </Button>
+                      <BranchesOutlined style={{ fontSize: '12px', flexShrink: 0 }} />
+                      <span>{useDeepThink ? '深度研究' : '快速对话'}</span>
+                    </button>
+                    <TripProductTools
+                      plan={activeTripPlan}
+                      document={activeTripDocument}
+                      workspace={tripWorkspace}
+                      onUseTemplate={(prompt) => void handleSendMessage(prompt)}
+                      onImportDocument={handleImportedTripDocument}
+                      onDocumentChange={setActiveTripDocument}
+                    />
                     {effectiveMapLocations.length > 0 && (
                       <Button
                         type="text"
@@ -4181,7 +4862,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                           fontSize: '11px',
                           height: '20px',
                           padding: '0 6px',
-                          borderRadius: '4px'
+                          borderRadius: '8px'
                         }}
                       >
                         清除地点
@@ -4211,41 +4892,43 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         isComposingRef.current = false;
                         syncInputState(e.currentTarget.value);
                       }}
-                      placeholder="发消息..."
-                      autoSize={{ minRows: 2 }}
+                      placeholder={activePendingClarification ? '请先回答或跳过上方问题' : '发消息...'}
+                      autoSize={{ minRows: 2, maxRows: 6 }}
                       bordered={false}
                       onPressEnter={(e) => {
                         const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
                         if (!e.shiftKey && !nativeEvent.isComposing && !isComposingRef.current) {
                           e.preventDefault();
-                          handleSendMessage();
+                          if (!activePendingClarification) handleSendMessage();
                         }
                       }}
-                      disabled={isLoading}
+                      disabled={isLoading || Boolean(activePendingClarification)}
                       style={{
-                        padding: '0',
+                        padding: '1px 0',
                         fontSize: '14px',
                         resize: 'none',
-                        lineHeight: '1.5',
+                        lineHeight: '22px',
                         fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
                         background: 'transparent',
                         width: '100%',
-                        minHeight: '42px'
+                        minHeight: '44px'
                       }}
                     />
 
                     {/* 输入提示文字 - 只在输入框为空时显示 */}
-                    {isInputEmpty && (
+                    {isInputEmpty && !activePendingClarification && (
                       <div style={{
                         position: 'absolute',
                         bottom: '4px',
                         right: '0',
                         fontSize: '11px',
-                        color: '#9ca3af',
+                        color: 'color-mix(in oklch, var(--travel-muted) 88%, var(--travel-primary-dark) 12%)',
                         pointerEvents: 'none',
-                        background: 'rgba(255, 255, 255, 0.8)',
-                        padding: '2px 4px',
-                        borderRadius: '4px'
+                        background: 'transparent',
+                        padding: '2px 0',
+                        borderRadius: 0,
+                        border: 'none',
+                        boxShadow: 'none'
                       }}>
                         按 Enter 发送 • Shift + Enter 换行
                       </div>
@@ -4262,18 +4945,18 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                       }
                       void handleSendMessage();
                     }}
-                    disabled={!isLoading && isInputEmpty}
+                    disabled={!isLoading && (isInputEmpty || Boolean(activePendingClarification))}
                     style={{
-                      borderRadius: '12px',
+                      borderRadius: '14px',
                       height: '32px',
                       width: '32px',
                       padding: 0,
                       background: isLoading
                         ? '#ef4444'
-                        : (!isInputEmpty ? '#6366f1' : '#f1f5f9'),
+                        : (!isInputEmpty ? 'var(--travel-gradient-primary)' : 'color-mix(in oklch, var(--travel-surface-muted) 72%, white 28%)'),
                       borderColor: isLoading
                         ? '#ef4444'
-                        : (!isInputEmpty ? '#6366f1' : '#f1f5f9'),
+                        : (!isInputEmpty ? 'transparent' : 'color-mix(in oklch, var(--travel-border) 72%, white 28%)'),
                       color: isLoading
                         ? '#ffffff'
                         : (!isInputEmpty ? '#ffffff' : '#9ca3af'),
@@ -4292,43 +4975,120 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           {/* 输入框区域 - 已有的输入框代码应该在这里 */}
         </div>
 
+        <Button
+          type="primary"
+          shape="circle"
+          icon={<EnvironmentOutlined />}
+          aria-label={showMap ? '关闭旅行工作台' : '打开旅行工作台'}
+          title={showMap ? '关闭旅行工作台' : '打开旅行工作台'}
+        className={`map-toggle-orb ${showMap ? 'map-toggle-orb-open' : ''}`}
+        style={showMap
+          ? { left: `calc(${chatPanelWidthPercent}% - 46px)`, right: 'auto' }
+          : { right: '22px', left: 'auto' }}
+          onClick={() => {
+            const nextShowMap = !showMap;
+            setShowMap(nextShowMap);
+            if (nextShowMap && effectiveMapLocations.length > 0) {
+              setMapSuppressed(false);
+              setMapLocations([...effectiveMapLocations]);
+            }
+          }}
+        />
+
         {showMap && (
           <div
+            className="chat-map-resizer"
             onMouseDown={startChatMapResize}
             title="拖动调整聊天与地图宽度"
             style={{
               width: '8px',
               flex: '0 0 8px',
               cursor: 'col-resize',
-              background: 'linear-gradient(to right, #e5e7eb, #d1d5db, #e5e7eb)',
-              borderLeft: '1px solid #d1d5db',
-              borderRight: '1px solid #d1d5db',
+              background: 'var(--travel-surface-muted)',
+              borderLeft: '1px solid var(--travel-border)',
+              borderRight: '1px solid var(--travel-border)',
               zIndex: 6
             }}
           />
         )}
 
-        {/* 右侧地图区域 */}
+        {/* 右侧旅行工作台区域 */}
         {showMap && (
-          <div style={{
-            flex: '1 1 0',
-            minWidth: 0,
-            height: '100vh',
-            overflow: 'hidden'
-          }}>
-            <MapComponent
-              width="100%"
-              height="100%"
-              locations={effectiveMapLocations}
-              locationGroups={effectiveLocationGroups.map((group) => ({
-                id: group.groupId,
-                title: group.title,
-                locations: group.locations,
-              }))}
-              onLocationAdd={(location) => {
-                console.log('添加新地点:', location);
-              }}
-            />
+          <div className="trip-side-panel" ref={tripSidePanelRef}>
+            <div
+              className={hasTripWorkspaceData ? 'trip-map-panel trip-map-panel-with-workspace' : 'trip-map-panel'}
+              style={hasTripWorkspaceData
+                ? { flex: `0 0 calc(${sidePanelMapPercent}% - 4px)` }
+                : { flex: '1 1 100%' }}
+            >
+              <MapComponent
+                width="100%"
+                height="100%"
+                locations={effectiveMapLocations}
+                dayRoutes={dayRoutes}
+                activeGroupId={activeMapGroupId}
+                selectedLocationId={selectedLocationId}
+                locationGroups={mapLocationGroupsForRender.map((group) => ({
+                  id: group.groupId,
+                  title: group.title,
+                  locations: group.locations,
+                }))}
+                onSelectLocation={(locationId) => {
+                  setSelectedLocationId(locationId);
+                }}
+              />
+            </div>
+            {!hasTripWorkspaceData && (
+              <div className="trip-mobile-empty" role="status">
+                <CalendarOutlined />
+                <span>行程生成后会在这里按日期整理</span>
+              </div>
+            )}
+            {hasTripWorkspaceData && (
+              <>
+                <div
+                  className="trip-side-horizontal-resizer"
+                  onMouseDown={startSidePanelResize}
+                  role="separator"
+                  aria-orientation="horizontal"
+                  aria-label="调整地图与行程工作台高度"
+                  title="拖动调整地图与行程工作台高度"
+                />
+                <div
+                  className="trip-workspace-shell"
+                  style={{ flex: `0 0 calc(${100 - sidePanelMapPercent}% - 4px)` }}
+                >
+                  <TripWorkspace
+                    data={tripWorkspace}
+                    document={activeTripDocument}
+                    locationGroups={workspaceLocationGroups.map((group) => ({
+                      groupId: group.groupId,
+                      title: group.title,
+                      locations: group.locations,
+                      sourceKind: group.groupId.startsWith('structured_trip_workspace')
+                        ? 'current_plan'
+                        : 'historical_answer',
+                    }))}
+                    activeGroupId={activeMapGroupId}
+                    selectedLocationId={selectedLocationId}
+                    onSelectGroup={setActiveMapGroupId}
+                    onSelectLocation={setSelectedLocationId}
+                    onEditOperation={activeTripPlan ? applyTripEditOperation : undefined}
+                    onUndoEdit={undoLastTripEdit}
+                    canUndoEdit={Boolean(previousTripPlan)}
+                    editLoading={isTripEditLoading}
+                    onFocusMap={() => {
+                      setShowMap(true);
+                      if (isNarrowLayout) setMobilePrimaryView('map');
+                    }}
+                    onQuickAction={(prompt) => {
+                      if (isNarrowLayout) setMobilePrimaryView('chat');
+                      void handleSendMessage(prompt);
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
         )}
       </div>

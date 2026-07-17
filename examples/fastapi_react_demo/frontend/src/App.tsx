@@ -1,27 +1,61 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { lazy, Suspense, useState, useEffect, useRef } from 'react';
 import { Layout, ConfigProvider, theme } from 'antd';
-import { BrowserRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation, useNavigate } from 'react-router-dom';
 import ChatInterface from './components/ChatInterface';
-import SystemConfig from './components/SystemConfig';
-import ToolsPanel from './components/ToolsPanel';
-import MCPServersPanel from './components/MCPServersPanel';
 import Sidebar from './components/Sidebar';
-import PhotoEditor from './components/PhotoEditor';
 import { SystemProvider } from './context/SystemContext';
 import { ChatHistoryItem, useChatHistory } from './hooks/useChatHistory';
 import './App.css';
 
 const { Content } = Layout;
+const MOBILE_LAYOUT_QUERY = '(max-width: 768px)';
+const PhotoEditor = lazy(() => import('./components/PhotoEditor'));
+const SettingsPage = lazy(() => import('./components/SettingsPage'));
+const KnowledgeBase = lazy(() => import('./components/KnowledgeBase'));
+const UserProfile = lazy(() => import('./components/UserProfile'));
+const SharedTripPage = lazy(() => import('./components/SharedTripPage'));
+
+const RouteLoading: React.FC = () => (
+  <div className="route-loading" role="status" aria-label="页面加载中">
+    <span />
+    <span />
+    <span />
+  </div>
+);
 
 const AppContent: React.FC = () => {
   const [darkMode] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(
+    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_LAYOUT_QUERY).matches
+  );
   const [currentChatId, setCurrentChatId] = useState<string>('');
   const [loadedMessages, setLoadedMessages] = useState<ChatHistoryItem['messages'] | null>(null);
+  const [loadedTripPlan, setLoadedTripPlan] = useState<Record<string, unknown> | null>(null);
+  const [loadedTripDocument, setLoadedTripDocument] = useState<Record<string, unknown> | null>(null);
+  const [loadedTripWorkspace, setLoadedTripWorkspace] = useState<Record<string, unknown> | null>(null);
   const { history } = useChatHistory();
   const hasAutoRestoredRef = useRef(false);
-  const chatInterfaceRef = useRef<{ startNewChat: () => void; loadChat: (messages: ChatHistoryItem['messages']) => void }>(null);
+  const chatInterfaceRef = useRef<{
+    startNewChat: () => void;
+    loadChat: (
+      messages: ChatHistoryItem['messages'],
+      tripPlan?: Record<string, unknown> | null,
+      tripWorkspace?: Record<string, unknown> | null,
+      tripDocument?: Record<string, unknown> | null,
+    ) => void;
+  }>(null);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  useEffect(() => {
+    const mobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY);
+    const collapseOnMobile = (event: MediaQueryListEvent | MediaQueryList) => {
+      if (event.matches) setCollapsed(true);
+    };
+    collapseOnMobile(mobileLayout);
+    mobileLayout.addEventListener('change', collapseOnMobile);
+    return () => mobileLayout.removeEventListener('change', collapseOnMobile);
+  }, []);
 
   // 刷新后自动恢复最近会话
   useEffect(() => {
@@ -32,6 +66,9 @@ const AppContent: React.FC = () => {
     hasAutoRestoredRef.current = true;
     setCurrentChatId(latestChat.id);
     setLoadedMessages([...latestChat.messages]);
+    setLoadedTripPlan(latestChat.tripPlan || null);
+    setLoadedTripDocument(latestChat.tripDocument || null);
+    setLoadedTripWorkspace(latestChat.tripWorkspace || null);
   }, [history]);
 
   // 处理新对话
@@ -46,6 +83,9 @@ const AppContent: React.FC = () => {
     if (chatInterfaceRef.current) {
       chatInterfaceRef.current.startNewChat();
       setLoadedMessages(null);
+      setLoadedTripPlan(null);
+      setLoadedTripDocument(null);
+      setLoadedTripWorkspace(null);
       console.log('App.tsx - startNewChat直接调用完成');
       return;
     }
@@ -74,22 +114,28 @@ const AppContent: React.FC = () => {
   };
 
   // 处理选择历史对话
-  const handleChatSelect = (chatId: string, messages: ChatHistoryItem['messages']) => {
-    console.log('App.tsx - handleChatSelect被调用，chatId:', chatId, '消息数量:', messages.length);
+  const handleChatSelect = (chat: ChatHistoryItem) => {
+    console.log('App.tsx - handleChatSelect被调用，chatId:', chat.id, '消息数量:', chat.messages.length);
 
     // 导航到首页
     navigate('/');
 
-    setCurrentChatId(chatId);
+    setCurrentChatId(chat.id);
     // 通过 loadedMessages 的变化来触发 ChatInterface 的 useEffect
     // 不再直接调用 loadChat 方法，避免重复处理
-    setLoadedMessages([...messages]); // 使用新数组确保触发 useEffect
+    setLoadedTripPlan(chat.tripPlan || null);
+    setLoadedTripDocument(chat.tripDocument || null);
+    setLoadedTripWorkspace(chat.tripWorkspace || null);
+    setLoadedMessages([...chat.messages]); // 使用新数组确保触发 useEffect
   };
 
   const handleChatDeleted = (chatId: string) => {
     if (currentChatId !== chatId) return;
     setCurrentChatId('');
     setLoadedMessages([]);
+    setLoadedTripPlan(null);
+    setLoadedTripDocument(null);
+    setLoadedTripWorkspace(null);
     setTimeout(() => {
       chatInterfaceRef.current?.startNewChat();
     }, 0);
@@ -98,27 +144,70 @@ const AppContent: React.FC = () => {
   const handleHistoryCleared = () => {
     setCurrentChatId('');
     setLoadedMessages([]);
+    setLoadedTripPlan(null);
+    setLoadedTripDocument(null);
+    setLoadedTripWorkspace(null);
     setTimeout(() => {
       chatInterfaceRef.current?.startNewChat();
     }, 0);
   };
 
-  // 主题配置 - 豆包风格
+  // 主题配置 - 旅行规划产品风格
   const themeConfig = {
     algorithm: darkMode ? theme.darkAlgorithm : theme.defaultAlgorithm,
     token: {
-      colorPrimary: '#6366f1',
-      colorSuccess: '#10b981',
-      colorWarning: '#f59e0b',
-      colorError: '#ef4444',
-      borderRadius: 8,
-      colorBgContainer: darkMode ? '#1f2937' : '#ffffff',
+      colorPrimary: '#6269d8',
+      colorSuccess: '#2b9a68',
+      colorWarning: '#c98624',
+      colorError: '#d2473d',
+      borderRadius: 12,
+      fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+      colorBgLayout: darkMode ? '#101820' : '#f3efff',
+      colorBgContainer: darkMode ? '#1f2937' : '#fbfdff',
       colorBgElevated: darkMode ? '#374151' : '#ffffff',
-      colorText: darkMode ? '#f9fafb' : '#1f2937',
-      colorTextSecondary: darkMode ? '#d1d5db' : '#6b7280',
-      colorBorder: darkMode ? '#4b5563' : '#e5e7eb',
+      colorText: darkMode ? '#f9fafb' : '#202f3f',
+      colorTextSecondary: darkMode ? '#d1d5db' : '#5f6f80',
+      colorBorder: darkMode ? '#4b5563' : '#d2dbe7',
+      boxShadow: '0 8px 14px rgba(28, 52, 78, 0.08)',
+    },
+    components: {
+      Button: {
+        controlHeight: 36,
+        borderRadius: 12,
+        primaryShadow: 'none',
+      },
+      Card: {
+        borderRadiusLG: 16,
+        boxShadowTertiary: '0 8px 14px rgba(28, 52, 78, 0.08)',
+      },
+      Input: {
+        borderRadius: 12,
+        activeShadow: '0 0 0 3px rgba(48, 93, 132, 0.16)',
+      },
+      InputNumber: {
+        borderRadius: 12,
+      },
+      Menu: {
+        itemBorderRadius: 12,
+        itemSelectedBg: '#dfeaf4',
+        itemSelectedColor: '#234a68',
+      },
+      Tabs: {
+        inkBarColor: '#2e5f8a',
+        itemSelectedColor: '#234a68',
+      },
     },
   };
+
+  if (location.pathname.startsWith('/share/')) {
+    return (
+      <ConfigProvider theme={themeConfig}>
+        <Suspense fallback={<RouteLoading />}>
+          <Routes><Route path="/share/:token" element={<SharedTripPage />} /></Routes>
+        </Suspense>
+      </ConfigProvider>
+    );
+  }
 
   return (
     <ConfigProvider theme={themeConfig}>
@@ -126,7 +215,7 @@ const AppContent: React.FC = () => {
         <Layout style={{
           height: '100vh',
           overflow: 'hidden',
-          background: '#f8fafc'
+          background: 'var(--travel-gradient-page)'
         }}>
           <Layout style={{ flex: 1, overflow: 'hidden' }}>
             <Sidebar
@@ -142,34 +231,42 @@ const AppContent: React.FC = () => {
             <Layout style={{
               flex: 1,
               overflow: 'hidden',
-              background: '#f8fafc'
+              background: 'var(--travel-gradient-page)'
             }}>
               <Content
                 style={{
                   margin: 0,
                   height: '100%',
-                  background: '#f8fafc',
+                  background: 'var(--travel-gradient-page)',
                   overflow: 'auto',
                   display: 'flex',
                   flexDirection: 'column'
                 }}
               >
-                <Routes>
-                  <Route
-                    path="/"
-                    element={
-                      <ChatInterface
-                        ref={chatInterfaceRef}
-                        currentChatId={currentChatId}
-                        loadedMessages={loadedMessages}
-                      />
-                    }
-                  />
-                  <Route path="/photo-editor" element={<PhotoEditor />} />
-                  <Route path="/config" element={<SystemConfig />} />
-                  <Route path="/tools" element={<ToolsPanel />} />
-                  <Route path="/mcp-servers" element={<MCPServersPanel />} />
-                </Routes>
+                <Suspense fallback={<RouteLoading />}>
+                  <Routes>
+                    <Route
+                      path="/"
+                      element={
+                        <ChatInterface
+                          ref={chatInterfaceRef}
+                          currentChatId={currentChatId}
+                          loadedMessages={loadedMessages}
+                          loadedTripPlan={loadedTripPlan}
+                          loadedTripDocument={loadedTripDocument}
+                          loadedTripWorkspace={loadedTripWorkspace}
+                        />
+                      }
+                    />
+                    <Route path="/photo-editor" element={<PhotoEditor />} />
+                    <Route path="/knowledge" element={<KnowledgeBase />} />
+                    <Route path="/profile" element={<UserProfile />} />
+                    <Route path="/settings" element={<SettingsPage />} />
+                    <Route path="/config" element={<SettingsPage />} />
+                    <Route path="/tools" element={<SettingsPage />} />
+                    <Route path="/mcp-servers" element={<SettingsPage />} />
+                  </Routes>
+                </Suspense>
               </Content>
             </Layout>
           </Layout>

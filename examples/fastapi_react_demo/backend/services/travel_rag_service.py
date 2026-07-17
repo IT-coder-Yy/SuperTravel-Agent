@@ -1,6 +1,6 @@
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Iterable, List, Optional, Sequence
@@ -8,6 +8,7 @@ from typing import Any, Iterable, List, Optional, Sequence
 
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_KNOWLEDGE_PATH = PROJECT_ROOT / "data" / "travel_knowledge" / "cities.json"
+INTERNATIONAL_KNOWLEDGE_PATH = PROJECT_ROOT / "data" / "travel_knowledge" / "international_destinations.json"
 MIN_CONTEXT_SCORE = 4.0
 DEFAULT_TOP_K = 5
 MAX_CONTEXT_CHARS = 1800
@@ -24,7 +25,17 @@ class TravelKnowledgeChunk:
     title: str
     keywords: List[str]
     content: str
-
+    official_name: str = ""
+    province: str = ""
+    source_url: str = ""
+    country_code: str = "CN"
+    country_name: str = "中国"
+    city_en: str = ""
+    local_names: List[str] = field(default_factory=list)
+    region: str = ""
+    knowledge_type: str = ""
+    updated_at: str = ""
+    valid_until: str = ""
 
 @dataclass(frozen=True)
 class TravelKnowledgeMatch:
@@ -43,6 +54,31 @@ def _normalize_items(raw_data: Any) -> List[dict]:
     if isinstance(raw_data, list):
         return [item for item in raw_data if isinstance(item, dict)]
     if isinstance(raw_data, dict):
+        destinations = raw_data.get("destinations", [])
+        if isinstance(destinations, list) and destinations:
+            items: List[dict] = []
+            labels = {
+                "destination_intro": "目的地介绍", "local_transport": "城市交通", "food": "典型饮食",
+                "payment": "支付", "communication": "通信", "etiquette": "礼仪",
+                "safety": "安全", "emergency": "紧急信息",
+            }
+            for destination in destinations:
+                if not isinstance(destination, dict):
+                    continue
+                facts = destination.get("facts", {})
+                if not isinstance(facts, dict):
+                    continue
+                aliases = [destination.get("city"), destination.get("city_en"), *(destination.get("local_names") or [])]
+                for knowledge_type, content in facts.items():
+                    items.append({
+                        **destination,
+                        "source": "international_official",
+                        "title": f"{destination.get('city', '')}{labels.get(knowledge_type, knowledge_type)}",
+                        "keywords": [str(item) for item in aliases if item] + [labels.get(knowledge_type, knowledge_type)],
+                        "content": content,
+                        "knowledge_type": knowledge_type,
+                    })
+            return items
         items = raw_data.get("items", [])
         if isinstance(items, list):
             return [item for item in items if isinstance(item, dict)]
@@ -51,7 +87,10 @@ def _normalize_items(raw_data: Any) -> List[dict]:
 
 def _chunk_from_item(item: dict) -> Optional[TravelKnowledgeChunk]:
     city = _safe_text(item.get("city"))
+    official_name = _safe_text(item.get("official_name"))
+    province = _safe_text(item.get("province"))
     source = _safe_text(item.get("source"))
+    source_url = _safe_text(item.get("source_url"))
     title = _safe_text(item.get("title"))
     content = _safe_text(item.get("content"))
     raw_keywords = item.get("keywords", [])
@@ -66,6 +105,17 @@ def _chunk_from_item(item: dict) -> Optional[TravelKnowledgeChunk]:
         title=title,
         keywords=keywords,
         content=content,
+        official_name=official_name,
+        province=province,
+        source_url=source_url,
+        country_code=_safe_text(item.get("country_code")) or "CN",
+        country_name=_safe_text(item.get("country_name_zh")) or "中国",
+        city_en=_safe_text(item.get("city_en")),
+        local_names=[_safe_text(value) for value in item.get("local_names", []) if _safe_text(value)],
+        region=_safe_text(item.get("region")),
+        knowledge_type=_safe_text(item.get("knowledge_type")) or source,
+        updated_at=_safe_text(item.get("updated_at")),
+        valid_until=_safe_text(item.get("valid_until")),
     )
 
 
@@ -79,10 +129,20 @@ def load_travel_knowledge(path: str = str(DEFAULT_KNOWLEDGE_PATH)) -> List[Trave
         raw_data = json.load(file)
 
     chunks: List[TravelKnowledgeChunk] = []
-    for item in _normalize_items(raw_data):
-        chunk = _chunk_from_item(item)
-        if chunk is not None:
-            chunks.append(chunk)
+    payloads = [raw_data]
+    if knowledge_path.resolve() == DEFAULT_KNOWLEDGE_PATH.resolve() and INTERNATIONAL_KNOWLEDGE_PATH.exists():
+        try:
+            payloads.append(json.loads(INTERNATIONAL_KNOWLEDGE_PATH.read_text(encoding="utf-8")))
+        except (OSError, ValueError, TypeError):
+            pass
+    for payload in payloads:
+        for item in _normalize_items(payload):
+            try:
+                chunk = _chunk_from_item(item)
+            except (TypeError, ValueError):
+                continue
+            if chunk is not None:
+                chunks.append(chunk)
     return chunks
 
 
@@ -101,11 +161,16 @@ def _meaningful_chinese_chars(text: str) -> set:
 def _score_chunk(query: str, chunk: TravelKnowledgeChunk) -> TravelKnowledgeMatch:
     score = 0.0
     matched_terms: List[str] = []
-    searchable_text = " ".join([chunk.city, chunk.title, *chunk.keywords, chunk.content])
+    searchable_text = " ".join([chunk.city, chunk.city_en, *chunk.local_names, chunk.title, *chunk.keywords, chunk.content])
 
     if _contains(query, chunk.city):
         score += 8.0
         matched_terms.append(chunk.city)
+
+    aliases = [chunk.city_en, *chunk.local_names]
+    if any(_contains(query, alias) for alias in aliases if alias):
+        score += 8.0
+        matched_terms.extend(alias for alias in aliases if alias and _contains(query, alias))
 
     if _contains(query, chunk.title):
         score += 6.0

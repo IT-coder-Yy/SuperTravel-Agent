@@ -11,15 +11,30 @@ import os
 import socket
 import ipaddress
 import shutil
+import builtins
 from pathlib import Path
 
 
 os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 
 if hasattr(sys.stdout, "reconfigure"):
-    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 if hasattr(sys.stderr, "reconfigure"):
-    sys.stderr.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
+_native_print = builtins.print
+
+
+def print(*values, **kwargs):
+    try:
+        _native_print(*values, **kwargs)
+    except UnicodeEncodeError:
+        target = kwargs.get("file") or sys.stdout
+        separator = str(kwargs.get("sep", " "))
+        end = str(kwargs.get("end", "\n"))
+        text = separator.join(str(value) for value in values) + end
+        encoding = getattr(target, "encoding", None) or "ascii"
+        target.write(text.encode(encoding, errors="replace").decode(encoding, errors="replace"))
 
 
 def load_env_file(env_path: Path):

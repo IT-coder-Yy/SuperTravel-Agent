@@ -52,6 +52,9 @@ async def cleanup_runtime(
             await tool_manager.cleanup_session(session_id)
     active_sessions.clear()
     if tool_manager:
+        close_mcp_connections = getattr(tool_manager, "close_mcp_connections", None)
+        if close_mcp_connections:
+            await close_mcp_connections()
         await cleanup_managed_mcp_processes(tool_manager)
 
 

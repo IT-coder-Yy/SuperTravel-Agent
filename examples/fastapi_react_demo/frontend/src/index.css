@@ -36,13 +36,46 @@ html, body, #root {
 
 /* 自定义主题色 */
 :root {
-  --primary-color: #1890ff;
-  --success-color: #52c41a;
-  --warning-color: #faad14;
-  --error-color: #f5222d;
-  --border-color: #d9d9d9;
-  --text-color: rgba(0, 0, 0, 0.85);
-  --text-color-secondary: rgba(0, 0, 0, 0.45);
-  --background-color: #fff;
+  --travel-bg: oklch(0.955 0.04 296);
+  --travel-bg-mid: oklch(0.88 0.07 238);
+  --travel-bg-soft: oklch(0.95 0.04 188);
+  --travel-sidebar-bg: oklch(0.985 0.018 246);
+  --travel-surface: oklch(0.996 0.004 245);
+  --travel-surface-muted: oklch(0.946 0.034 238);
+  --travel-surface-warm: oklch(0.97 0.036 76);
+  --travel-hover: oklch(0.925 0.055 255);
+  --travel-selected: oklch(0.89 0.074 252);
+  --travel-selected-strong: oklch(0.83 0.098 254);
+  --travel-primary: oklch(0.5 0.16 255);
+  --travel-primary-dark: oklch(0.31 0.105 260);
+  --travel-primary-soft: oklch(0.76 0.105 250);
+  --travel-voyage: oklch(0.72 0.13 202);
+  --travel-violet: oklch(0.7 0.15 304);
+  --travel-accent: oklch(0.82 0.13 78);
+  --travel-coral: oklch(0.76 0.15 22);
+  --travel-success: oklch(0.57 0.13 154);
+  --travel-warning: oklch(0.68 0.15 68);
+  --travel-danger: oklch(0.57 0.17 28);
+  --travel-ink: oklch(0.205 0.032 244);
+  --travel-muted: oklch(0.43 0.028 242);
+  --travel-subtle: oklch(0.6 0.02 240);
+  --travel-border: oklch(0.82 0.03 229);
+  --travel-border-soft: oklch(0.9 0.02 229);
+  --travel-gradient-primary: linear-gradient(135deg, oklch(0.56 0.17 258) 0%, oklch(0.72 0.13 202) 48%, oklch(0.7 0.15 304) 100%);
+  --travel-gradient-action: linear-gradient(135deg, oklch(0.58 0.17 256) 0%, oklch(0.74 0.14 200) 52%, oklch(0.82 0.13 78) 100%);
+  --travel-gradient-soft: linear-gradient(145deg, color-mix(in oklch, var(--travel-surface) 88%, var(--travel-violet) 12%) 0%, oklch(0.946 0.034 238) 54%, color-mix(in oklch, var(--travel-surface-warm) 82%, white 18%) 100%);
+  --travel-gradient-page: radial-gradient(circle at 12% 0%, oklch(0.76 0.14 202 / 0.52), transparent 30%), radial-gradient(circle at 84% 2%, oklch(0.74 0.15 304 / 0.46), transparent 28%), radial-gradient(circle at 62% 88%, oklch(0.86 0.13 78 / 0.32), transparent 36%), linear-gradient(145deg, oklch(0.97 0.04 286) 0%, oklch(0.94 0.052 230) 48%, oklch(0.965 0.04 178) 100%);
+  --travel-gradient-glow: radial-gradient(circle at 18% 12%, color-mix(in oklch, var(--travel-voyage) 34%, transparent), transparent 31%), radial-gradient(circle at 88% 8%, color-mix(in oklch, var(--travel-violet) 34%, transparent), transparent 28%), radial-gradient(circle at 72% 88%, color-mix(in oklch, var(--travel-accent) 22%, transparent), transparent 32%);
+  --travel-card-shadow: 0 8px 14px rgba(67, 76, 118, 0.10);
+  --travel-float-shadow: 0 16px 30px rgba(69, 77, 134, 0.22);
+  --travel-focus: 0 0 0 3px rgba(118, 151, 236, 0.22);
+  --primary-color: #6269d8;
+  --success-color: #2b9a68;
+  --warning-color: #c98624;
+  --error-color: #d2473d;
+  --border-color: #d2dbe7;
+  --text-color: #202f3f;
+  --text-color-secondary: #5f6f80;
+  --background-color: #f3efff;
   --component-background: #fff;
-} 
+}

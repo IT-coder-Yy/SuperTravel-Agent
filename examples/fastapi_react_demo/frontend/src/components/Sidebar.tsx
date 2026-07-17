@@ -1,5 +1,5 @@
-import React from 'react';
-import { Layout, Menu, Button, Dropdown, Modal } from 'antd';
+import React, { useMemo, useState } from 'react';
+import { Layout, Menu, Button, Dropdown, Modal, Input } from 'antd';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   PlusOutlined,
@@ -9,7 +9,11 @@ import {
   ExclamationCircleOutlined,
   MenuFoldOutlined,
   MenuUnfoldOutlined,
-  PictureOutlined
+  PictureOutlined,
+  DatabaseOutlined,
+  SettingOutlined,
+  UserOutlined,
+  SearchOutlined
 } from '@ant-design/icons';
 import { useChatHistory, ChatHistoryItem } from '../hooks/useChatHistory';
 
@@ -19,7 +23,7 @@ const { confirm } = Modal;
 interface SidebarProps {
   collapsed: boolean;
   currentChatId?: string;
-  onChatSelect?: (chatId: string, messages: ChatHistoryItem['messages']) => void;
+  onChatSelect?: (chat: ChatHistoryItem) => void;
   onChatDeleted?: (chatId: string) => void;
   onHistoryCleared?: () => void;
   onNewChat?: () => void;
@@ -30,40 +34,51 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
   const navigate = useNavigate();
   const location = useLocation();
   const { history, deleteChat, clearHistory } = useChatHistory();
+  const [historyQuery, setHistoryQuery] = useState('');
 
-  const menuItems = [
+  const filteredHistory = useMemo(() => {
+    const query = historyQuery.trim().toLowerCase();
+    if (!query) return history;
+
+    return history.filter((item) => {
+      const title = item.title?.toLowerCase() || '';
+      const content = item.messages
+        .map((message) => `${message.content || ''} ${message.displayContent || ''}`)
+        .join(' ')
+        .toLowerCase();
+      return title.includes(query) || content.includes(query);
+    });
+  }, [history, historyQuery]);
+
+  const primaryMenuItems = [
     {
       key: 'new-chat',
       icon: <PlusOutlined />,
-      label: '新旅程',
-      style: {
-        marginBottom: '8px',
-        background: '#f8fafc',
-        border: '1px solid #e2e8f0',
-        borderRadius: '8px'
-      }
+      label: '新旅程'
     },
     {
       key: '/photo-editor',
       icon: <PictureOutlined />,
       label: '旅行照片',
     },
-    // 隐藏的菜单项：
-    // {
-    //   key: '/tools',
-    //   icon: <ToolOutlined />,
-    //   label: '旅游工具',
-    // },
-    // {
-    //   key: '/mcp-servers',
-    //   icon: <CloudServerOutlined />,
-    //   label: '旅游服务',
-    // },
-    // {
-    //   key: '/config',
-    //   icon: <SettingOutlined />,
-    //   label: '系统配置',
-    // },
+  ];
+
+  const secondaryMenuItems = [
+    {
+      key: '/knowledge',
+      icon: <DatabaseOutlined />,
+      label: '知识库',
+    },
+    {
+      key: '/profile',
+      icon: <UserOutlined />,
+      label: '用户画像',
+    },
+    {
+      key: '/settings',
+      icon: <SettingOutlined />,
+      label: '设置',
+    },
   ];
 
   const handleMenuClick = (item: any) => {
@@ -88,7 +103,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
   };
 
   const handleChatClick = (chatItem: ChatHistoryItem) => {
-    onChatSelect?.(chatItem.id, chatItem.messages);
+    onChatSelect?.(chatItem);
   };
 
   const handleDeleteChat = (e: React.MouseEvent, chatId: string) => {
@@ -155,11 +170,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
       trigger={null}
       collapsible
       collapsed={collapsed}
-      width={240}
+      collapsedWidth={64}
+      width={250}
       style={{
-        background: '#ffffff',
-        borderRight: '1px solid #f1f5f9',
-        boxShadow: '2px 0 8px rgba(0, 0, 0, 0.04)',
+        background: 'var(--travel-sidebar-bg)',
+        borderRight: '1px solid var(--travel-border-soft)',
         display: 'flex',
         flexDirection: 'column'
       }}
@@ -168,7 +183,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
       <div style={{
         padding: collapsed ? '16px 8px' : '20px 16px',
         textAlign: collapsed ? 'center' : 'left',
-        borderBottom: '1px solid #f1f5f9',
+        borderBottom: '1px solid var(--travel-border-soft)',
         flexShrink: 0,
         display: 'flex',
         alignItems: 'center',
@@ -177,26 +192,27 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
         {!collapsed ? (
           <div>
             <div style={{
-              color: '#1f2937',
+              color: 'var(--travel-ink)',
               fontSize: '16px',
               fontWeight: 600,
               marginBottom: '4px'
             }}>
-              ✈️ SuperTravelAgent
+              SuperTravelAgent
             </div>
             <div style={{
-              color: '#6b7280',
+              color: 'var(--travel-muted)',
               fontSize: '12px'
             }}>
-              智能旅游规划
+              轻松规划每一段旅程
             </div>
           </div>
         ) : (
           <div style={{
-            color: '#1f2937',
-            fontSize: '20px'
+            color: 'var(--travel-primary)',
+            fontSize: '20px',
+            fontWeight: 700
           }}>
-            ✈️
+            S
           </div>
         )}
 
@@ -209,7 +225,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
             fontSize: '14px',
             width: 32,
             height: 32,
-            color: '#666666',
+            color: 'var(--travel-muted)',
             borderRadius: '6px',
             flexShrink: 0
           }}
@@ -221,7 +237,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
-          items={menuItems}
+          items={primaryMenuItems}
           onClick={handleMenuClick}
           style={{
             background: 'transparent',
@@ -231,6 +247,20 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
           className="sidebar-menu-light"
         />
       </div>
+
+      {!collapsed && (
+        <div style={{ padding: '0 12px 14px', flexShrink: 0 }}>
+          <Input
+            allowClear
+            size="middle"
+            prefix={<SearchOutlined />}
+            placeholder="搜索行程"
+            value={historyQuery}
+            onChange={(event) => setHistoryQuery(event.target.value)}
+            className="journey-search-input"
+          />
+        </div>
+      )}
 
       {/* 对话历史区域 */}
       {!collapsed && (
@@ -253,12 +283,12 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
-              color: '#6b7280',
+              color: 'var(--travel-muted)',
               fontSize: '13px',
               fontWeight: 500
             }}>
               <HistoryOutlined style={{ fontSize: '14px' }} />
-              对话历史
+              旅程历史
             </div>
             {history.length > 0 && (
               <Button
@@ -267,7 +297,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                 icon={<DeleteOutlined />}
                 onClick={handleClearHistory}
                 style={{
-                  color: '#9ca3af',
+                  color: 'var(--travel-muted)',
                   fontSize: '12px',
                   height: '24px',
                   padding: '0 6px'
@@ -284,18 +314,18 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
             overflowY: 'auto',
             overflowX: 'hidden'
           }}>
-            {history.length === 0 ? (
+            {filteredHistory.length === 0 ? (
               <div style={{
                 textAlign: 'center',
-                color: '#9ca3af',
+                color: 'var(--travel-muted)',
                 fontSize: '13px',
                 padding: '20px 0'
               }}>
-                暂无对话历史
+                {historyQuery ? '没有匹配的旅程' : '还没有旅程记录'}
               </div>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                {history.map((chatItem) => {
+                {filteredHistory.map((chatItem) => {
                   const isActive = chatItem.id === currentChatId;
                   return (
                     <div
@@ -304,11 +334,11 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                       className="chat-history-item"
                       style={{
                         padding: '8px 12px',
-                        borderRadius: '8px',
+                        borderRadius: '12px',
                         cursor: 'pointer',
-                        background: isActive ? '#eef2ff' : 'transparent',
-                        border: isActive ? '1px solid #c7d2fe' : '1px solid transparent',
-                        transition: 'all 0.2s ease',
+                        background: isActive ? 'linear-gradient(135deg, color-mix(in oklch, var(--travel-selected) 82%, white 18%), color-mix(in oklch, var(--travel-violet) 18%, white 82%))' : 'transparent',
+                        border: isActive ? '1px solid var(--travel-primary-soft)' : '1px solid transparent',
+                        transition: 'background 180ms ease, border-color 180ms ease, transform 180ms ease',
                         display: 'flex',
                         justifyContent: 'space-between',
                         alignItems: 'flex-start',
@@ -316,17 +346,17 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                       }}
                       onMouseEnter={(e) => {
                         if (isActive) {
-                          e.currentTarget.style.background = '#e0e7ff';
-                          e.currentTarget.style.borderColor = '#a5b4fc';
+                          e.currentTarget.style.background = 'linear-gradient(135deg, var(--travel-selected-strong), color-mix(in oklch, var(--travel-violet) 18%, white 82%))';
+                          e.currentTarget.style.borderColor = 'var(--travel-primary-soft)';
                         } else {
-                          e.currentTarget.style.background = '#f8fafc';
-                          e.currentTarget.style.borderColor = '#e2e8f0';
+                          e.currentTarget.style.background = 'color-mix(in oklch, var(--travel-hover) 78%, white 22%)';
+                          e.currentTarget.style.borderColor = 'var(--travel-border)';
                         }
                       }}
                       onMouseLeave={(e) => {
                         if (isActive) {
-                          e.currentTarget.style.background = '#eef2ff';
-                          e.currentTarget.style.borderColor = '#c7d2fe';
+                          e.currentTarget.style.background = 'linear-gradient(135deg, color-mix(in oklch, var(--travel-selected) 82%, white 18%), color-mix(in oklch, var(--travel-violet) 18%, white 82%))';
+                          e.currentTarget.style.borderColor = 'var(--travel-primary-soft)';
                         } else {
                           e.currentTarget.style.background = 'transparent';
                           e.currentTarget.style.borderColor = 'transparent';
@@ -335,7 +365,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{
-                          color: isActive ? '#3730a3' : '#1f2937',
+                          color: isActive ? 'var(--travel-primary-dark)' : 'var(--travel-ink)',
                           fontSize: '13px',
                           fontWeight: isActive ? 600 : 500,
                           marginBottom: '2px',
@@ -346,10 +376,10 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                           {chatItem.title}
                         </div>
                         <div style={{
-                          color: isActive ? '#6366f1' : '#9ca3af',
+                          color: isActive ? 'var(--travel-primary)' : 'var(--travel-muted)',
                           fontSize: '11px'
                         }}>
-                          {formatDate(chatItem.updatedAt)}
+                          {formatDate(chatItem.contentUpdatedAt)}
                         </div>
                       </div>
                       <Dropdown
@@ -363,7 +393,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
                           icon={<MoreOutlined />}
                           onClick={(e) => e.stopPropagation()}
                           style={{
-                            color: isActive ? '#6366f1' : '#9ca3af',
+                            color: isActive ? 'var(--travel-primary)' : 'var(--travel-muted)',
                             width: '20px',
                             height: '20px',
                             padding: 0,
@@ -382,6 +412,27 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
           </div>
         </div>
       )}
+
+      <div style={{
+        flexShrink: 0,
+        marginTop: 'auto',
+        padding: collapsed ? '10px 8px 14px' : '12px',
+        borderTop: '1px solid var(--travel-border-soft)',
+        background: 'linear-gradient(180deg, color-mix(in oklch, var(--travel-surface) 42%, transparent), color-mix(in oklch, var(--travel-surface-muted) 58%, white 42%))'
+      }}>
+        <Menu
+          mode="inline"
+          selectedKeys={[location.pathname]}
+          items={secondaryMenuItems}
+          onClick={handleMenuClick}
+          style={{
+            background: 'transparent',
+            border: 'none',
+            fontSize: '14px'
+          }}
+          className="sidebar-menu-light sidebar-menu-secondary"
+        />
+      </div>
 
       {/* 隐藏底部用户信息区域 */}
       {false && !collapsed && (

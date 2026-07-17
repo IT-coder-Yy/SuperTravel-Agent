@@ -4,6 +4,9 @@ import inspect
 import sys
 from datetime import datetime
 from logging.handlers import RotatingFileHandler
+from agents.utils.console import configure_utf8_console
+
+configure_utf8_console()
 
 class Logger:
     _instance = None
@@ -31,9 +34,7 @@ class Logger:
             self.logger.handlers.clear()
             
         # Console handler - 强制使用 UTF-8 编码，避免 Windows GBK 无法编码 emoji
-        import io
-        utf8_stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace', line_buffering=True)
-        console_handler = logging.StreamHandler(utf8_stdout)
+        console_handler = logging.StreamHandler(sys.stdout)
         console_level_name = os.getenv('SAGE_CONSOLE_LOG_LEVEL', 'WARNING').upper()
         console_level = getattr(logging, console_level_name, logging.WARNING)
         console_handler.setLevel(console_level)

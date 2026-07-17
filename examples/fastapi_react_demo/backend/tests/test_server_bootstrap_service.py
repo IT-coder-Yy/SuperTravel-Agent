@@ -51,7 +51,7 @@ class ServerBootstrapServiceTests(unittest.TestCase):
 
         self.assertEqual(len(outputs), 4)
         self.assertIn("启动 Sage Multi-Agent Framework 服务器", outputs[0])
-        self.assertIn("http://0.0.0.0:8001", outputs[1])
+        self.assertIn("http://127.0.0.1:8001", outputs[1])
         self.assertIn("/docs", outputs[2])
         self.assertIn("热重载: 开启", outputs[3])
 

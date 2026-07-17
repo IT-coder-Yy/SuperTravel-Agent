@@ -4,7 +4,9 @@ import json
 import os
 import re
 import threading
+import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
 from urllib.parse import quote
@@ -16,6 +18,44 @@ from agents.utils.logger import logger
 from services.file_service import get_output_root_path
 from services.http_response_service import get_sse_headers
 from services.skill_profile_service import build_skill_system_message, merge_skill_mcp_servers
+from schemas.trip_models import (
+    CLARIFICATION_SKIP_SENTINEL,
+    ChatCompleteEvent,
+    ChatStreamErrorEvent,
+    RouteLeg,
+    TripActivity,
+    TripDay,
+    TripIntent,
+    TripPlace,
+    TripPlan,
+    UserTravelProfile,
+)
+from services.clarification_service import (
+    MAX_CLARIFICATION_QUESTIONS,
+    build_next_clarification_question,
+    count_clarification_fields,
+    normalize_clarification_fields,
+)
+from services.trip_intent_service import (
+    build_trip_context_message,
+    extract_trip_intent,
+    is_trip_planning_query,
+    merge_semantic_trip_analysis,
+    normalize_user_travel_profile,
+)
+from services.trip_plan_repair_service import repair_trip_plan_once
+from services.trip_plan_validator import validate_trip_plan
+from services.text_sanitizer_service import sanitize_user_visible_payload, sanitize_user_visible_text
+from services.poi_detail_service import normalize_poi_detail, PoiDetailError
+from services.destination_catalog_service import (
+    INTERNATIONAL_DESTINATIONS,
+    canonical_destination,
+    classic_places_for_city,
+    domestic_city_names,
+    is_invalid_poi_name,
+)
+from services.trip_product_service import adapt_v1_document_to_v2, export_trip_markdown
+from services.ticket_search_service import transport_section_from_bundle
 
 
 TRAIN_QUERY_REGEX = re.compile(
@@ -38,6 +78,8 @@ GENERIC_TICKET_QUERY_REGEX = re.compile(
 )
 
 MAX_STATION_PAIR_ATTEMPTS = 40
+TICKET_QUERY_TOTAL_TIMEOUT_SECONDS = 60.0
+TICKET_TOOL_ATTEMPT_TIMEOUT_SECONDS = 15.0
 
 STATION_JS_URL = "https://kyfw.12306.cn/otn/resources/js/framework/station_name.js"
 STATION_CACHE_TTL_SECONDS = 24 * 60 * 60
@@ -111,6 +153,22 @@ XHS_ANSWER_REGEX = re.compile(
     re.IGNORECASE,
 )
 
+XHS_TRAVEL_RELEVANCE_REGEX = re.compile(
+    r"(攻略|行程|路线|景点|美食|住宿|酒店|民宿|旅行|旅游|出游|citywalk|打卡|游玩|"
+    r"自由行|周末游|亲子|情侣|避雷|探店|交通|地铁|门票|咖啡|餐厅)",
+    re.IGNORECASE,
+)
+
+XHS_NON_TRAVEL_REGEX = re.compile(
+    r"(校园招聘|校招|招聘|求职|岗位|面试|实习|offer|简历|网申|考研|高考)",
+    re.IGNORECASE,
+)
+
+XHS_LOCATION_HINTS = (
+    "外滩", "西湖", "灵隐寺", "雷峰塔", "故宫", "长城", "颐和园", "天坛",
+    "宽窄巷子", "大熊猫基地", "洪崖洞", "解放碑", "鼓浪屿", "中山陵", "夫子庙",
+)
+
 TRAVEL_EXPERIENCE_QUERY_REGEX = re.compile(
     r"(行程|攻略|规划|旅行|旅游|之旅|游玩|路线|景点|打卡|citywalk|自由行|周末游|三天两夜|3天2夜|"
     r"酒店|住宿|住哪|民宿|客栈|预订|订房|入住|"
@@ -138,6 +196,7 @@ COMMON_CHINESE_CITY_NAMES = [
     "长春", "哈尔滨", "呼和浩特", "银川", "兰州", "西宁", "乌鲁木齐", "拉萨", "昆明", "贵阳",
     "南宁", "海口", "三亚", "福州", "厦门", "南昌", "合肥", "宁波", "无锡", "扬州", "绍兴",
 ]
+COMMON_CHINESE_CITY_NAMES = sorted(set(COMMON_CHINESE_CITY_NAMES + domestic_city_names()), key=len, reverse=True)
 
 DESTINATION_SEED_PLACES: Dict[str, List[Tuple[str, int]]] = {
     "安阳": [
@@ -176,6 +235,13 @@ INTERNAL_LEAK_REGEX = re.compile(
     r"please\s+return\s*\{\s*'error'|<next_step_description>|<required_tools>|"
     r"<expected_output>|<success_criteria>|tool_call_id|file_write|"
     r"\[[a-z0-9_-]+\]\s*(result|results|结果)|map_weather|tool_call_result|observation:)",
+    re.IGNORECASE,
+)
+
+TRAVEL_OUTPUT_SENSITIVE_REGEX = re.compile(
+    r"(?:```(?:json)?|file://|[a-z]:\\|\\\\[^\\\s]+\\|/(?:users|home|tmp|var|etc)/|"
+    r"\b(?:tool_call_id|tool_call_result|raw_result|data_type|map_locations|traceback|"
+    r"stack\s+trace|debug|exception)\b|\b(?:map|web|search|geo|ip|query)_[a-z0-9_]+\b)",
     re.IGNORECASE,
 )
 
@@ -553,6 +619,9 @@ def _extract_first_value(item: Dict[str, Any], keys: List[str], default: str = "
 
 
 def _extract_destination_city(query_text: str) -> str:
+    catalog_match = canonical_destination(query_text)
+    if catalog_match:
+        return catalog_match
     text = _safe_text(query_text)
     if not text:
         return ""
@@ -1547,18 +1616,20 @@ def _build_ticket_status_note(ticket_bundle: Dict[str, Any]) -> str:
         label = mode_labels[mode]
         reason = _safe_text(state.get("error"))
         if status == "success":
-            partial_error = f"（部分查询失败：{reason}）" if reason else ""
+            partial_error = "（部分渠道未返回）" if reason else ""
             state_parts.append(f"{label} {count} 条{partial_error}")
             continue
 
         if status == "error":
-            missing_parts.append(f"{label}查询失败" + (f"（{reason}）" if reason else ""))
+            missing_parts.append(f"{label}查询失败")
         else:
             missing_parts.append(f"{label}未找到可确认实时结果")
 
+    timed_out = bool(ticket_bundle.get("timed_out"))
     if not _ticket_bundle_has_valid_results(ticket_bundle):
         detail = "；".join(missing_parts) if missing_parts else "三种票务均未返回可确认实时结果"
-        return f"未找到可确认的票务结果。{detail}。"
+        timeout_note = f"实时查询已在{int(TICKET_QUERY_TOTAL_TIMEOUT_SECONDS)}秒内结束，但" if timed_out else ""
+        return f"{timeout_note}未找到可确认的票务结果。{detail}。"
 
     available = "，".join(state_parts)
     if missing_parts:
@@ -1775,7 +1846,7 @@ def _build_progress_chunk(
     sanitize_text: Callable[[str], str],
     linked_user_message_id: str = "",
 ) -> Dict[str, Any]:
-    safe_content = sanitize_text(_safe_text(content))
+    safe_content = sanitize_user_visible_text(sanitize_text(_safe_text(content)))
     chunk = {
         "type": "chat_chunk",
         "message_id": message_id,
@@ -1797,7 +1868,7 @@ def _build_final_answer_chunk(
     replace: bool = False,
     linked_user_message_id: str = "",
 ) -> Dict[str, Any]:
-    safe_content = sanitize_text(_safe_text(content))
+    safe_content = sanitize_user_visible_text(sanitize_text(_safe_text(content)))
     chunk = {
         "type": "chat_chunk",
         "message_id": message_id,
@@ -2142,6 +2213,8 @@ def _run_tool_with_arg_candidates(
     message_history: List[Dict[str, Any]],
     session_id: str,
     arg_candidates: List[Dict[str, Any]],
+    deadline: Optional[float] = None,
+    timeout_label: str = "工具查询",
 ) -> Any:
     last_payload: Any = None
     compatible_candidates = arg_candidates
@@ -2163,10 +2236,13 @@ def _run_tool_with_arg_candidates(
 
     for args in compatible_candidates:
         try:
-            raw_result = tool_manager.run_tool(
-                tool_name,
-                messages=message_history,
+            raw_result = _run_tool_with_deadline(
+                tool_manager=tool_manager,
+                tool_name=tool_name,
+                message_history=message_history,
                 session_id=session_id,
+                deadline=deadline,
+                timeout_label=timeout_label,
                 **args,
             )
             payload = _unwrap_tool_output(raw_result)
@@ -2177,6 +2253,54 @@ def _run_tool_with_arg_candidates(
             last_payload = {"error": True, "message": str(run_error)}
 
     return last_payload
+
+
+def _ticket_deadline_remaining(deadline: Optional[float]) -> float:
+    if deadline is None:
+        return float("inf")
+    return max(0.0, deadline - time.monotonic())
+
+
+def _run_tool_with_deadline(
+    tool_manager: Any,
+    tool_name: str,
+    message_history: List[Dict[str, Any]],
+    session_id: str,
+    deadline: Optional[float] = None,
+    timeout_label: str = "工具查询",
+    **kwargs: Any,
+) -> Any:
+    """Bound a synchronous external tool call without blocking the chat response indefinitely."""
+    remaining = _ticket_deadline_remaining(deadline)
+    if remaining <= 0:
+        return {"error": True, "message": f"{timeout_label}已达到{int(TICKET_QUERY_TOTAL_TIMEOUT_SECONDS)}秒总时限"}
+
+    if deadline is None:
+        return tool_manager.run_tool(
+            tool_name,
+            messages=message_history,
+            session_id=session_id,
+            **kwargs,
+        )
+
+    timeout_seconds = min(TICKET_TOOL_ATTEMPT_TIMEOUT_SECONDS, remaining)
+    executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="ticket-tool")
+    future = executor.submit(
+        tool_manager.run_tool,
+        tool_name,
+        messages=message_history,
+        session_id=session_id,
+        **kwargs,
+    )
+    try:
+        return future.result(timeout=timeout_seconds)
+    except FuturesTimeoutError:
+        return {
+            "error": True,
+            "message": f"{timeout_label}单次调用超过{int(timeout_seconds)}秒，已跳过该渠道",
+        }
+    finally:
+        executor.shutdown(wait=False, cancel_futures=True)
 
 
 def _run_xhs_tool_with_candidates(
@@ -2571,6 +2695,44 @@ def _normalize_web_rows(payload: Any, max_rows: int = 6) -> List[Dict[str, str]]
     return rows
 
 
+def _build_xhs_travel_query(query_text: str) -> str:
+    destination = _extract_destination_city(query_text)
+    if not destination:
+        return query_text
+    if XHS_TRAVEL_RELEVANCE_REGEX.search(query_text):
+        return query_text
+    return f"{destination} 旅行攻略"
+
+
+def _filter_xhs_travel_rows(rows: List[Dict[str, str]], query_text: str) -> Tuple[List[Dict[str, str]], int]:
+    destination = _extract_destination_city(query_text)
+    location_hints = [hint for hint in XHS_LOCATION_HINTS if hint in query_text]
+    filtered: List[Dict[str, str]] = []
+    rejected_count = 0
+
+    for row in rows:
+        searchable_text = " ".join(
+            _safe_text(row.get(key)) for key in ("title", "summary", "url", "source")
+        )
+        if XHS_NON_TRAVEL_REGEX.search(searchable_text):
+            rejected_count += 1
+            continue
+
+        destination_matches = (
+            not destination
+            or destination.lower() in searchable_text.lower()
+            or any(hint in searchable_text for hint in location_hints)
+        )
+        travel_matches = len(XHS_TRAVEL_RELEVANCE_REGEX.findall(searchable_text))
+        if not destination_matches or travel_matches < 1:
+            rejected_count += 1
+            continue
+
+        filtered.append(row)
+
+    return filtered, rejected_count
+
+
 def _markdown_table_cell(value: Any, max_len: int = 120) -> str:
     text = _safe_text(value) or "-"
     text = re.sub(r"\s+", " ", text).strip()
@@ -2686,14 +2848,25 @@ def _normalize_map_locations(payload: Any, max_rows: int = 10) -> List[Dict[str,
         if key in seen:
             continue
         seen.add(key)
+        detail_info = item.get("detail_info") if isinstance(item.get("detail_info"), dict) else {}
+        images = item.get("images") or item.get("image_urls") or detail_info.get("image") or detail_info.get("images") or []
+        if isinstance(images, str):
+            images = [images]
         rows.append(
             {
                 "id": f"travel_place_{len(rows) + 1}",
+                "place_id": _safe_text(item.get("uid") or item.get("place_id") or item.get("id")),
                 "name": name,
                 "lat": round(lat, 6),
                 "lng": round(lng, 6),
                 "description": address or "地图检索命中地点",
                 "category": category or "景点",
+                "rating": item.get("rating") or detail_info.get("overall_rating"),
+                "images": images if isinstance(images, list) else [],
+                "summary": _safe_text(item.get("summary") or item.get("description") or detail_info.get("description")),
+                "opening_hours": item.get("opening_hours") or detail_info.get("opening_hours") or detail_info.get("shop_hours"),
+                "price": item.get("price") or detail_info.get("price"),
+                "telephone": item.get("telephone") or detail_info.get("telephone"),
                 "order": len(rows) + 1,
             }
         )
@@ -2701,6 +2874,109 @@ def _normalize_map_locations(payload: Any, max_rows: int = 10) -> List[Dict[str,
             break
 
     return rows
+
+
+def _normalize_place_detail_payload(payload: Any) -> Dict[str, Any]:
+    candidates = _first_present_list(payload, ["results", "pois", "places", "items", "data", "content"])
+    if candidates and isinstance(candidates[0], dict):
+        return dict(candidates[0])
+    if isinstance(payload, dict):
+        data = payload.get("result") or payload.get("data")
+        if isinstance(data, dict):
+            return dict(data)
+        return dict(payload)
+    return {}
+
+
+def _enrich_map_locations_with_details(
+    locations: List[Dict[str, Any]],
+    destination_city: str,
+    tool_manager: Any,
+    message_history: List[Dict[str, Any]],
+    session_id: str,
+) -> List[Dict[str, Any]]:
+    detail_tool = _first_available_tool_name(tool_manager, ["map_place_details"])
+    image_tool = _first_available_tool_name(tool_manager, ["search_image_from_web"])
+    fetched_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    enriched: List[Dict[str, Any]] = []
+    for index, location in enumerate(locations):
+        current = dict(location)
+        detail_fetched = False
+        image_fetched = False
+        place_id = _safe_text(current.get("place_id"))
+        has_rich_detail = any(current.get(key) not in (None, "", [], {}) for key in ("rating", "images", "opening_hours", "price", "summary"))
+        # The search response already carries scope=2 details. Only the first two
+        # final POIs may trigger a separate detail lookup when those fields are absent.
+        if detail_tool and index < 2 and not has_rich_detail:
+            detail_payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=detail_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=[
+                    {"uid": place_id} if place_id else {"query": current.get("name"), "region": destination_city},
+                    {"id": place_id} if place_id else {"place_name": current.get("name"), "city": destination_city},
+                    {"query": current.get("name"), "region": destination_city},
+                ],
+            )
+            if not _is_tool_execution_error_payload(detail_payload):
+                detail = _normalize_place_detail_payload(detail_payload)
+                detail_rows = _normalize_map_locations({"items": [detail]}, max_rows=1)
+                if detail_rows:
+                    detail_fetched = True
+                    detail_row = detail_rows[0]
+                    for key, value in detail_row.items():
+                        if value not in (None, "", [], {}):
+                            current[key] = value
+
+        if image_tool and index < 2 and not current.get("images") and _safe_text(current.get("category")) not in {"酒店", "餐厅"}:
+            image_payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=image_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=[{"query": f"{destination_city} {current.get('name')} 官方 旅游", "count": 3}],
+            )
+            image_rows = _first_present_list(image_payload, ["images", "results", "items", "data"])
+            image_urls = [
+                _safe_text(item.get("image_url") or item.get("imageUrl") or item.get("url"))
+                for item in image_rows if isinstance(item, dict)
+            ]
+            current["images"] = [url for url in image_urls if url.startswith(("http://", "https://"))][:3]
+            image_fetched = bool(current["images"])
+
+        current["updated_at"] = fetched_at
+        current["source"] = _safe_text(current.get("source")) or ("百度地图地点详情" if detail_fetched else "百度地图地点检索")
+        map_source_id = f"map_{index + 1}"
+        sources = [{
+            "source_reference_id": map_source_id,
+            "title": "地图地点详情" if detail_fetched else "地图地点检索",
+            "source": current["source"],
+            "type": "map",
+            "data_type": "confirmed_live_data" if detail_fetched else "reference_data",
+            "updated_at": fetched_at,
+            "related_fields": [key for key in ("coordinates", "address", "category", "rating", "summary", "opening_hours", "reservation", "price") if key == "coordinates" or current.get(key) not in (None, "", [], {})],
+        }]
+        field_evidence = {
+            key: {"source_reference_id": map_source_id, "updated_at": fetched_at, "data_type": sources[0]["data_type"]}
+            for key in sources[0]["related_fields"]
+        }
+        if image_fetched:
+            image_source_id = f"image_{index + 1}"
+            sources.append({
+                "source_reference_id": image_source_id,
+                "title": "公开图片检索",
+                "source": "公开图片检索",
+                "type": "image_search",
+                "data_type": "reference_data",
+                "updated_at": fetched_at,
+                "related_fields": ["images"],
+            })
+            field_evidence["images"] = {"source_reference_id": image_source_id, "updated_at": fetched_at, "data_type": "reference_data"}
+        current["sources"] = sources
+        current["field_evidence"] = field_evidence
+        enriched.append(current)
+    return enriched
 
 
 def _default_map_category_for_query(query_text: str) -> str:
@@ -2719,7 +2995,7 @@ def _apply_default_map_category(locations: List[Dict[str, Any]], query_text: str
         if not isinstance(location, dict):
             continue
         updated = dict(location)
-        if not _safe_text(updated.get("category")) or _safe_text(updated.get("category")) == "景点":
+        if not _safe_text(updated.get("category")):
             updated["category"] = default_category
         normalized.append(updated)
     return normalized
@@ -2727,7 +3003,7 @@ def _apply_default_map_category(locations: List[Dict[str, Any]], query_text: str
 
 def _travel_seed_places(destination_city: str, query_text: str) -> List[Tuple[str, int]]:
     city = _safe_text(destination_city)
-    seeds = list(DESTINATION_SEED_PLACES.get(city, []))
+    seeds = list(DESTINATION_SEED_PLACES.get(city, [])) or classic_places_for_city(city)
     text = _safe_text(query_text)
     for city_name, city_seeds in DESTINATION_SEED_PLACES.items():
         if city_name in text and city_name != city:
@@ -2741,6 +3017,68 @@ def _travel_seed_places(destination_city: str, query_text: str) -> List[Tuple[st
         seen.add(name)
         deduped.append((name, day))
     return deduped
+
+
+def _select_final_map_candidates(
+    locations: List[Dict[str, Any]],
+    query_text: str,
+    max_rows: int = 8,
+) -> List[Dict[str, Any]]:
+    """Select the small POI set that may enter the itinerary before detail/geocode calls."""
+    deduped = _merge_map_locations(locations, [], max_rows=max(8, max_rows * 3))
+    wants_itinerary = bool(ITINERARY_QUERY_REGEX.search(_safe_text(query_text)))
+    wants_hotel = wants_itinerary or bool(HOTEL_QUERY_REGEX.search(_safe_text(query_text)))
+    wants_food = wants_itinerary or bool(FOOD_QUERY_REGEX.search(_safe_text(query_text)))
+
+    buckets: Dict[str, List[Dict[str, Any]]] = {"attraction": [], "hotel": [], "food": []}
+    for location in deduped:
+        category_text = f"{_safe_text(location.get('category'))} {_safe_text(location.get('name'))}"
+        if any(marker in category_text for marker in ("酒店", "宾馆", "住宿", "民宿")):
+            buckets["hotel"].append(location)
+        elif any(marker in category_text for marker in ("餐厅", "餐馆", "小吃", "美食", "咖啡")):
+            buckets["food"].append(location)
+        else:
+            buckets["attraction"].append(location)
+
+    selected: List[Dict[str, Any]] = []
+    if wants_hotel and buckets["hotel"]:
+        selected.append(buckets["hotel"].pop(0))
+    if wants_food and buckets["food"]:
+        selected.append(buckets["food"].pop(0))
+    for bucket_name in ("attraction", "hotel", "food"):
+        for location in buckets[bucket_name]:
+            if len(selected) >= max_rows:
+                break
+            selected.append(location)
+    return _merge_map_locations(selected, [], max_rows=max_rows)
+
+
+def _filter_quality_map_locations(
+    locations: List[Dict[str, Any]],
+    destination_city: str,
+) -> List[Dict[str, Any]]:
+    destination = canonical_destination(destination_city) or _safe_text(destination_city)
+    kept: List[Dict[str, Any]] = []
+    seen_names = set()
+    for location in locations:
+        if not isinstance(location, dict):
+            continue
+        name = _safe_text(location.get("name"))
+        if is_invalid_poi_name(name):
+            continue
+        normalized_name = re.sub(r"[^\w\u4e00-\u9fff]+", "", name).casefold()
+        if normalized_name in seen_names:
+            continue
+        address_city = _safe_text(location.get("city") or location.get("area"))
+        address = _safe_text(location.get("description") or location.get("address"))
+        explicit_city = canonical_destination(address_city)
+        if destination and explicit_city and explicit_city != destination:
+            continue
+        if destination and address_city and not explicit_city and len(address_city) <= 12 and destination not in f"{address_city}{address}":
+            location = {**location, "quality_warning": "地点所属城市待确认"}
+        seen_names.add(normalized_name)
+        kept.append(location)
+    return kept
 
 
 def _merge_map_locations(
@@ -2788,7 +3126,7 @@ def _run_map_geocode_for_places(
 
     locations: List[Dict[str, Any]] = []
     errors: List[str] = []
-    for place_name, day in place_seeds[:10]:
+    for place_name, day in place_seeds[:3]:
         query = f"{destination_city}{place_name}" if destination_city and destination_city not in place_name else place_name
         payload = _run_tool_with_arg_candidates(
             tool_manager=tool_manager,
@@ -2815,6 +3153,8 @@ def _run_map_geocode_for_places(
         row["category"] = row.get("category") or _default_map_category_for_query(query_text)
         row["day"] = day
         row["description"] = _safe_text(row.get("description")) or f"{destination_city}{place_name}"
+        row["source"] = "seed_fallback"
+        row["data_type"] = "reference_data"
         locations.append(row)
 
     return locations, tool_name, "；".join(errors)
@@ -2971,8 +3311,8 @@ def _run_map_search_for_travel(
             message_history=message_history,
             session_id=session_id,
             arg_candidates=[
-                {"query": query, "region": region},
-                {"keywords": query, "region": region},
+                {"query": query, "region": region, "scope": 2},
+                {"keywords": query, "region": region, "scope": 2},
                 {"keyword": query, "region": region},
                 {"text": query},
                 {"address": query},
@@ -2984,48 +3324,63 @@ def _run_map_search_for_travel(
         rows = _normalize_map_locations(payload, max_rows=max_rows)
         if category:
             for row in rows:
-                row["category"] = category
+                current_category = _safe_text(row.get("category"))
+                if not current_category or (current_category == "景点" and category != "景点"):
+                    row["category"] = category
         return rows, ""
 
-    search_locations, search_error = run_search(query_text, max_rows=8)
-    supplemental_locations: List[Dict[str, Any]] = []
-    supplemental_errors: List[str] = []
     wants_itinerary = bool(ITINERARY_QUERY_REGEX.search(query_text))
-
+    batch_queries: List[Tuple[str, int, str]] = []
+    if wants_itinerary:
+        batch_queries.append((f"{region} 热门景点".strip(), 8, "景点"))
+    else:
+        batch_queries.append((query_text, 8, _default_map_category_for_query(query_text)))
     if wants_itinerary or HOTEL_QUERY_REGEX.search(query_text):
-        hotel_query = f"{region} 住宿 酒店 推荐".strip() if region else f"{query_text} 住宿 酒店"
-        hotel_locations, hotel_error = run_search(hotel_query, max_rows=4, category="酒店")
-        supplemental_locations.extend(hotel_locations)
-        if hotel_error:
-            supplemental_errors.append(f"住宿: {hotel_error}")
-
+        batch_queries.append((f"{region} 住宿 酒店".strip(), 4, "酒店"))
     if wants_itinerary or FOOD_QUERY_REGEX.search(query_text):
-        food_query = f"{region} 美食 餐厅 小吃".strip() if region else f"{query_text} 美食 餐厅"
-        food_locations, food_error = run_search(food_query, max_rows=4, category="餐厅")
-        supplemental_locations.extend(food_locations)
-        if food_error:
-            supplemental_errors.append(f"美食: {food_error}")
+        batch_queries.append((f"{region} 美食 餐厅".strip(), 4, "餐厅"))
 
-    seed_locations, seed_tool, seed_error = _run_map_geocode_for_places(
-        _travel_seed_places(destination_city, user_query),
+    candidate_locations: List[Dict[str, Any]] = []
+    batch_errors: List[str] = []
+    for batch_query, max_rows, category in batch_queries:
+        rows, batch_error = run_search(batch_query, max_rows=max_rows, category=category)
+        candidate_locations.extend(rows)
+        if batch_error:
+            batch_errors.append(batch_error)
+
+    candidate_locations = _filter_quality_map_locations(candidate_locations, destination_city)
+    final_candidates = _select_final_map_candidates(candidate_locations, query_text, max_rows=8)
+    seed_locations: List[Dict[str, Any]] = []
+    seed_tool = ""
+    seed_error = ""
+    existing_names = {_safe_text(item.get("name")) for item in final_candidates}
+    seed_candidates = [item for item in _travel_seed_places(destination_city, user_query) if item[0] not in existing_names]
+    if not final_candidates:
+        # Geocoding is reserved for the final fallback POIs, never the full candidate pool.
+        seed_locations, seed_tool, seed_error = _run_map_geocode_for_places(
+            seed_candidates[:3],
+            destination_city,
+            user_query,
+            tool_manager,
+            message_history,
+            session_id,
+        )
+    merged = _merge_map_locations(final_candidates, seed_locations, max_rows=8)
+    merged = _filter_quality_map_locations(merged, destination_city)
+    merged = _enrich_map_locations_with_details(
+        merged,
         destination_city,
-        user_query,
         tool_manager,
         message_history,
         session_id,
     )
-    merged = _merge_map_locations(
-        _merge_map_locations(search_locations, supplemental_locations, max_rows=20),
-        seed_locations,
-        max_rows=20,
-    )
     used_tools = ", ".join([
         item for item in [
-            tool_name if search_locations or supplemental_locations else "",
+            tool_name if final_candidates else "",
             seed_tool if seed_locations else "",
         ] if item
     ])
-    errors = "；".join([item for item in [search_error, *supplemental_errors, seed_error] if item])
+    errors = "；".join([item for item in [*batch_errors, seed_error] if item])
     return merged, used_tools or tool_name or seed_tool, errors
 
 
@@ -3046,8 +3401,8 @@ def _build_travel_output_contract(
         "- 分组样式：像专业旅行建议一样先给总述，再按高端/中端/经济、区域、日期或餐饮类型分组；每组下用编号条目说明价格区间、亮点、推荐理由。",
         "- 条目样式：候选酒店、景点或餐厅要用“1. 名称”作为编号条目，条目下用子弹点写“价格区间/亮点/推荐理由/交通提示”。",
         "- 表格只作为辅助信息或附录使用；不要用只有管道符的伪表格，不要把表格和标题挤在同一行。",
-        "- 地图一致性：正文中的地点编号必须与 `map_locations` 的 order 顺序一致，右侧地图会按该顺序标点和连线。",
-        "涉及地点时，必须优先调用地图工具核验地点；最终答案末尾必须给出 `map_locations` JSON 代码块，字段包含 name、lat、lng、category、description、day/order。",
+        "- 地图一致性：正文中的地点顺序应与已核验地点一致，右侧地图会通过结构化事件单独展示。",
+        "涉及地点时，必须优先核验地点；正文不得输出工具名、原始 JSON、内部字段、本地路径或调试信息。",
         "如果地图工具没有返回坐标，只能明确说明未完成地图核验，不要编造经纬度。",
         "酒店相关问题只能做住宿区域和候选酒店推荐；没有真实库存/支付工具时，不得声称已完成预订。",
     ]
@@ -3063,6 +3418,7 @@ def maybe_prepare_travel_experience_bundle(
     session_id: str,
     selected_skill_ids: Optional[List[str]] = None,
     xhs_bundle: Optional[Dict[str, Any]] = None,
+    allow_web_search: bool = True,
 ) -> Optional[Dict[str, Any]]:
     query_text = _safe_text(user_query)
     skill_triggered = _has_selected_skill(
@@ -3085,12 +3441,15 @@ def maybe_prepare_travel_experience_bundle(
         message_history,
         session_id,
     )
-    web_rows, web_tool, web_error = _run_web_search_for_travel(
-        user_query=query_text,
-        tool_manager=tool_manager,
-        message_history=message_history,
-        session_id=session_id,
-    )
+    if allow_web_search:
+        web_rows, web_tool, web_error = _run_web_search_for_travel(
+            user_query=query_text,
+            tool_manager=tool_manager,
+            message_history=message_history,
+            session_id=session_id,
+        )
+    else:
+        web_rows, web_tool, web_error = [], "", "已按用户设置关闭网页与社区检索"
     map_locations, map_tool, map_error = _run_map_search_for_travel(
         user_query=query_text,
         destination_city=destination_city,
@@ -3103,7 +3462,6 @@ def maybe_prepare_travel_experience_bundle(
 
     web_table = _build_web_markdown_table(web_rows)
     map_table = _build_map_markdown_table(map_locations)
-    map_json_block = _build_map_locations_json_block(map_locations)
     xhs_table = _safe_text(xhs_bundle.get("append_markdown")) if isinstance(xhs_bundle, dict) else ""
     xhs_rows = xhs_bundle.get("rows") if isinstance(xhs_bundle, dict) and isinstance(xhs_bundle.get("rows"), list) else []
 
@@ -3126,10 +3484,7 @@ def maybe_prepare_travel_experience_bundle(
         context_lines.extend(["", web_table])
     if map_table:
         context_lines.extend(["", map_table])
-    if map_json_block:
-        context_lines.extend(["", map_json_block])
-
-    append_parts = [part for part in [xhs_table, web_table, map_json_block] if _safe_text(part)]
+    append_parts = [part for part in [xhs_table, web_table] if _safe_text(part)]
     bundle = {
         "query": query_text,
         "kinds": kinds,
@@ -3157,200 +3512,57 @@ def maybe_prepare_travel_experience_bundle(
     return bundle
 
 
+
+
 def _build_travel_knowledge_fallback(query_text: str, kind_text: str) -> str:
+    """在外部数据不可用时提供不依赖城市硬编码的规划框架。"""
     text = _safe_text(query_text)
-    if "北京" in text and re.search(r"(3|三)\s*(天|日)", text) and ("文化" in text or ITINERARY_QUERY_REGEX.search(text)):
-        return "\n".join([
-            "# 北京3天2夜文化之旅规划",
-            "",
-            "## 结论",
-            "这条路线适合第一次深度游北京的用户：前两天围绕中轴线、皇家园林和胡同生活展开，第三天补足当代艺术或博物馆内容。核心原则是上午安排强预约景点，下午放慢节奏，晚上留给胡同、茶馆或城市夜景。",
-            "",
-            "## Day 1：皇城中轴线与故宫深度游",
-            "",
-            "### 上午（8:00-11:30）",
-            "- 天安门广场、人民英雄纪念碑、毛主席纪念堂外围参观，建议尽量早到，预留安检时间。",
-            "- 之后进入故宫博物院，重点看太和殿、中和殿、保和殿与乾清宫一线，理解明清皇城礼制空间。",
-            "",
-            "### 下午（13:00-17:00）",
-            "- 继续游览故宫东西六宫或珍宝馆、钟表馆，若体力有限可择一深入。",
-            "- 从神武门出宫后登景山公园，俯瞰故宫中轴线，是理解北京城市格局的最佳视角之一。",
-            "",
-            "### 晚上（18:00-21:00）",
-            "- 什刹海、烟袋斜街、南锣鼓巷一带散步，适合安排京味小吃或茶馆。",
-            "",
-            "## Day 2：皇家园林、学府与胡同生活",
-            "",
-            "### 上午（8:00-12:00）",
-            "- 颐和园深度游，重点看长廊、佛香阁、昆明湖、十七孔桥，建议从东宫门进，按湖区和建筑轴线串联。",
-            "",
-            "### 下午（13:30-17:30）",
-            "- 可在圆明园遗址公园、清华/北大周边二选一。若偏历史反思，选圆明园；若偏人文校园氛围，选高校周边。",
-            "",
-            "### 晚上（18:00-21:00）",
-            "- 五道口或中关村附近用餐，体验北京年轻化的一面，降低第二天博物馆行程前的通勤压力。",
-            "",
-            "## Day 3：国家级博物馆与当代文化",
-            "",
-            "### 上午（8:30-12:00）",
-            "- 中国国家博物馆或首都博物馆二选一。国博更适合看中华文明主线，首博更适合理解北京城市史。",
-            "",
-            "### 下午（13:30-17:30）",
-            "- 798艺术区、红砖美术馆或前门大栅栏二选一。想看当代艺术选798，想延续老城文化选前门大栅栏。",
-            "",
-            "### 晚上（18:00-21:00）",
-            "- 前门、王府井或三里屯收尾。若第二天早返程，建议选择离酒店或车站更近的区域。",
-        ])
-
-    if "安阳" in text and re.search(r"(3|三)\s*(天|日)", text) and ("文化" in text or ITINERARY_QUERY_REGEX.search(text)):
-        return "\n".join([
-            "# 安阳3天2夜文化之旅规划",
-            "",
-            "## 结论",
-            "安阳适合按“商代文明、文字起源、三国与周易文化、古城街区”来组织3天2夜。第一天集中看殷墟与文字博物馆，第二天安排曹操高陵、羑里城和岳飞庙，第三天回到老城与文峰塔一带收尾，整体节奏比频繁跨区更稳。",
-            "",
-            "## Day 1：商代文明与汉字源流",
-            "",
-            "### 上午（9:00-12:00）",
-            "- 殷墟博物馆：先看青铜器、甲骨文和商代都城叙事，建立整趟文化线的主轴。",
-            "- 殷墟宫殿宗庙遗址：与博物馆内容互相印证，重点理解王都祭祀、宫殿区和甲骨发现背景。",
-            "",
-            "### 下午（14:00-17:30）",
-            "- 中国文字博物馆：围绕甲骨文、汉字演变和书写文明展开，适合安排讲解或重点展厅深看。",
-            "",
-            "### 晚上（18:00-21:00）",
-            "- 安阳老城或仓巷街附近散步用餐，第一晚不建议再安排远距离景点。",
-            "",
-            "## Day 2：三国遗存、周易文化与忠义叙事",
-            "",
-            "### 上午（9:00-11:30）",
-            "- 曹操高陵遗址博物馆：适合了解东汉末年、三国人物与考古争议，和殷墟形成不同时代对照。",
-            "",
-            "### 下午（13:30-17:30）",
-            "- 羑里城：以周易文化为核心，适合和讲解结合，不建议只打卡拍照。",
-            "- 岳飞庙：补充宋代忠义叙事和地方历史记忆。",
-            "",
-            "### 晚上（18:00-21:00）",
-            "- 回市区用餐休息，若体力允许可安排夜间城市步行。",
-            "",
-            "## Day 3：古城街区与文峰塔收尾",
-            "",
-            "### 上午（9:00-12:00）",
-            "- 天宁寺文峰塔：适合看安阳古城地标和传统建筑空间。",
-            "- 袁林：了解近代历史人物与陵园建筑风格。",
-            "",
-            "### 下午（13:30-16:30）",
-            "- 安阳老城、仓巷街或博物馆周边机动补充，适合购买伴手礼并给返程留余量。",
-        ])
-
-    if "杭州" in text and re.search(r"(3|三)\s*(天|日)", text):
-        return "\n".join([
-            "# 杭州3天2夜文化之旅规划",
-            "",
-            "## 结论",
-            "杭州文化线建议围绕西湖、南宋历史、茶文化和运河生活展开。第一天看西湖与历史街区，第二天安排灵隐和茶文化，第三天放到良渚或运河博物馆群，节奏更顺。",
-            "",
-            "## Day 1：西湖与南宋城市记忆",
-            "- 上午：断桥、白堤、孤山、西泠印社，适合慢走和看湖山格局。",
-            "- 下午：浙江省博物馆或岳王庙，再到河坊街、南宋御街感受老城生活。",
-            "- 晚上：湖滨或南山路散步，晚餐可选杭帮菜。",
-            "",
-            "## Day 2：灵隐、茶山与山水文化",
-            "- 上午：灵隐寺、飞来峰，重点看石窟造像和寺院空间。",
-            "- 下午：龙井村或中国茶叶博物馆，安排茶文化体验。",
-            "- 晚上：可回西湖东侧或武林商圈用餐。",
-            "",
-            "## Day 3：良渚文明或京杭大运河",
-            "- 上午：良渚博物院或中国京杭大运河博物馆二选一。",
-            "- 下午：桥西历史街区、小河直街或拱宸桥，适合收尾和购买伴手礼。",
-        ])
-
-    if HOTEL_QUERY_REGEX.search(text) and ("上海" in text or "外滩" in text):
-        return "\n".join([
-            "# 上海外滩附近高性价比酒店推荐",
-            "",
-            "## 结论",
-            "外部检索结果暂时不可用，我先按外滩常见住宿区位和出行便利性给出候选清单。价格会随日期波动，预订前请再核对实时房价和库存。",
-            "",
-            "## 一、中端实用型",
-            "",
-            "1. 上海外滩英迪格酒店",
-            "- 价格区间：通常偏中高端，适合预算充足但不想住传统奢华酒店的用户。",
-            "- 亮点：靠近黄浦江和外滩观景动线，设计感强。",
-            "- 推荐理由：位置、景观和体验比较均衡，适合情侣、朋友出行。",
-            "",
-            "2. 上海外滩亚朵酒店及同类中端连锁",
-            "- 价格区间：通常低于一线江景酒店。",
-            "- 亮点：基础服务稳定，通勤、打车和地铁衔接相对方便。",
-            "- 推荐理由：如果核心需求是干净、方便、少踩坑，中端连锁比盲选民宿更稳。",
-            "",
-            "## 二、经济实惠型",
-            "",
-            "3. 南京东路/人民广场周边快捷酒店",
-            "- 价格区间：通常低于外滩一线江景酒店。",
-            "- 亮点：地铁线路密集，去外滩、豫园、陆家嘴都比较方便。",
-            "- 推荐理由：步行到外滩可能略远，但综合交通和价格更友好。",
-            "",
-            "4. 四川北路/天潼路周边酒店",
-            "- 价格区间：预算型和中端酒店较多。",
-            "- 亮点：距离外滩不算远，部分酒店价格比南京东路核心区更低。",
-            "- 推荐理由：适合愿意用 10-20 分钟交通时间换更低住宿成本的用户。",
-            "",
-            "## 三、选择建议",
-            "- 如果重视夜景：优先看外滩、北外滩、陆家嘴视野房，但预算要上调。",
-            "- 如果重视性价比：优先看南京东路、人民广场、天潼路、四川北路。",
-            "- 如果带老人或行李多：优先选择离地铁口近、评价里明确提到隔音和电梯便利的酒店。",
-            "- 预订前重点核对：入住日期价格、是否无窗、房间面积、地铁距离、近期差评和取消政策。",
-        ])
+    title = f"# {kind_text}建议"
+    unavailable = (
+        "外部检索结果暂时不可用，我先提供一版不包含未核验地点、价格、库存或开放时间的规划框架。"
+    )
 
     if HOTEL_QUERY_REGEX.search(text):
         return "\n".join([
-            f"# {query_text}住宿建议",
+            title,
             "",
             "## 结论",
-            "外部检索结果暂时不可用，我先给出可执行的选址方法和候选类型。预订前请核对实时房价、库存和近期评价。",
+            unavailable,
+            "住宿应先按每天主要活动区域选址，再比较交通、预算和取消政策；当前不直接给出未经检索核验的酒店名称。",
             "",
-            "## 一、优先选择",
-            "1. 核心景点或商圈步行范围内的中端连锁酒店",
-            "- 亮点：通勤成本低，服务稳定。",
-            "- 推荐理由：适合第一次到访、行程紧凑或带行李较多的用户。",
-            "",
-            "2. 地铁换乘站附近的经济型酒店",
-            "- 亮点：价格通常更友好，去主要景点不依赖打车。",
-            "- 推荐理由：适合预算敏感、愿意用交通时间换住宿成本的人。",
+            "## 筛选顺序",
+            "1. 先确定主要活动区域和最晚返程地点。",
+            "2. 优先选择步行可达地铁站、夜间返程稳定的住宿区域。",
+            "3. 对比房型、是否无窗、隔音、电梯、早餐和取消政策。",
+            "4. 最终房价、库存和可预订状态以预订平台实时页面为准。",
         ])
 
     if FOOD_QUERY_REGEX.search(text):
         return "\n".join([
-            f"# {query_text}美食推荐",
+            title,
             "",
             "## 结论",
-            "美食行程建议按区域安排，不要为了单店频繁跨城。优先选择评价稳定、位置顺路、排队成本可控的餐厅，再补充小吃和咖啡茶饮作为机动项。",
+            unavailable,
+            "美食安排应服务于当天路线，当前不直接给出未经检索核验的餐厅名称。",
             "",
-            "## 一、正餐优先",
-            "1. 选择当地代表菜或老字号餐厅",
-            "- 适合安排在午餐或晚餐，提前查看是否需要取号、预约或错峰到店。",
-            "",
-            "2. 选择景点附近但不在核心游客街正中心的餐厅",
-            "- 通常性价比更稳，也更适合和当天路线串联。",
-            "",
-            "## 二、小吃与茶饮补充",
-            "- 把小吃安排在两段景点之间，避免影响正餐体验。",
-            "- 如果是热门商圈，建议先收藏2-3家备选，现场根据排队情况调整。",
+            "## 筛选顺序",
+            "1. 每天按活动区域选择一顿代表性正餐。",
+            "2. 小吃、咖啡和夜宵作为机动项，避免为单店远距离往返。",
+            "3. 出发前核对营业时间、排队规则、预约方式和近期评价。",
         ])
 
     return "\n".join([
-        f"# {kind_text}建议",
+        title,
         "",
         "## 结论",
-        f"外部检索结果暂时不可用，我先根据“{query_text}”给出一版可执行初稿。涉及开放时间、票价和预约规则的内容，出行前仍需二次核验。",
+        unavailable,
+        "当前先确定每天的区域、节奏和交通边界；具体地点必须在地图或可靠来源返回后再填入。",
         "",
-        "## 推荐安排",
-        "1. 先确定核心目的地",
-        "- 把最想去的 2-3 个地点放在每天上午或傍晚，避免临时绕路。",
-        "",
-        "2. 按区域串联路线",
-        "- 同一区域的景点、餐厅和住宿尽量放在同一天，减少跨城通勤。",
+        "## 行程框架",
+        "1. 每天选择一个主要活动区域，安排1-2个核心活动。",
+        "2. 同一区域内按地理相邻顺序串联，预留用餐、安检和排队时间。",
+        "3. 多日行程补充住宿区域、返程窗口、天气核验和雨天替代方案。",
+        "4. 票价、门票、营业时间、车次和库存必须以实时工具或官方页面为准。",
     ])
 
 
@@ -3508,53 +3720,45 @@ def _build_travel_fallback_answer(travel_bundle: Dict[str, Any]) -> str:
     kinds = travel_bundle.get("kinds") if isinstance(travel_bundle.get("kinds"), list) else []
     kind_text = "、".join([_safe_text(item) for item in kinds if _safe_text(item)]) or "旅行规划"
     web_rows = travel_bundle.get("web_rows") if isinstance(travel_bundle.get("web_rows"), list) else []
-    map_locations = travel_bundle.get("map_locations") if isinstance(travel_bundle.get("map_locations"), list) else []
+    raw_map_locations = travel_bundle.get("map_locations") if isinstance(travel_bundle.get("map_locations"), list) else []
+    map_locations: List[Dict[str, Any]] = []
+    map_tool = _safe_text(travel_bundle.get("map_tool"))
+    for raw_location in raw_map_locations:
+        if not isinstance(raw_location, dict):
+            continue
+        location = dict(raw_location)
+        source_text = _safe_text(location.get("source")).lower()
+        has_coordinates = _optional_float(location.get("lat")) is not None and _optional_float(location.get("lng")) is not None
+        location["data_type"] = (
+            "confirmed_live_data"
+            if map_tool and has_coordinates and not any(marker in source_text for marker in ("seed", "fallback", "estimate"))
+            else "reference_data"
+        )
+        map_locations.append(location)
     xhs_table = _safe_text(travel_bundle.get("xhs_table"))
     append_markdown = _safe_text(travel_bundle.get("append_markdown"))
 
-    if web_rows or map_locations or xhs_table:
-        fallback_answer = _build_travel_knowledge_fallback(query_text, kind_text)
+    has_verified_external_data = bool(
+        web_rows
+        or xhs_table
+        or any(location.get("data_type") == "confirmed_live_data" for location in map_locations)
+    )
+    fallback_answer = _build_travel_knowledge_fallback(query_text, kind_text)
+
+    if has_verified_external_data:
         fallback_answer = fallback_answer.replace("外部检索结果暂时不可用，我先", "已完成外部检索并结合结果，我")
         fallback_answer = fallback_answer.replace("外部搜索或地图检索没有返回可用结果", "外部检索结果已作为参考")
-        return fallback_answer
-
-    if web_rows or map_locations or xhs_table:
-        fallback_answer = "\n".join([
-            f"# {query_text}",
-            "",
-            "## 结论",
-            (
-                f"已完成外部检索和旅行增强整理：网页参考 {len(web_rows)} 条，"
-                f"地图坐标 {len(map_locations)} 个。下面先给出可执行建议，"
-                "具体房价、库存和可预订状态仍以预订平台实时页面为准。"
-            ),
-            "",
-            "## 使用限制",
-            "酒店推荐只能作为候选和区域建议；如果没有真实库存/支付工具，不能视为已预订。",
-        ])
     else:
-        fallback_answer = _build_travel_knowledge_fallback(query_text, kind_text)
-        fallback_answer = (
-            f"{fallback_answer}\n\n"
+        data_note = (
             "## 数据说明\n\n"
-            "本次外部搜索或地图检索没有返回可用结果，以上为非实时兜底建议；酒店价格、库存和坐标需以预订平台或地图为准。"
+            "本次没有取得可验证的外部实时结果。以上仅为通用规划框架；"
+            "参考地点、酒店价格、库存、开放时间和坐标均需以官方平台或地图实时结果为准。"
         )
+        fallback_answer = f"{fallback_answer}\n\n{data_note}"
+
     if append_markdown:
         fallback_answer = f"{fallback_answer}\n\n{append_markdown}"
     return fallback_answer
-
-    lines = [
-        f"# {kind_text}建议",
-        "",
-        "## 结论",
-        f"已针对“{query_text}”完成旅行增强检索，可用结果包括网络资料 {len(web_rows)} 条、地图坐标 {len(map_locations)} 个。",
-        "",
-        "## 使用限制",
-        "酒店预订只能提供候选和区域建议；如果没有真实库存/支付工具，不能视为已预订。",
-    ]
-    if append_markdown:
-        lines.extend(["", append_markdown])
-    return "\n".join(lines)
 
 
 def _travel_title_from_query(query_text: str, kind_text: str = "行程规划") -> str:
@@ -3758,7 +3962,11 @@ def maybe_prepare_train_ticket_bundle(
         return None
 
     from_station, to_station = route
+    canonical_target = canonical_destination(to_station) or to_station
+    canonical_origin = canonical_destination(from_station) or from_station
+    international_route = canonical_target in INTERNATIONAL_DESTINATIONS or canonical_origin in INTERNATIONAL_DESTINATIONS
     travel_date = _extract_travel_date(query_text)
+    ticket_deadline = time.monotonic() + TICKET_QUERY_TOTAL_TIMEOUT_SECONDS
 
     direct_source = ""
     interline_source = ""
@@ -3781,15 +3989,21 @@ def maybe_prepare_train_ticket_bundle(
     selected_pair = query_pairs[0]
 
     # 先查直达，再查中转。MCP 被网关拦截或返回空时，继续回退到本地 12306 工具。
-    if _tool_exists(tool_manager, "get-tickets"):
+    if not international_route and _tool_exists(tool_manager, "get-tickets"):
         direct_source = _append_tool_source(direct_source, "get-tickets")
         train_attempted = True
         for candidate_from, candidate_to in query_pairs:
+            if _ticket_deadline_remaining(ticket_deadline) <= 0:
+                train_errors.append(f"实时票务查询已达到{int(TICKET_QUERY_TOTAL_TIMEOUT_SECONDS)}秒总时限")
+                break
             try:
-                direct_raw = tool_manager.run_tool(
-                    "get-tickets",
-                    messages=message_history,
+                direct_raw = _run_tool_with_deadline(
+                    tool_manager=tool_manager,
+                    tool_name="get-tickets",
+                    message_history=message_history,
                     session_id=session_id,
+                    deadline=ticket_deadline,
+                    timeout_label="直达火车票查询",
                     date=travel_date,
                     fromStation=candidate_from,
                     toStation=candidate_to,
@@ -3815,15 +4029,21 @@ def maybe_prepare_train_ticket_bundle(
                 selected_pair = (candidate_from, candidate_to)
                 break
 
-    if not direct_rows and _tool_exists(tool_manager, "query_12306_realtime_tickets"):
+    if not international_route and not direct_rows and _tool_exists(tool_manager, "query_12306_realtime_tickets"):
         direct_source = _append_tool_source(direct_source, "query_12306_realtime_tickets")
         train_attempted = True
         for candidate_from, candidate_to in query_pairs:
+            if _ticket_deadline_remaining(ticket_deadline) <= 0:
+                train_errors.append(f"实时票务查询已达到{int(TICKET_QUERY_TOTAL_TIMEOUT_SECONDS)}秒总时限")
+                break
             try:
-                direct_raw = tool_manager.run_tool(
-                    "query_12306_realtime_tickets",
-                    messages=message_history,
+                direct_raw = _run_tool_with_deadline(
+                    tool_manager=tool_manager,
+                    tool_name="query_12306_realtime_tickets",
+                    message_history=message_history,
                     session_id=session_id,
+                    deadline=ticket_deadline,
+                    timeout_label="直达火车票查询",
                     from_station=candidate_from,
                     to_station=candidate_to,
                     travel_date=travel_date,
@@ -3847,16 +4067,22 @@ def maybe_prepare_train_ticket_bundle(
                 selected_pair = (candidate_from, candidate_to)
                 break
 
-    if _tool_exists(tool_manager, "get-interline-tickets"):
+    if not international_route and _tool_exists(tool_manager, "get-interline-tickets"):
         interline_source = "get-interline-tickets"
         train_attempted = True
         interline_pairs = [selected_pair, *[pair for pair in query_pairs if pair != selected_pair]]
         for candidate_from, candidate_to in interline_pairs:
+            if _ticket_deadline_remaining(ticket_deadline) <= 0:
+                train_errors.append(f"实时票务查询已达到{int(TICKET_QUERY_TOTAL_TIMEOUT_SECONDS)}秒总时限")
+                break
             try:
-                interline_raw = tool_manager.run_tool(
-                    "get-interline-tickets",
-                    messages=message_history,
+                interline_raw = _run_tool_with_deadline(
+                    tool_manager=tool_manager,
+                    tool_name="get-interline-tickets",
+                    message_history=message_history,
                     session_id=session_id,
+                    deadline=ticket_deadline,
+                    timeout_label="中转火车票查询",
                     date=travel_date,
                     fromStation=candidate_from,
                     toStation=candidate_to,
@@ -3882,7 +4108,7 @@ def maybe_prepare_train_ticket_bundle(
                 interline_rows.extend(candidate_rows)
                 break
 
-    if not train_attempted:
+    if not train_attempted and not international_route:
         train_errors.append("无可用火车票实时查询工具")
 
     flight_tool_name = _first_available_tool_name(tool_manager, FLIGHT_TICKET_TOOL_CANDIDATES)
@@ -3921,6 +4147,8 @@ def maybe_prepare_train_ticket_bundle(
                     "limit": 20,
                 },
             ],
+            deadline=ticket_deadline,
+            timeout_label="飞机票查询",
         )
         if _is_tool_execution_error_payload(flight_payload):
             logger.warning(f"飞机票实时工具调用失败或需要登录，tool={flight_tool_name}, payload={flight_payload}")
@@ -3938,7 +4166,7 @@ def maybe_prepare_train_ticket_bundle(
     bus_tool_name = _first_available_tool_name(tool_manager, BUS_TICKET_TOOL_CANDIDATES)
     bus_from_city = _city_name_for_ticket_query(from_station)
     bus_to_city = _city_name_for_ticket_query(to_station)
-    if bus_tool_name:
+    if bus_tool_name and not international_route:
         bus_source = bus_tool_name
         bus_attempted = True
         bus_payload = _run_tool_with_arg_candidates(
@@ -3971,6 +4199,8 @@ def maybe_prepare_train_ticket_bundle(
                     "limit": 20,
                 },
             ],
+            deadline=ticket_deadline,
+            timeout_label="大巴票查询",
         )
         if _is_tool_execution_error_payload(bus_payload):
             logger.warning(f"大巴票实时工具调用失败或需要登录，tool={bus_tool_name}, payload={bus_payload}")
@@ -3982,7 +4212,7 @@ def maybe_prepare_train_ticket_bundle(
             except Exception as normalize_error:
                 bus_errors.append(f"大巴票结果解析失败: {normalize_error}")
                 bus_successful_attempt = False
-    else:
+    elif not international_route:
         bus_errors.append("无可用大巴票实时查询工具")
 
     train_rows: List[Dict[str, Any]] = [*direct_rows, *interline_rows]
@@ -4073,6 +4303,8 @@ def maybe_prepare_train_ticket_bundle(
         "bus_source": bus_source,
         "user_query": query_text,
         "recommendation_lines": recommendation_lines,
+        "timed_out": _ticket_deadline_remaining(ticket_deadline) <= 0,
+        "elapsed_seconds": round(TICKET_QUERY_TOTAL_TIMEOUT_SECONDS - _ticket_deadline_remaining(ticket_deadline), 1),
     }
 
     bundle["realtime_only_answer"] = _build_realtime_only_answer(bundle)
@@ -4120,17 +4352,18 @@ def maybe_prepare_xhs_search_bundle(
         return None
 
     focus = _extract_xhs_focus(query_text)
+    tool_query = _build_xhs_travel_query(query_text) if travel_triggered else query_text
     if summary_tool_name:
         arg_candidates = [
-            {"query": query_text, "limit": 8, "focus": focus},
-            {"query": query_text, "limit": 8},
-            {"query": query_text},
+            {"query": tool_query, "limit": 8, "focus": focus},
+            {"query": tool_query, "limit": 8},
+            {"query": tool_query},
         ]
     else:
         arg_candidates = [
-            {"query": query_text, "limit": 8, "page": 1, "sort": "general"},
-            {"query": query_text, "limit": 8},
-            {"query": query_text},
+            {"query": tool_query, "limit": 8, "page": 1, "sort": "general"},
+            {"query": tool_query, "limit": 8},
+            {"query": tool_query},
         ]
 
     payload = _run_xhs_tool_with_candidates(
@@ -4145,6 +4378,7 @@ def maybe_prepare_xhs_search_bundle(
         logger.warning(f"小红书工具调用返回错误，tool={selected_tool}, payload={payload}")
 
     rows = _normalize_xhs_rows(payload, max_rows=8)
+    rows, rejected_row_count = _filter_xhs_travel_rows(rows, query_text) if travel_triggered else (rows, 0)
     summary_text = ""
     source = ""
     warnings: List[str] = []
@@ -4162,7 +4396,15 @@ def maybe_prepare_xhs_search_bundle(
         if isinstance(highlights_value, list):
             highlights = [_safe_text(item) for item in highlights_value if _safe_text(item)]
 
-    if not summary_text:
+    if travel_triggered:
+        if XHS_NON_TRAVEL_REGEX.search(summary_text):
+            summary_text = ""
+        highlights = [item for item in highlights if not XHS_NON_TRAVEL_REGEX.search(item)]
+
+    if rejected_row_count:
+        warnings.append(f"已过滤 {rejected_row_count} 条与旅行主题或目的地不相关的结果。")
+
+    if not summary_text or (travel_triggered and not rows):
         if rows:
             summary_text = f"已检索到 {len(rows)} 条小红书资源，可基于作者、摘要和链接做筛选。"
         else:
@@ -4173,7 +4415,7 @@ def maybe_prepare_xhs_search_bundle(
     context_lines = [
         "【小红书检索结果】",
         f"用户问题: {query_text}",
-        f"检索工具: {selected_tool}",
+        f"检索关键词: {tool_query}",
         f"数据来源: {source or '未知'}",
         f"命中资源数: {len(rows)}",
         f"工具摘要: {summary_text}",
@@ -4196,6 +4438,7 @@ def maybe_prepare_xhs_search_bundle(
 
     bundle = {
         "query": query_text,
+        "tool_query": tool_query,
         "focus": focus,
         "rows": rows,
         "summary": summary_text,
@@ -4203,6 +4446,7 @@ def maybe_prepare_xhs_search_bundle(
         "source_tool": selected_tool,
         "warnings": warnings,
         "highlights": highlights,
+        "rejected_row_count": rejected_row_count,
         "context_message": "\n".join(context_lines),
         "append_markdown": markdown_table,
     }
@@ -4211,27 +4455,78 @@ def maybe_prepare_xhs_search_bundle(
     return bundle
 
 
-async def create_filtered_tool_manager(original_tool_manager: Any, selected_mcp_servers: List[str]) -> Any:
-    """Create a tool manager containing only selected MCP tools and all local tools."""
+ONLINE_SEARCH_SERVER_NAMES = {"serper_web_search", "xhs-mcp", "fetch"}
+ONLINE_SEARCH_TOOL_MARKERS = (
+    "search_web",
+    "web_search",
+    "xhs_",
+    "xhs-",
+    "xiaohongshu",
+    "fetch_url",
+    "fetch_web",
+)
+SEMANTIC_TRIP_ANALYSIS_TIMEOUT_SECONDS = 8
+
+
+def _is_online_search_tool(tool_name: str, tool_spec: Any) -> bool:
+    normalized_name = _safe_text(tool_name).lower()
+    server_name = _safe_text(getattr(tool_spec, "server_name", "")).lower()
+    return server_name in ONLINE_SEARCH_SERVER_NAMES or any(
+        marker in normalized_name for marker in ONLINE_SEARCH_TOOL_MARKERS
+    )
+
+
+def _build_filtered_tool_manager(
+    original_tool_manager: Any,
+    selected_mcp_servers: Optional[List[str]],
+    allow_web_search: bool = True,
+) -> Any:
+    """Create a tool manager containing the allowed MCP and local tools."""
     try:
         from agents.tool.tool_manager import ToolManager
         from agents.tool.tool_base import McpToolSpec
 
-        filtered_manager = ToolManager(is_auto_discover=False)
+        filtered_manager = ToolManager(
+            is_auto_discover=False,
+            map_request_governor=getattr(original_tool_manager, "map_request_governor", None),
+        )
+        if hasattr(original_tool_manager, "_run_mcp_tool_async"):
+            filtered_manager._run_mcp_tool_async = original_tool_manager._run_mcp_tool_async
 
         for tool_name, tool_spec in original_tool_manager.tools.items():
+            if not allow_web_search and _is_online_search_tool(tool_name, tool_spec):
+                continue
             if not isinstance(tool_spec, McpToolSpec):
                 filtered_manager.tools[tool_name] = tool_spec
-            elif tool_spec.server_name in selected_mcp_servers:
+            elif selected_mcp_servers is None or tool_spec.server_name in selected_mcp_servers:
                 filtered_manager.tools[tool_name] = tool_spec
 
         logger.info(f"筛选后的工具管理器包含 {len(filtered_manager.tools)} 个工具")
         logger.info(f"选择的MCP服务器: {selected_mcp_servers}")
+        logger.info(f"允许网页与社区检索: {allow_web_search}")
         return filtered_manager
 
     except Exception as e:
         logger.error(f"创建筛选工具管理器失败: {e}")
         return original_tool_manager
+
+
+async def create_filtered_tool_manager(
+    original_tool_manager: Any,
+    selected_mcp_servers: Optional[List[str]],
+    allow_web_search: bool = True,
+) -> Any:
+    return _build_filtered_tool_manager(
+        original_tool_manager,
+        selected_mcp_servers,
+        allow_web_search=allow_web_search,
+    )
+
+
+def _begin_map_planning_scope(tool_manager: Any, session_id: str, request_id: str) -> None:
+    begin_scope = getattr(tool_manager, "begin_map_request_scope", None)
+    if callable(begin_scope):
+        begin_scope(session_id, f"trip:{request_id}")
 
 
 def build_message_history(request_messages: List[Any]) -> List[Dict[str, Any]]:
@@ -4245,6 +4540,882 @@ def build_message_history(request_messages: List[Any]) -> List[Dict[str, Any]]:
             "type": msg.type,
         })
     return message_history
+
+
+def append_online_search_policy_message(
+    message_history: List[Dict[str, Any]],
+    allow_web_search: bool,
+) -> None:
+    if allow_web_search:
+        return
+    message_history.append(
+        {
+            "role": "system",
+            "content": (
+                "用户已关闭网页与社区检索。本轮不得调用网页搜索、网页抓取或小红书工具；"
+                "可以继续使用本地旅行知识库，以及用户明确启用的地图、天气和票务工具。"
+            ),
+            "message_id": str(uuid.uuid4()),
+            "type": "system_online_search_policy",
+        }
+    )
+
+
+def resolve_planning_mode_flags(
+    planning_mode: Optional[str],
+    use_deepthink: bool,
+    use_multi_agent: bool,
+) -> Tuple[bool, bool]:
+    """Map product planning modes to existing controller flags."""
+    mode = _safe_text(planning_mode)
+    if mode == "fast_chat":
+        return False, False
+    if mode == "standard_plan":
+        return True, False
+    if mode == "deep_research":
+        return True, True
+    return use_deepthink, use_multi_agent
+
+
+def _normalize_user_profile(profile: Optional[Dict[str, Any]]) -> UserTravelProfile:
+    try:
+        return normalize_user_travel_profile(profile)
+    except Exception:
+        return UserTravelProfile()
+
+
+def _extract_json_object(text: str) -> Dict[str, Any]:
+    content = _safe_text(text)
+    if not content:
+        return {}
+    fenced_match = re.search(r"```(?:json)?\s*([\s\S]*?)```", content, re.IGNORECASE)
+    if fenced_match:
+        content = fenced_match.group(1).strip()
+    try:
+        parsed = json.loads(content)
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+
+    start = content.find("{")
+    if start < 0:
+        return {}
+    try:
+        parsed, _ = json.JSONDecoder().raw_decode(content[start:])
+        return parsed if isinstance(parsed, dict) else {}
+    except (TypeError, ValueError, json.JSONDecodeError):
+        return {}
+
+
+def _semantic_trip_analysis_messages(
+    query_text: str,
+    intent: Any,
+    profile: UserTravelProfile,
+    clarification_answers: Dict[str, Any],
+) -> List[Dict[str, str]]:
+    return [
+        {
+            "role": "system",
+            "content": (
+                "你是旅行需求澄清决策器。只输出一个 JSON 对象，不输出分析过程或 Markdown。"
+                "先从用户原话和累计澄清答案中抽取明确事实；没有直接证据的字段必须留空，绝不能猜测。"
+                "再判断当前最影响可执行行程的一个缺失信息。问题字段可从 TripIntent 的任意字段中选择，"
+                "包括出发地、目的地、日期、天数、同行人、预算、节奏、兴趣、饮食、住宿、交通、必去项、避开项和输出偏好，"
+                "但不要重复已回答字段，也不要为了凑数提问。每题提供 2 到 4 个互斥选项，并允许自定义输入。"
+                "JSON 格式必须为："
+                '{"intent_patch":{},"evidence":{},"next_question":'
+                '{"field":"","question":"","reason":"","options":[],"allow_custom":true}}。'
+                "intent_patch 中每个非空字段都必须在 evidence 中给出用户文本里的原文短句。"
+            ),
+        },
+        {
+            "role": "user",
+            "content": json.dumps(
+                {
+                    "query": query_text,
+                    "current_intent": intent.model_dump(),
+                    "clarification_answers": clarification_answers,
+                    "profile_defaults": profile.model_dump(),
+                    "answered_fields": list(clarification_answers.keys()),
+                },
+                ensure_ascii=False,
+            ),
+        },
+    ]
+
+
+async def _analyze_trip_request_with_model(
+    controller: Any,
+    query_text: str,
+    intent: Any,
+    profile: UserTravelProfile,
+    clarification_answers: Dict[str, Any],
+) -> Dict[str, Any]:
+    analysis_agent = getattr(controller, "task_analysis_agent", None)
+    call_model = getattr(analysis_agent, "_call_llm_non_streaming", None)
+    if not callable(call_model):
+        return {}
+
+    messages = _semantic_trip_analysis_messages(
+        query_text=query_text,
+        intent=intent,
+        profile=profile,
+        clarification_answers=clarification_answers,
+    )
+    try:
+        response = await asyncio.wait_for(
+            asyncio.to_thread(call_model, messages),
+            timeout=SEMANTIC_TRIP_ANALYSIS_TIMEOUT_SECONDS,
+        )
+        choices = getattr(response, "choices", None) or []
+        if not choices:
+            return {}
+        message = getattr(choices[0], "message", None)
+        content = getattr(message, "content", "") if message is not None else ""
+        return _extract_json_object(content)
+    except asyncio.TimeoutError:
+        logger.warning(
+            f"旅行需求语义分析超过{SEMANTIC_TRIP_ANALYSIS_TIMEOUT_SECONDS}秒，回退到确定性澄清规则"
+        )
+    except Exception as error:
+        logger.warning(f"旅行需求语义分析失败，回退到确定性澄清规则: {error}")
+    return {}
+
+
+def _is_skipped_clarification_value(value: Any) -> bool:
+    return isinstance(value, str) and value.strip() == CLARIFICATION_SKIP_SENTINEL
+
+
+def _normalized_clarification_answers(
+    answers: Optional[Dict[str, Any]],
+) -> Tuple[Dict[str, Any], set[str]]:
+    """Split transport-only skip sentinels from values allowed into intent/model context."""
+    if not isinstance(answers, dict):
+        return {}, set()
+
+    value_answers: Dict[str, Any] = {}
+    skipped_fields: set[str] = set()
+    for raw_field, value in answers.items():
+        field = _safe_text(raw_field)
+        if not field:
+            continue
+        if _is_skipped_clarification_value(value):
+            skipped_fields.add(field)
+            continue
+        if _safe_text(value):
+            value_answers[field] = value
+    return value_answers, skipped_fields
+
+
+def _encode_sse_event(payload: Dict[str, Any], request_id: str, sequence: int) -> str:
+    event = dict(payload)
+    event["request_id"] = request_id
+    event["sequence"] = sequence
+    return f"data: {json.dumps(event)}\n\n"
+
+
+def _chat_complete_payload(
+    *,
+    request_id: str,
+    message_id: str,
+    finish_reason: str,
+) -> Dict[str, Any]:
+    return ChatCompleteEvent(
+        request_id=request_id,
+        message_id=message_id,
+        finish_reason=finish_reason,
+    ).model_dump()
+
+
+def _safe_stream_error_payload(
+    error: Exception,
+    *,
+    request_id: str,
+    phase: str,
+) -> Dict[str, Any]:
+    error_text = _safe_text(error).lower()
+    if any(token in error_text for token in ("allocationquota", "free tier", "quota", "rate limit", "429")):
+        code = "MODEL_QUOTA_EXCEEDED"
+        retryable = False
+        user_message = "当前模型服务额度不足，请检查模型设置后重试。"
+        actions = ["open_settings", "switch_fast_mode"]
+    elif any(token in error_text for token in ("api key", "unauthorized", "authentication", "401", "403")):
+        code = "MODEL_AUTH_FAILED"
+        retryable = False
+        user_message = "模型服务连接失败，请检查 API 配置后重试。"
+        actions = ["open_settings", "retry"]
+    elif isinstance(error, (asyncio.TimeoutError, FuturesTimeoutError, TimeoutError)) or "timeout" in error_text:
+        code = "UPSTREAM_TIMEOUT"
+        retryable = True
+        user_message = "本次生成等待超时，已保留当前结果。"
+        actions = ["retry", "switch_fast_mode"]
+    else:
+        code = "CHAT_STREAM_FAILED"
+        retryable = True
+        user_message = "本次生成暂时中断，请重试。"
+        actions = ["retry"]
+
+    return ChatStreamErrorEvent(
+        request_id=request_id,
+        code=code,
+        phase=phase,
+        retryable=retryable,
+        user_message=user_message,
+        actions=actions,
+    ).model_dump()
+
+
+def append_trip_intent_context_message(
+    message_history: List[Dict[str, Any]],
+    query_text: str,
+    profile: Optional[Dict[str, Any]],
+    clarification_answers: Optional[Dict[str, Any]],
+    intent: Optional[Any] = None,
+) -> None:
+    if not is_trip_planning_query(query_text):
+        return
+    if intent is None:
+        intent = extract_trip_intent(
+            query=query_text,
+            profile=profile,
+            clarification_answers=clarification_answers,
+        )
+    message_history.append(
+        {
+            "role": "system",
+            "content": build_trip_context_message(intent, profile, clarification_answers),
+            "message_id": str(uuid.uuid4()),
+            "type": "system_trip_intent_context",
+        }
+    )
+
+
+def append_selected_knowledge_context_message(
+    message_history: List[Dict[str, Any]],
+    selected_knowledge_context: Optional[List[Dict[str, Any]]],
+) -> None:
+    if not isinstance(selected_knowledge_context, list):
+        return
+
+    lines = [
+        "【用户选中的旅行知识库上下文】",
+        "以下条目是用户主动选择用于当前规划的参考资料。优先用于目的地、景点、住宿区域、路线和注意事项判断；不要把这些参考资料说成实时确认数据。",
+    ]
+    count = 0
+    for index, item in enumerate(selected_knowledge_context[:8], start=1):
+        if not isinstance(item, dict):
+            continue
+        title = _safe_text(item.get("title")) or f"知识条目 {index}"
+        city = _safe_text(item.get("city"))
+        source = _safe_text(item.get("source"))
+        snippet = _safe_text(item.get("snippet"))
+        source_url = _safe_text(item.get("source_url") or item.get("url"))
+        if not (title or snippet):
+            continue
+        count += 1
+        lines.append(f"{count}. {title}")
+        if city or source:
+            lines.append(f"- 城市/来源: {city or '未标注'} / {source or '本地知识库'}")
+        if snippet:
+            lines.append(f"- 摘要: {snippet}")
+        if source_url:
+            lines.append(f"- 链接: {source_url}")
+
+    if count == 0:
+        return
+
+    message_history.append(
+        {
+            "role": "system",
+            "content": "\n".join(lines),
+            "message_id": str(uuid.uuid4()),
+            "type": "system_selected_knowledge_context",
+        }
+    )
+
+
+def _optional_float(value: Any) -> Optional[float]:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _optional_int(value: Any) -> Optional[int]:
+    if value is None:
+        return None
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None
+
+
+def _structured_map_locations(travel_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_locations = (
+        travel_bundle.get("map_locations")
+        if isinstance(travel_bundle.get("map_locations"), list)
+        else []
+    )
+    map_tool = _safe_text(travel_bundle.get("map_tool"))
+    locations: List[Dict[str, Any]] = []
+    for raw_location in raw_locations:
+        if not isinstance(raw_location, dict):
+            continue
+        location = dict(raw_location)
+        source_text = _safe_text(location.get("source")).lower()
+        has_coordinates = (
+            _optional_float(location.get("lat")) is not None
+            and _optional_float(location.get("lng")) is not None
+        )
+        explicit_data_type = _safe_text(location.get("data_type"))
+        if explicit_data_type not in {
+            "confirmed_live_data",
+            "reference_data",
+            "estimated_data",
+        }:
+            explicit_data_type = ""
+        location["data_type"] = explicit_data_type or (
+            "confirmed_live_data"
+            if map_tool
+            and has_coordinates
+            and not any(marker in source_text for marker in ("seed", "fallback", "estimate"))
+            else "reference_data"
+        )
+        location["source"] = _safe_text(location.get("source")) or map_tool or "map_reference"
+        if location["data_type"] == "confirmed_live_data" and not location.get("updated_at"):
+            location["updated_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        try:
+            normalized_detail = normalize_poi_detail(location)
+            coordinates = normalized_detail.pop("coordinates", None) or {}
+            location.update(normalized_detail)
+            location["lat"] = coordinates.get("lat", location.get("lat"))
+            location["lng"] = coordinates.get("lng", location.get("lng"))
+            location["description"] = _safe_text(location.get("summary") or location.get("description"))
+        except PoiDetailError:
+            location.setdefault("field_evidence", {})
+            location.setdefault("sources", [])
+        locations.append(location)
+    return locations
+
+
+def _trip_plan_source_references(travel_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
+    sources: List[Dict[str, Any]] = []
+    web_rows = travel_bundle.get("web_rows") if isinstance(travel_bundle.get("web_rows"), list) else []
+    xhs_rows = travel_bundle.get("xhs_rows") if isinstance(travel_bundle.get("xhs_rows"), list) else []
+
+    for row in web_rows[:6]:
+        if not isinstance(row, dict):
+            continue
+        title = _safe_text(row.get("title")) or _safe_text(row.get("url")) or "网页参考"
+        sources.append(
+            {
+                "type": "web",
+                "data_type": "reference_data",
+                "title": title,
+                "source": _safe_text(row.get("source")) or "web",
+                "url": _safe_text(row.get("url")),
+                "snippet": _safe_text(row.get("snippet")),
+            }
+        )
+
+    for row in xhs_rows[:6]:
+        if not isinstance(row, dict):
+            continue
+        title = _safe_text(row.get("title")) or "小红书参考"
+        sources.append(
+            {
+                "type": "xhs",
+                "data_type": "reference_data",
+                "title": title,
+                "source": _safe_text(row.get("author")) or "小红书",
+                "url": _safe_text(row.get("url")),
+                "snippet": _safe_text(row.get("summary") or row.get("snippet")),
+            }
+        )
+
+    rag_context = _safe_text(travel_bundle.get("rag_context"))
+    if rag_context:
+        sources.append(
+            {
+                "type": "local_knowledge",
+                "data_type": "reference_data",
+                "title": "本地旅行知识库",
+                "source": "travel_knowledge_base",
+                "url": "",
+                "snippet": rag_context[:320],
+            }
+        )
+
+    selected_context = (
+        travel_bundle.get("selected_knowledge_context")
+        if isinstance(travel_bundle.get("selected_knowledge_context"), list)
+        else []
+    )
+    for row in selected_context[:8]:
+        if not isinstance(row, dict):
+            continue
+        sources.append(
+            {
+                "type": "selected_knowledge",
+                "data_type": "reference_data",
+                "title": _safe_text(row.get("title")) or "用户选中的知识条目",
+                "source": _safe_text(row.get("source")) or "travel_knowledge_base",
+                "url": _safe_text(row.get("source_url") or row.get("url")),
+                "snippet": _safe_text(row.get("snippet")),
+            }
+        )
+
+    map_locations = _structured_map_locations(travel_bundle)
+    map_tool = _safe_text(travel_bundle.get("map_tool"))
+    confirmed_map_count = sum(
+        location.get("data_type") == "confirmed_live_data" for location in map_locations
+    )
+    if map_tool and confirmed_map_count:
+        sources.append(
+            {
+                "type": "map",
+                "data_type": "confirmed_live_data",
+                "title": "地图地点核验",
+                "source": map_tool,
+                "url": "",
+                "snippet": f"地图工具已实时核验 {confirmed_map_count} 个地点坐标。",
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+            }
+        )
+
+    weather_tool = _safe_text(travel_bundle.get("weather_tool"))
+    weather_summary = _safe_text(travel_bundle.get("weather_summary"))
+    if weather_tool and weather_summary:
+        sources.append(
+            {
+                "type": "weather",
+                "data_type": "confirmed_live_data",
+                "title": "目的地天气信息",
+                "source": weather_tool,
+                "url": "",
+                "snippet": weather_summary[:320],
+                "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+            }
+        )
+
+    return sources
+
+
+def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
+    query_text = _safe_text(travel_bundle.get("query")) or "旅行方案"
+    raw_intent = travel_bundle.get("trip_intent")
+    try:
+        intent = TripIntent.model_validate(raw_intent) if raw_intent else extract_trip_intent(query_text)
+    except Exception:
+        intent = extract_trip_intent(query_text)
+    map_locations = _structured_map_locations(travel_bundle)
+    max_day = max(
+        [_optional_int(location.get("day")) or 1 for location in map_locations if isinstance(location, dict)]
+        or [1]
+    )
+    days = max(1, intent.days or max_day)
+    activities: List[TripActivity] = []
+    locations_per_day = max(1, (len(map_locations) + days - 1) // days)
+
+    for index, location in enumerate(map_locations, start=1):
+        if not isinstance(location, dict):
+            continue
+        name = _safe_text(location.get("name")) or f"地点 {index}"
+        category = _safe_text(location.get("category")) or "地点"
+        activity_type = "attraction"
+        if re.search(r"餐厅|美食|小吃|restaurant|food|cafe", category, re.IGNORECASE):
+            activity_type = "food"
+        elif re.search(r"酒店|住宿|hotel|hostel", category, re.IGNORECASE):
+            activity_type = "hotel"
+        elif re.search(r"交通|车站|机场|transport|station|airport", category, re.IGNORECASE):
+            activity_type = "transport"
+        place = TripPlace.model_validate({
+            **location,
+            "name": name,
+            "category": category,
+            "lat": _optional_float(location.get("lat")),
+            "lng": _optional_float(location.get("lng")),
+            "source": _safe_text(location.get("source")) or "地图地点核验",
+            "data_type": location.get("data_type", "reference_data"),
+        })
+        notes = [_safe_text(location.get("description"))]
+        explicit_day = _optional_int(location.get("day"))
+        activity_day = explicit_day if explicit_day and 1 <= explicit_day <= days else min(
+            days,
+            ((index - 1) // locations_per_day) + 1,
+        )
+        activities.append(
+            TripActivity(
+                activity_id=_safe_text(location.get("activity_id") or location.get("id"))
+                or f"act_{uuid.uuid4().hex}",
+                day=activity_day,
+                start_time=_safe_text(location.get("start_time")) or None,
+                end_time=_safe_text(location.get("end_time")) or None,
+                duration_minutes=_optional_int(location.get("duration_minutes")),
+                title=name,
+                activity_type=activity_type,
+                place=place,
+                map_visible=True,
+                transport_to_next=_safe_text(location.get("transport_to_next")) or None,
+                estimated_cost=_optional_float(location.get("estimated_cost")),
+                reservation=location.get("reservation") if isinstance(location.get("reservation"), dict) else None,
+                evidence_refs=location.get("evidence_refs")
+                if isinstance(location.get("evidence_refs"), list)
+                else [],
+                notes=[note for note in notes if note],
+                data_type="estimated_data",
+            )
+        )
+
+    people_count = max(1, intent.people_count or 1)
+    category_totals = {"transport": 0.0, "accommodation": 0.0, "food": 0.0, "tickets": 0.0, "other": 0.0}
+    unknown_items: List[str] = []
+    for activity in activities:
+        category_text = _safe_text(activity.place.category if activity.place else "")
+        amount = _optional_float(activity.estimated_cost)
+        if re.search(r"酒店|住宿|hotel|hostel", category_text, re.IGNORECASE):
+            key, fallback = "accommodation", 350.0
+        elif re.search(r"餐厅|美食|小吃|restaurant|food", category_text, re.IGNORECASE):
+            key, fallback = "food", 80.0 * people_count
+        elif re.search(r"交通|车站|机场|transport|station|airport", category_text, re.IGNORECASE):
+            key, fallback = "transport", 30.0 * people_count
+        elif re.search(r"景点|博物馆|公园|寺|attraction|museum|park", category_text, re.IGNORECASE):
+            key, fallback = "tickets", 60.0 * people_count
+        else:
+            key, fallback = "other", None
+        if amount is None and fallback is None:
+            unknown_items.append(activity.title)
+            continue
+        category_totals[key] += amount if amount is not None else fallback or 0
+
+    estimated_total = round(sum(category_totals.values()), 2)
+    target_total = intent.budget_total
+    if target_total is None and intent.budget_per_person is not None:
+        target_total = intent.budget_per_person * people_count
+    per_person_estimate = round(estimated_total / people_count, 2) if estimated_total else None
+    overrun_amount = round(max(0.0, estimated_total - float(target_total)), 2) if target_total is not None else 0.0
+    budget_summary = {
+        "currency": "CNY",
+        "budget_total": target_total if target_total is not None else estimated_total or None,
+        "budget_per_person": intent.budget_per_person or per_person_estimate,
+        "people_count": people_count,
+        "estimated_total": estimated_total if estimated_total else None,
+        "known_total": estimated_total if estimated_total else 0,
+        "unknown_count": len(unknown_items),
+        "unknown_items": unknown_items,
+        "categories": category_totals,
+        "over_budget": overrun_amount > 0,
+        "overrun_amount": overrun_amount,
+        "source_label": "基于地点类别和行程规则估算；实际价格需以对应来源实时确认",
+        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+        "data_type": "estimated_data",
+    }
+
+    source_references = _trip_plan_source_references(travel_bundle)
+    source_references.append(
+        {
+            "type": "plan_estimate",
+            "data_type": "estimated_data",
+            "title": "行程顺序与费用估算",
+            "source": "trip_plan_rules",
+            "url": "",
+            "snippet": "未由实时工具确认的活动顺序、通勤方式和费用均为规划估算，出发前需复核。",
+        }
+    )
+    source_defaults = {
+        "web": (0.72, ["summary", "opening_hours", "price"]),
+        "xhs": (0.55, ["summary", "suitable_for"]),
+        "local_knowledge": (0.68, ["summary", "classic_coverage"]),
+        "selected_knowledge": (0.7, ["summary", "classic_coverage"]),
+        "map": (0.92, ["coordinates", "address", "category", "route"]),
+        "weather": (0.9, ["weather"]),
+        "plan_estimate": (0.4, ["route", "budget"]),
+    }
+    source_updated_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    unique_sources: List[Dict[str, Any]] = []
+    seen_sources = set()
+    for source in source_references:
+        source_type = _safe_text(source.get("type")) or "reference"
+        confidence, related_fields = source_defaults.get(source_type, (0.5, ["summary"]))
+        source["updated_at"] = _safe_text(source.get("updated_at")) or source_updated_at
+        source["reference_id"] = _safe_text(source.get("reference_id")) or f"source_{len(unique_sources) + 1}"
+        source["confidence"] = source.get("confidence") if source.get("confidence") is not None else confidence
+        source["related_fields"] = source.get("related_fields") or related_fields
+        source["related_places"] = source.get("related_places") or [
+            location.get("name") for location in map_locations[:8] if location.get("name")
+        ]
+        source_key = (_safe_text(source.get("url")), _safe_text(source.get("title")), source_type)
+        if source_key in seen_sources:
+            continue
+        seen_sources.add(source_key)
+        unique_sources.append(source)
+    source_references = unique_sources
+
+    plan = TripPlan(
+        title=query_text,
+        intent=intent,
+        days=days,
+        activities=activities,
+        budget_summary=budget_summary,
+        map_locations=map_locations,
+        source_references=source_references,
+    )
+    confidence_summary = {
+        "confirmed_live_data": 0,
+        "reference_data": 0,
+        "estimated_data": 0,
+    }
+    for location in plan.map_locations:
+        data_type = _safe_text(location.get("data_type"))
+        if data_type in confidence_summary:
+            confidence_summary[data_type] += 1
+    for activity in plan.activities:
+        confidence_summary[activity.data_type] += 1
+    for source in plan.source_references:
+        confidence_summary[source.data_type] += 1
+    plan.data_confidence_summary = confidence_summary
+    return plan
+
+
+def _ensure_estimated_route_legs(plan: TripPlan) -> None:
+    """Mirror legacy transport text into typed route legs without inventing live route facts."""
+    for activity in plan.activities:
+        if activity.route_to_next is not None:
+            continue
+        mode = _safe_text(activity.transport_to_next)
+        if not mode:
+            continue
+        activity.route_to_next = RouteLeg(
+            mode=mode,
+            provider="行程规划估算",
+            data_type="estimated_data",
+        )
+
+
+def _build_trip_days(plan: TripPlan, validation: Any) -> List[TripDay]:
+    issues = validation.issues if validation is not None else []
+    trip_days: List[TripDay] = []
+    for day_number in range(1, plan.days + 1):
+        activities = [activity for activity in plan.activities if activity.day == day_number]
+        day_warnings = [
+            issue.message
+            for issue in issues
+            if f"第{day_number}天" in _safe_text(getattr(issue, "message", ""))
+        ]
+        trip_days.append(
+            TripDay(
+                day=day_number,
+                theme=f"第{day_number}天行程",
+                activities=activities,
+                budget_subtotal=sum(float(activity.estimated_cost or 0) for activity in activities),
+                warnings=day_warnings,
+                revision=1,
+                data_type="estimated_data",
+            )
+        )
+    return trip_days
+
+
+def _public_trip_plan_payload(plan: TripPlan) -> Dict[str, Any]:
+    """Serialize the new daily contract while retaining legacy flat activities."""
+    payload = plan.model_dump()
+    day_count = payload.pop("days")
+    payload["day_count"] = day_count
+    payload["days"] = payload.pop("trip_days")
+    return payload
+
+
+def maybe_prepare_destination_cover(
+    *, destination: str, tool_manager: Any, message_history: List[Dict[str, Any]], session_id: str,
+) -> Optional[Dict[str, Any]]:
+    """Select one compliant destination cover when the optional image service is configured."""
+    if not destination or not os.getenv("UNSPLASH_ACCESS_KEY", "").strip() or tool_manager is None:
+        return None
+    try:
+        tool_name = next(
+            (
+                str(item.get("name") or "")
+                for item in tool_manager.list_tools()
+                if isinstance(item, dict) and "unsplash_search_photos" in str(item.get("name") or "").casefold()
+            ),
+            "",
+        )
+        if not tool_name:
+            return None
+        payload = _run_tool_with_arg_candidates(
+            tool_manager=tool_manager,
+            tool_name=tool_name,
+            message_history=message_history,
+            session_id=session_id,
+            arg_candidates=[{"query": f"{destination} travel landmark", "per_page": 8}],
+            deadline=time.monotonic() + 8.0,
+            timeout_label="目的地图片查询",
+        )
+        photos = payload.get("photos") if isinstance(payload, dict) else None
+        if not isinstance(photos, list):
+            return None
+        photo = next((item for item in photos if isinstance(item, dict) and item.get("url")), None)
+        if not photo:
+            return None
+        return {
+            "url": str(photo.get("url") or ""),
+            "alt": str(photo.get("alt") or destination),
+            "photographer_name": str(photo.get("photographer_name") or "Unsplash photographer"),
+            "photographer_url": str(photo.get("photographer_url") or "https://unsplash.com"),
+            "unsplash_url": str(photo.get("unsplash_url") or "https://unsplash.com"),
+            "download_location": str(photo.get("download_location") or "") or None,
+            "source_reference_id": "source_cover_unsplash",
+        }
+    except Exception as error:
+        logger.warning(f"目的地封面查询降级: {error}")
+        return None
+
+
+def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+    initial_plan = _travel_bundle_to_trip_plan(travel_bundle)
+    initial_validation = validate_trip_plan(initial_plan)
+    repair_result = repair_trip_plan_once(initial_plan, initial_validation)
+    plan = repair_result.plan
+    final_validation = repair_result.remaining_validation
+    _ensure_estimated_route_legs(plan)
+    plan.trip_days = _build_trip_days(plan, final_validation)
+    plan_payload = _public_trip_plan_payload(plan)
+    document = adapt_v1_document_to_v2({
+        "schema_version": "1.0", "plan": plan.model_dump(mode="json"),
+        "budget": plan.budget_summary, "sources": [item.model_dump(mode="json") for item in plan.source_references],
+        "cover_image": travel_bundle.get("cover_image"),
+    })
+    scope = document["outbound_transport"]["scope"]
+    outbound_date = document["outbound_transport"].get("travel_date")
+    return_date = document["return_transport"].get("travel_date")
+    document["outbound_transport"] = transport_section_from_bundle(
+        travel_bundle.get("ticket_bundle"), "outbound", scope, outbound_date,
+    )
+    document["return_transport"] = transport_section_from_bundle(
+        travel_bundle.get("return_ticket_bundle"), "return", scope, return_date,
+    )
+    ticket_source_labels = {"train": "铁路票务平台", "intercity_bus": "城际客运平台", "flight": "航班票务平台"}
+    existing_source_ids = {str(item.get("reference_id") or "") for item in document["sources"]}
+    for section_name in ("outbound_transport", "return_transport"):
+        for option in document[section_name].get("options", []):
+            reference_id = str(option.get("source_reference_id") or "")
+            if not reference_id or reference_id in existing_source_ids:
+                continue
+            existing_source_ids.add(reference_id)
+            document["sources"].append({
+                "reference_id": reference_id, "type": "ticket", "title": f"{ticket_source_labels.get(option['mode'], '票务平台')}查询结果",
+                "source": ticket_source_labels.get(option["mode"], "票务平台"), "url": "", "snippet": "班次、时间和价格来自本次票务查询。",
+                "data_type": option.get("data_type") or "reference_data", "updated_at": option.get("queried_at"),
+                "confidence": 0.9 if option.get("data_type") == "confirmed_live_data" else 0.65,
+                "related_fields": [section_name, "price", "availability"], "related_places": [],
+            })
+    repair_payload = repair_result.model_dump(exclude={"plan", "remaining_validation"})
+    events = [
+        {
+            "type": "trip_plan_delta",
+            "operation": "initialize_plan",
+            "plan": {
+                "plan_id": plan.plan_id,
+                "version": plan.version,
+                "title": plan.title,
+                "intent": plan.intent.model_dump(),
+                "day_count": plan.days,
+                "days": [],
+                "activities": [],
+                "map_locations": [],
+            },
+            "delta": {
+                "plan_id": plan.plan_id,
+                "version": plan.version,
+                "title": plan.title,
+                "day_count": plan.days,
+                "days": [],
+                "activities": [],
+                "map_locations": [],
+            },
+        },
+        *[
+            {
+                "type": "trip_day_upsert",
+                "plan_id": plan.plan_id,
+                "version": plan.version,
+                "day": trip_day.model_dump(),
+                "revision": trip_day.revision,
+            }
+            for trip_day in plan.trip_days
+        ],
+        {
+            "type": "trip_locations",
+            "locations": plan_payload["map_locations"],
+        },
+        {
+            "type": "trip_budget",
+            "budget": plan.budget_summary,
+        },
+        {
+            "type": "trip_sources",
+            "sources": plan_payload["source_references"],
+        },
+        {
+            "type": "trip_plan_repair",
+            "repair": repair_payload,
+            "initial_validation": initial_validation.model_dump(),
+            "final_validation": final_validation.model_dump(),
+        },
+        {
+            "type": "trip_validation",
+            "validation": final_validation.model_dump(),
+            "initial_validation": initial_validation.model_dump(),
+            "final_validation": final_validation.model_dump(),
+            "repair": repair_payload,
+        },
+        {
+            "type": "trip_plan",
+            "version": plan.version,
+            "document": document,
+            "plan": {
+                **plan_payload,
+                "validation": final_validation.model_dump(),
+                "initial_validation": initial_validation.model_dump(),
+                "repair": repair_payload,
+            },
+        },
+    ]
+    return sanitize_user_visible_payload(events), export_trip_markdown(document)
+
+
+def _build_travel_structured_events(travel_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
+    events, _ = _build_travel_structured_result(travel_bundle)
+    return events
+
+
+def _structured_trip_plan_context(events: List[Dict[str, Any]]) -> str:
+    validation_event = next(
+        (event for event in events if event.get("type") == "trip_validation"),
+        {},
+    )
+    validation = validation_event.get("final_validation") or validation_event.get("validation") or {}
+    repair = validation_event.get("repair") if isinstance(validation_event.get("repair"), dict) else {}
+    issues = validation.get("issues") if isinstance(validation.get("issues"), list) else []
+    issue_messages = [
+        _safe_text(issue.get("message"))
+        for issue in issues
+        if isinstance(issue, dict) and _safe_text(issue.get("message"))
+    ]
+    resolved_codes = repair.get("resolved_issue_codes") if isinstance(repair.get("resolved_issue_codes"), list) else []
+    lines = [
+        "【结构化行程校验结果】",
+        "最终回答必须与已发送给前端的结构化行程一致，不得恢复已移除的实时价格、库存或预订断言。",
+    ]
+    if resolved_codes:
+        lines.append(f"已自动修复：{', '.join(str(code) for code in resolved_codes)}。")
+    if issue_messages:
+        lines.append("仍需用户出发前确认：" + "；".join(issue_messages[:6]))
+    else:
+        lines.append("结构化校验未发现剩余问题。")
+    return "\n".join(lines)
 
 
 def maybe_prepare_travel_rag_context(user_query: str) -> str:
@@ -4281,6 +5452,38 @@ def append_travel_rag_context_message(
     )
 
 
+def _sanitize_non_stream_result(result: Any) -> Any:
+    """清洗非流式响应中真正展示给用户的最终回答字段。"""
+    if not isinstance(result, dict):
+        return result
+
+    from services.text_sanitizer_service import sanitize_user_visible_text
+
+    def sanitize_message(message: Any) -> None:
+        if not isinstance(message, dict):
+            return
+        if message.get("type") != "final_answer" or message.get("role", "assistant") != "assistant":
+            return
+
+        original_content = message.get("content")
+        if isinstance(original_content, str):
+            safe_content = sanitize_user_visible_text(original_content)
+            message["content"] = safe_content or "当前回答包含无法安全展示的内部结果，请稍后重试。"
+
+        original_show_content = message.get("show_content")
+        if isinstance(original_show_content, str):
+            message["show_content"] = sanitize_user_visible_text(original_show_content)
+
+    for key in ("all_messages", "new_messages"):
+        messages = result.get(key)
+        if isinstance(messages, list):
+            for message in messages:
+                sanitize_message(message)
+
+    sanitize_message(result.get("final_output"))
+    return result
+
+
 def execute_chat_once(
     request_messages: List[Any],
     controller: Any,
@@ -4288,13 +5491,20 @@ def execute_chat_once(
     session_id: Optional[str],
     use_deepthink: bool,
     use_multi_agent: bool,
+    selected_mcp_servers: Optional[List[str]] = None,
     selected_skill_ids: Optional[List[str]] = None,
+    selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    profile: Optional[Dict[str, Any]] = None,
+    planning_mode: Optional[str] = None,
+    allow_web_search: bool = True,
 ) -> Dict[str, Any]:
     """Run a non-stream chat request and build standard response payload."""
     message_history = build_message_history(request_messages)
     skill_message = build_skill_system_message(selected_skill_ids)
     if skill_message:
         message_history.insert(0, skill_message)
+    append_selected_knowledge_context_message(message_history, selected_knowledge_context)
+    append_online_search_policy_message(message_history, allow_web_search)
     runtime_session_id = session_id or str(uuid.uuid4())
     ticket_bundle: Optional[Dict[str, Any]] = None
     xhs_bundle: Optional[Dict[str, Any]] = None
@@ -4302,10 +5512,36 @@ def execute_chat_once(
     travel_rag_context = ""
 
     latest_user_query = _extract_latest_user_query(message_history)
+    effective_use_deepthink, effective_use_multi_agent = resolve_planning_mode_flags(
+        planning_mode=planning_mode,
+        use_deepthink=use_deepthink,
+        use_multi_agent=use_multi_agent,
+    )
+    effective_selected_mcp_servers = merge_skill_mcp_servers(selected_mcp_servers, selected_skill_ids)
+    effective_tool_manager = tool_manager
+    if effective_selected_mcp_servers is not None or not allow_web_search:
+        effective_tool_manager = _build_filtered_tool_manager(
+            tool_manager,
+            effective_selected_mcp_servers,
+            allow_web_search=allow_web_search,
+        )
+    if _is_travel_experience_query(latest_user_query) or is_trip_planning_query(latest_user_query):
+        _begin_map_planning_scope(
+            effective_tool_manager,
+            runtime_session_id,
+            str(uuid.uuid4()),
+        )
+    if is_trip_planning_query(latest_user_query):
+        append_trip_intent_context_message(
+            message_history=message_history,
+            query_text=latest_user_query,
+            profile=profile,
+            clarification_answers={},
+        )
     try:
         ticket_bundle = maybe_prepare_train_ticket_bundle(
             user_query=latest_user_query,
-            tool_manager=tool_manager,
+            tool_manager=effective_tool_manager,
             message_history=message_history,
             session_id=runtime_session_id,
             selected_skill_ids=selected_skill_ids,
@@ -4322,11 +5558,30 @@ def execute_chat_once(
     except Exception as ticket_error:
         logger.error(f"非流式实时票务硬规则预查询失败: {ticket_error}")
 
-    if not ticket_bundle:
+    if ticket_bundle and not is_trip_planning_query(latest_user_query):
+        ticket_answer = _safe_text(ticket_bundle.get("realtime_only_answer")) or _build_realtime_only_answer(ticket_bundle)
+        final_output = {
+            "role": "assistant",
+            "type": "final_answer",
+            "content": ticket_answer,
+            "show_content": ticket_answer,
+        }
+        direct_result = {
+            "all_messages": [*message_history, final_output],
+            "new_messages": [final_output],
+            "final_output": final_output,
+            "realtime_ticket_enforced": True,
+        }
+        return {
+            "status": "success",
+            "result": _sanitize_non_stream_result(direct_result),
+        }
+
+    if not ticket_bundle and allow_web_search:
         try:
             xhs_bundle = maybe_prepare_xhs_search_bundle(
                 user_query=latest_user_query,
-                tool_manager=tool_manager,
+                tool_manager=effective_tool_manager,
                 message_history=message_history,
                 session_id=runtime_session_id,
                 selected_skill_ids=selected_skill_ids,
@@ -4334,17 +5589,32 @@ def execute_chat_once(
         except Exception as xhs_error:
             logger.error(f"非流式小红书预检索失败: {xhs_error}")
 
-    if not ticket_bundle:
+    if not ticket_bundle or is_trip_planning_query(latest_user_query):
         try:
             travel_bundle = maybe_prepare_travel_experience_bundle(
                 user_query=latest_user_query,
-                tool_manager=tool_manager,
+                tool_manager=effective_tool_manager,
                 message_history=message_history,
                 session_id=runtime_session_id,
                 selected_skill_ids=selected_skill_ids,
                 xhs_bundle=xhs_bundle,
+                allow_web_search=allow_web_search,
             )
+            if travel_bundle:
+                if ticket_bundle:
+                    travel_bundle["ticket_bundle"] = ticket_bundle
+                destination = _safe_text(travel_bundle.get("destination_city")) or _extract_destination_city(latest_user_query)
+                travel_bundle["cover_image"] = maybe_prepare_destination_cover(
+                    destination=destination,
+                    tool_manager=effective_tool_manager,
+                    message_history=message_history,
+                    session_id=runtime_session_id,
+                )
             if travel_bundle and travel_bundle.get("context_message"):
+                append_travel_rag_context_message(
+                    message_history,
+                    _safe_text(travel_bundle.get("rag_context")),
+                )
                 message_history.append(
                     {
                         "role": "system",
@@ -4380,19 +5650,21 @@ def execute_chat_once(
 
     result = controller.run(
         message_history,
-        tool_manager,
+        effective_tool_manager,
         session_id=runtime_session_id,
-        deep_thinking=use_deepthink,
+        deep_thinking=effective_use_deepthink,
         summary=True,
-        deep_research=use_multi_agent,
+        deep_research=effective_use_multi_agent,
     )
 
-    if ticket_bundle:
-        result = _apply_realtime_only_result(result, ticket_bundle)
-    elif travel_bundle:
+    if travel_bundle:
         result = _apply_travel_experience_result(result, travel_bundle, session_id=runtime_session_id)
+    elif ticket_bundle:
+        result = _apply_realtime_only_result(result, ticket_bundle)
     elif xhs_bundle:
         result = _apply_xhs_result(result, xhs_bundle)
+
+    result = _sanitize_non_stream_result(result)
 
     return {
         "status": "success",
@@ -4408,7 +5680,12 @@ def execute_chat_route(
     session_id: Optional[str],
     use_deepthink: bool,
     use_multi_agent: bool,
+    selected_mcp_servers: Optional[List[str]] = None,
     selected_skill_ids: Optional[List[str]] = None,
+    selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    profile: Optional[Dict[str, Any]] = None,
+    planning_mode: Optional[str] = None,
+    allow_web_search: bool = True,
     logger: Any = logger,
 ) -> Dict[str, Any]:
     """Execute non-stream chat while preserving route-level error semantics."""
@@ -4424,7 +5701,12 @@ def execute_chat_route(
             session_id=session_id,
             use_deepthink=use_deepthink,
             use_multi_agent=use_multi_agent,
+            selected_mcp_servers=selected_mcp_servers,
             selected_skill_ids=selected_skill_ids,
+            selected_knowledge_context=selected_knowledge_context,
+            profile=profile,
+            planning_mode=planning_mode,
+            allow_web_search=allow_web_search,
         )
     except Exception as e:
         logger.error(f"聊天处理失败: {e}")
@@ -4438,16 +5720,23 @@ def execute_chat_request_route(
     logger: Any = logger,
 ) -> Dict[str, Any]:
     """Execute non-stream chat from request object with stable route semantics."""
-    return execute_chat_route(
-        request_messages=request.messages,
-        controller=controller,
-        tool_manager=tool_manager,
-        session_id=request.session_id,
-        use_deepthink=request.use_deepthink,
-        use_multi_agent=request.use_multi_agent,
-        selected_skill_ids=getattr(request, "selected_skill_ids", []),
-        logger=logger,
-    )
+    route_kwargs = {
+        "request_messages": request.messages,
+        "controller": controller,
+        "tool_manager": tool_manager,
+        "session_id": request.session_id,
+        "use_deepthink": request.use_deepthink,
+        "use_multi_agent": request.use_multi_agent,
+        "selected_mcp_servers": getattr(request, "selected_mcp_servers", None),
+        "selected_skill_ids": getattr(request, "selected_skill_ids", []),
+        "profile": getattr(request, "profile", {}),
+        "planning_mode": getattr(request, "planning_mode", None),
+        "allow_web_search": getattr(request, "allow_web_search", True),
+        "logger": logger,
+    }
+    if hasattr(request, "selected_knowledge_context"):
+        route_kwargs["selected_knowledge_context"] = getattr(request, "selected_knowledge_context")
+    return execute_chat_route(**route_kwargs)
 
 
 def execute_chat_request_runtime_route(
@@ -4482,6 +5771,12 @@ def build_chat_stream_response(
     selected_skill_ids: Optional[List[str]] = None,
     use_deepthink: bool = True,
     use_multi_agent: bool = True,
+    profile: Optional[Dict[str, Any]] = None,
+    planning_mode: Optional[str] = None,
+    allow_web_search: bool = True,
+    clarification_answers: Optional[Dict[str, Any]] = None,
+    selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    request_id: Optional[str] = None,
     sanitize_text: Optional[Callable[[str], str]] = None,
     sse_headers: Optional[Dict[str, str]] = None,
 ) -> Any:
@@ -4495,17 +5790,30 @@ def build_chat_stream_response(
     effective_sanitize_text = resolve_sanitize_text(sanitize_text)
     effective_sse_headers = sse_headers if sse_headers is not None else get_sse_headers()
 
+    stream_kwargs = {
+        "request_messages": request_messages,
+        "controller": controller,
+        "tool_manager": tool_manager,
+        "selected_mcp_servers": selected_mcp_servers,
+        "selected_skill_ids": selected_skill_ids,
+        "use_deepthink": use_deepthink,
+        "use_multi_agent": use_multi_agent,
+        "allow_web_search": allow_web_search,
+        "sanitize_text": effective_sanitize_text,
+    }
+    if request_id is not None:
+        stream_kwargs["request_id"] = request_id
+    if profile is not None:
+        stream_kwargs["profile"] = profile
+    if planning_mode is not None:
+        stream_kwargs["planning_mode"] = planning_mode
+    if clarification_answers is not None:
+        stream_kwargs["clarification_answers"] = clarification_answers
+    if selected_knowledge_context is not None:
+        stream_kwargs["selected_knowledge_context"] = selected_knowledge_context
+
     return StreamingResponse(
-        generate_chat_stream(
-            request_messages=request_messages,
-            controller=controller,
-            tool_manager=tool_manager,
-            selected_mcp_servers=selected_mcp_servers,
-            selected_skill_ids=selected_skill_ids,
-            use_deepthink=use_deepthink,
-            use_multi_agent=use_multi_agent,
-            sanitize_text=effective_sanitize_text,
-        ),
+        generate_chat_stream(**stream_kwargs),
         media_type="text/event-stream",
         headers=effective_sse_headers,
     )
@@ -4519,21 +5827,39 @@ def build_chat_stream_route(
     selected_skill_ids: Optional[List[str]] = None,
     use_deepthink: bool = True,
     use_multi_agent: bool = True,
+    profile: Optional[Dict[str, Any]] = None,
+    planning_mode: Optional[str] = None,
+    allow_web_search: bool = True,
+    clarification_answers: Optional[Dict[str, Any]] = None,
+    selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    request_id: Optional[str] = None,
     logger: Any = logger,
 ) -> Any:
     """Build chat-stream response with route-level error boundary semantics."""
     from fastapi import HTTPException
 
     try:
-        return build_chat_stream_response(
-            request_messages=request_messages,
-            controller=controller,
-            tool_manager=tool_manager,
-            selected_mcp_servers=selected_mcp_servers,
-            selected_skill_ids=selected_skill_ids,
-            use_deepthink=use_deepthink,
-            use_multi_agent=use_multi_agent,
-        )
+        response_kwargs = {
+            "request_messages": request_messages,
+            "controller": controller,
+            "tool_manager": tool_manager,
+            "selected_mcp_servers": selected_mcp_servers,
+            "selected_skill_ids": selected_skill_ids,
+            "use_deepthink": use_deepthink,
+            "use_multi_agent": use_multi_agent,
+            "allow_web_search": allow_web_search,
+        }
+        if request_id is not None:
+            response_kwargs["request_id"] = request_id
+        if profile is not None:
+            response_kwargs["profile"] = profile
+        if planning_mode is not None:
+            response_kwargs["planning_mode"] = planning_mode
+        if clarification_answers is not None:
+            response_kwargs["clarification_answers"] = clarification_answers
+        if selected_knowledge_context is not None:
+            response_kwargs["selected_knowledge_context"] = selected_knowledge_context
+        return build_chat_stream_response(**response_kwargs)
     except HTTPException:
         raise
     except Exception as e:
@@ -4548,16 +5874,29 @@ def build_chat_stream_request_route(
     logger: Any = logger,
 ) -> Any:
     """Build chat-stream response directly from request object."""
-    return build_chat_stream_route(
-        request_messages=request.messages,
-        controller=controller,
-        tool_manager=tool_manager,
-        selected_mcp_servers=request.selected_mcp_servers,
-        selected_skill_ids=getattr(request, "selected_skill_ids", []),
-        use_deepthink=request.use_deepthink,
-        use_multi_agent=request.use_multi_agent,
-        logger=logger,
-    )
+    route_kwargs = {
+        "request_messages": request.messages,
+        "controller": controller,
+        "tool_manager": tool_manager,
+        "selected_mcp_servers": request.selected_mcp_servers,
+        "selected_skill_ids": getattr(request, "selected_skill_ids", []),
+        "use_deepthink": request.use_deepthink,
+        "use_multi_agent": request.use_multi_agent,
+        "logger": logger,
+    }
+    if hasattr(request, "profile"):
+        route_kwargs["profile"] = getattr(request, "profile")
+    if hasattr(request, "planning_mode"):
+        route_kwargs["planning_mode"] = getattr(request, "planning_mode")
+    if hasattr(request, "allow_web_search"):
+        route_kwargs["allow_web_search"] = getattr(request, "allow_web_search")
+    if hasattr(request, "clarification_answers"):
+        route_kwargs["clarification_answers"] = getattr(request, "clarification_answers")
+    if hasattr(request, "selected_knowledge_context"):
+        route_kwargs["selected_knowledge_context"] = getattr(request, "selected_knowledge_context")
+    if hasattr(request, "request_id"):
+        route_kwargs["request_id"] = getattr(request, "request_id")
+    return build_chat_stream_route(**route_kwargs)
 
 
 def build_chat_stream_request_runtime_route(
@@ -4582,30 +5921,169 @@ async def generate_chat_stream(
     selected_skill_ids: Optional[List[str]] = None,
     use_deepthink: bool = True,
     use_multi_agent: bool = True,
+    profile: Optional[Dict[str, Any]] = None,
+    planning_mode: Optional[str] = None,
+    allow_web_search: bool = True,
+    clarification_answers: Optional[Dict[str, Any]] = None,
+    selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    request_id: Optional[str] = None,
     sanitize_text: Optional[Callable[[str], str]] = None,
 ) -> AsyncGenerator[str, None]:
     """Generate SSE stream payload for chat endpoint."""
+    stream_request_id = _safe_text(request_id) or str(uuid.uuid4())
+    error_phase = "initializing"
+    event_sequence = 0
+
+    def encode_event(payload: Dict[str, Any]) -> str:
+        nonlocal event_sequence
+        event_sequence += 1
+        public_payload = dict(payload)
+        event_type = _safe_text(public_payload.get("type"))
+        if event_type not in {"error", "chat_complete"}:
+            stage_by_type = {
+                "chat_start": "initializing",
+                "trip_intent": "understanding",
+                "clarification_required": "clarifying",
+                "trip_plan_delta": "planning",
+                "trip_day_upsert": "planning",
+                "trip_locations": "planning",
+                "trip_budget": "planning",
+                "trip_sources": "researching",
+                "trip_plan_repair": "validating",
+                "trip_validation": "validating",
+                "trip_plan": "finalizing",
+            }
+            public_payload.setdefault("stage", stage_by_type.get(event_type, error_phase))
+        return _encode_sse_event(public_payload, stream_request_id, event_sequence)
+
     try:
         sanitize_text = sanitize_text or (lambda text: text)
         message_history = build_message_history(request_messages)
         skill_message = build_skill_system_message(selected_skill_ids)
         if skill_message:
             message_history.insert(0, skill_message)
+        append_selected_knowledge_context_message(message_history, selected_knowledge_context)
+        append_online_search_policy_message(message_history, allow_web_search)
         message_id = str(uuid.uuid4())
         stream_session_id = str(uuid.uuid4())
 
-        yield f"data: {json.dumps({'type': 'chat_start', 'message_id': message_id})}\n\n"
+        yield encode_event({"type": "chat_start", "message_id": message_id})
+        error_phase = "understanding"
 
         effective_tool_manager = tool_manager
         effective_selected_mcp_servers = merge_skill_mcp_servers(selected_mcp_servers, selected_skill_ids)
-        if effective_selected_mcp_servers is not None:
+        if effective_selected_mcp_servers is not None or not allow_web_search:
             effective_tool_manager = await create_filtered_tool_manager(
-                tool_manager, effective_selected_mcp_servers
+                tool_manager,
+                effective_selected_mcp_servers,
+                allow_web_search=allow_web_search,
             )
 
         latest_user_query = _extract_latest_user_query(message_history)
         latest_user_message_id = _extract_latest_user_message_id(message_history)
+        if _is_travel_experience_query(latest_user_query) or is_trip_planning_query(latest_user_query):
+            _begin_map_planning_scope(
+                effective_tool_manager,
+                stream_session_id,
+                stream_request_id,
+            )
         progress_message_id = f"{message_id}-progress"
+        effective_use_deepthink, effective_use_multi_agent = resolve_planning_mode_flags(
+            planning_mode=planning_mode,
+            use_deepthink=use_deepthink,
+            use_multi_agent=use_multi_agent,
+        )
+        resolved_trip_intent = None
+
+        trip_product_flow_enabled = (
+            profile is not None
+            or planning_mode is not None
+            or clarification_answers is not None
+        )
+
+        if trip_product_flow_enabled and is_trip_planning_query(latest_user_query):
+            cumulative_answers, skipped_fields = _normalized_clarification_answers(clarification_answers)
+            processed_fields = set(cumulative_answers) | skipped_fields
+            answered_count = count_clarification_fields(processed_fields)
+            analysis_progress = (
+                f"已处理第{answered_count}项补充信息，正在重新分析是否还缺关键条件。"
+                if processed_fields
+                else "正在分析你的旅行需求，先识别已知信息和还缺哪些关键条件。"
+            )
+            progress_chunk = _build_progress_chunk(
+                progress_message_id,
+                analysis_progress,
+                sanitize_text,
+                latest_user_message_id,
+            )
+            yield encode_event(progress_chunk)
+            await asyncio.sleep(0.2)
+
+            user_profile = _normalize_user_profile(profile)
+            trip_intent = extract_trip_intent(
+                query=latest_user_query,
+                profile=None,
+                clarification_answers=cumulative_answers,
+            )
+            semantic_analysis = await _analyze_trip_request_with_model(
+                controller=controller,
+                query_text=latest_user_query,
+                intent=trip_intent,
+                profile=user_profile,
+                clarification_answers=cumulative_answers,
+            )
+            evidence_text = "\n".join(
+                [latest_user_query, *[_safe_text(value) for value in cumulative_answers.values()]]
+            )
+            trip_intent, semantic_explicit_fields, preferred_question = merge_semantic_trip_analysis(
+                intent=trip_intent,
+                analysis=semantic_analysis,
+                evidence_text=evidence_text,
+            )
+            resolved_trip_intent = trip_intent
+            yield encode_event({"type": "trip_intent", "intent": trip_intent.model_dump()})
+            await asyncio.sleep(0.01)
+
+            answered_fields = processed_fields
+            if answered_count < MAX_CLARIFICATION_QUESTIONS:
+                next_question = build_next_clarification_question(
+                    query=latest_user_query,
+                    intent=trip_intent,
+                    profile=user_profile,
+                    answered_fields=answered_fields,
+                    explicit_fields=semantic_explicit_fields,
+                    preferred_question=preferred_question,
+                )
+                if next_question is not None:
+                    clarification_payload = {
+                        "type": "clarification_required",
+                        "session_id": stream_session_id,
+                        "message_id": message_id,
+                        "linked_user_message_id": latest_user_message_id,
+                        "intent": trip_intent.model_dump(),
+                        "questions": [next_question.model_dump()],
+                        "answered_count": answered_count,
+                        "max_questions": MAX_CLARIFICATION_QUESTIONS,
+                    }
+                    yield encode_event(clarification_payload)
+                    await asyncio.sleep(0.01)
+                    yield encode_event(
+                        _chat_complete_payload(
+                            request_id=stream_request_id,
+                            message_id=message_id,
+                            finish_reason="clarification_required",
+                        )
+                    )
+                    return
+
+            append_trip_intent_context_message(
+                message_history=message_history,
+                query_text=latest_user_query,
+                profile=None,
+                clarification_answers=cumulative_answers,
+                intent=trip_intent,
+            )
+
         if _is_train_ticket_query(latest_user_query):
             progress_chunk = _build_progress_chunk(
                 progress_message_id,
@@ -4613,41 +6091,72 @@ async def generate_chat_stream(
                 sanitize_text,
                 latest_user_message_id,
             )
-            yield f"data: {json.dumps(progress_chunk)}\n\n"
+            yield encode_event(progress_chunk)
             await asyncio.sleep(0.01)
         elif _is_travel_experience_query(latest_user_query):
+            research_scope = "天气、地点和旅行参考信息" if allow_web_search else "天气、地点和本地旅行知识"
             progress_chunk = _build_progress_chunk(
                 progress_message_id,
-                "已识别为旅行规划请求，正在查询天气、地点和旅行参考信息。",
+                f"已识别为旅行规划请求，正在整理{research_scope}。",
                 sanitize_text,
                 latest_user_message_id,
             )
-            yield f"data: {json.dumps(progress_chunk)}\n\n"
+            yield encode_event(progress_chunk)
             await asyncio.sleep(0.01)
-        elif _is_xhs_query(latest_user_query):
+        elif allow_web_search and _is_xhs_query(latest_user_query):
             progress_chunk = _build_progress_chunk(
                 progress_message_id,
                 "已识别为小红书参考检索请求，正在检索和整理外部资源。",
                 sanitize_text,
                 latest_user_message_id,
             )
-            yield f"data: {json.dumps(progress_chunk)}\n\n"
+            yield encode_event(progress_chunk)
             await asyncio.sleep(0.01)
         ticket_bundle: Optional[Dict[str, Any]] = None
+        return_ticket_bundle: Optional[Dict[str, Any]] = None
         xhs_bundle: Optional[Dict[str, Any]] = None
         travel_bundle: Optional[Dict[str, Any]] = None
         travel_rag_context = ""
         realtime_only_answer = ""
         streamed_final_answer_text = ""
+        structured_trip_final_text = ""
         model_final_answer_emitted = False
+        error_phase = "researching"
         try:
-            ticket_bundle = maybe_prepare_train_ticket_bundle(
-                user_query=latest_user_query,
-                tool_manager=effective_tool_manager,
-                message_history=message_history,
-                session_id=stream_session_id,
-                selected_skill_ids=selected_skill_ids,
+            ticket_kwargs = {
+                "tool_manager": effective_tool_manager,
+                "message_history": message_history,
+                "session_id": stream_session_id,
+                "selected_skill_ids": selected_skill_ids,
+            }
+            dates = re.findall(r"\d{4}-\d{2}-\d{2}", _safe_text(resolved_trip_intent.date_range) if resolved_trip_intent else "")
+            can_query_return = bool(
+                is_trip_planning_query(latest_user_query)
+                and resolved_trip_intent and resolved_trip_intent.origin and resolved_trip_intent.destination
+                and len(dates) >= 2
             )
+            if can_query_return:
+                outbound_task = asyncio.create_task(asyncio.to_thread(
+                    maybe_prepare_train_ticket_bundle, user_query=latest_user_query, **ticket_kwargs,
+                ))
+                return_query = (
+                    f"{resolved_trip_intent.destination}到{resolved_trip_intent.origin} "
+                    f"{dates[-1]} 火车票 机票 大巴票"
+                )
+                return_task = asyncio.create_task(asyncio.to_thread(
+                    maybe_prepare_train_ticket_bundle, user_query=return_query, **ticket_kwargs,
+                ))
+                done, pending = await asyncio.wait(
+                    {outbound_task, return_task}, timeout=TICKET_QUERY_TOTAL_TIMEOUT_SECONDS,
+                )
+                for task in pending:
+                    task.cancel()
+                ticket_bundle = outbound_task.result() if outbound_task in done and not outbound_task.exception() else None
+                return_ticket_bundle = return_task.result() if return_task in done and not return_task.exception() else None
+            else:
+                ticket_bundle = await asyncio.to_thread(
+                    maybe_prepare_train_ticket_bundle, user_query=latest_user_query, **ticket_kwargs,
+                )
             if ticket_bundle and ticket_bundle.get("context_message"):
                 message_history.append(
                     {
@@ -4663,7 +6172,7 @@ async def generate_chat_stream(
                 if not realtime_only_answer:
                     realtime_only_answer = _build_realtime_only_answer(ticket_bundle)
 
-            if not ticket_bundle:
+            if not ticket_bundle and allow_web_search:
                 xhs_bundle = maybe_prepare_xhs_search_bundle(
                     user_query=latest_user_query,
                     tool_manager=effective_tool_manager,
@@ -4677,7 +6186,37 @@ async def generate_chat_stream(
             xhs_bundle = None
             realtime_only_answer = ""
 
-        if not ticket_bundle:
+        transport_only_request = bool(ticket_bundle) and not is_trip_planning_query(latest_user_query)
+        if transport_only_request:
+            selected_ticket_text = realtime_only_answer or _build_realtime_only_answer(ticket_bundle)
+            progress_chunk = _build_progress_chunk(
+                progress_message_id,
+                "实时票务查询已结束，正在返回可确认的交通建议。",
+                sanitize_text,
+                latest_user_message_id,
+            )
+            yield encode_event(progress_chunk)
+            await asyncio.sleep(0.01)
+            for chunk_index, text_chunk in enumerate(_split_final_answer_for_stream(selected_ticket_text)):
+                final_chunk = _build_final_answer_chunk(
+                    message_id,
+                    text_chunk,
+                    sanitize_text,
+                    replace=chunk_index == 0,
+                    linked_user_message_id=latest_user_message_id,
+                )
+                yield encode_event(final_chunk)
+                await asyncio.sleep(0.01)
+            yield encode_event(
+                _chat_complete_payload(
+                    request_id=stream_request_id,
+                    message_id=message_id,
+                    finish_reason="completed",
+                )
+            )
+            return
+
+        if not ticket_bundle or is_trip_planning_query(latest_user_query):
             try:
                 travel_bundle = maybe_prepare_travel_experience_bundle(
                     user_query=latest_user_query,
@@ -4686,8 +6225,32 @@ async def generate_chat_stream(
                     session_id=stream_session_id,
                     selected_skill_ids=selected_skill_ids,
                     xhs_bundle=xhs_bundle,
+                    allow_web_search=allow_web_search,
                 )
+                if travel_bundle:
+                    if ticket_bundle:
+                        travel_bundle["ticket_bundle"] = ticket_bundle
+                    if return_ticket_bundle:
+                        travel_bundle["return_ticket_bundle"] = return_ticket_bundle
+                    if resolved_trip_intent is not None:
+                        travel_bundle["trip_intent"] = resolved_trip_intent.model_dump()
+                    if selected_knowledge_context:
+                        travel_bundle["selected_knowledge_context"] = selected_knowledge_context
+                    destination = _safe_text(travel_bundle.get("destination_city")) or (
+                        _safe_text(resolved_trip_intent.destination) if resolved_trip_intent else ""
+                    )
+                    travel_bundle["cover_image"] = await asyncio.to_thread(
+                        maybe_prepare_destination_cover,
+                        destination=destination,
+                        tool_manager=effective_tool_manager,
+                        message_history=message_history,
+                        session_id=stream_session_id,
+                    )
                 if travel_bundle and travel_bundle.get("context_message"):
+                    append_travel_rag_context_message(
+                        message_history,
+                        _safe_text(travel_bundle.get("rag_context")),
+                    )
                     message_history.append(
                         {
                             "role": "system",
@@ -4717,6 +6280,28 @@ async def generate_chat_stream(
                         }
                     )
 
+        logger.info(f"旅行增强结果状态: {'已生成' if travel_bundle else '未生成'}")
+        if travel_bundle:
+            try:
+                structured_events, structured_trip_final_text = _build_travel_structured_result(travel_bundle)
+                logger.info(
+                    f"结构化行程已渲染: {len(structured_events)} 个事件, "
+                    f"Markdown {len(structured_trip_final_text)} 字符"
+                )
+                for event in structured_events:
+                    yield encode_event(event)
+                    await asyncio.sleep(0.01)
+                message_history.append(
+                    {
+                        "role": "system",
+                        "content": _structured_trip_plan_context(structured_events),
+                        "message_id": str(uuid.uuid4()),
+                        "type": "system_trip_plan_validation_context",
+                    }
+                )
+            except Exception as structured_error:
+                logger.error(f"旅行结构化事件生成失败: {structured_error}")
+
         if ticket_bundle or travel_bundle or xhs_bundle:
             if ticket_bundle:
                 progress_text = "实时工具结果已整理完成，正在生成最终交通建议。"
@@ -4730,22 +6315,44 @@ async def generate_chat_stream(
                 sanitize_text,
                 latest_user_message_id,
             )
-            yield f"data: {json.dumps(progress_chunk)}\n\n"
+            yield encode_event(progress_chunk)
             await asyncio.sleep(0.01)
+
+        if structured_trip_final_text:
+            error_phase = "finalizing"
+            for chunk_index, text_chunk in enumerate(_split_final_answer_for_stream(structured_trip_final_text)):
+                final_chunk = _build_final_answer_chunk(
+                    message_id,
+                    text_chunk,
+                    sanitize_text,
+                    replace=chunk_index == 0,
+                    linked_user_message_id=latest_user_message_id,
+                )
+                yield encode_event(final_chunk)
+                await asyncio.sleep(0.01)
+            yield encode_event(
+                _chat_complete_payload(
+                    request_id=stream_request_id,
+                    message_id=message_id,
+                    finish_reason="completed",
+                )
+            )
+            return
 
         if not _ticket_bundle_has_valid_results(ticket_bundle) and not xhs_bundle and not travel_bundle:
             travel_rag_context = maybe_prepare_travel_rag_context(latest_user_query)
             append_travel_rag_context_message(message_history, travel_rag_context)
 
         latest_final_answer_id: Optional[str] = None
+        error_phase = "drafting"
 
         for chunk in controller.run_stream(
             input_messages=message_history,
             tool_manager=effective_tool_manager,
             session_id=stream_session_id,
-            deep_thinking=use_deepthink,
+            deep_thinking=effective_use_deepthink,
             summary=True,
-            deep_research=use_multi_agent,
+            deep_research=effective_use_multi_agent,
         ):
             for msg in chunk:
                 is_assistant_final_answer = (
@@ -4762,7 +6369,25 @@ async def generate_chat_stream(
                     if ticket_bundle or travel_bundle or xhs_bundle:
                         continue
 
-                # 票务硬规则模式下隐藏中间多智能体过程，避免阶段噪声暴露到前端。
+                # 中间消息只映射为固定的用户进度，不转发思维链、工具名或原始载荷。
+                if not is_assistant_final_answer:
+                    message_type = _safe_text(msg.get('type')).lower()
+                    if any(token in message_type for token in ('observation', 'validation', 'repair')):
+                        public_progress = '正在校验行程信息'
+                    elif any(token in message_type for token in ('search', 'research', 'tool')):
+                        public_progress = '正在检索并核对旅行资料'
+                    else:
+                        public_progress = '正在整理行程方案'
+                    progress_chunk = _build_progress_chunk(
+                        msg.get('message_id', message_id),
+                        public_progress,
+                        sanitize_text,
+                        latest_user_message_id,
+                    )
+                    yield encode_event(progress_chunk)
+                    await asyncio.sleep(0.01)
+                    continue
+
                 if _should_hide_stream_message(msg):
                     continue
 
@@ -4773,15 +6398,16 @@ async def generate_chat_stream(
                     'type': 'chat_chunk',
                     'message_id': msg.get('message_id', message_id),
                     'role': msg.get('role', 'assistant'),
-                    'content': sanitize_text(raw_content),
-                    'show_content': sanitize_text(raw_show_content),
+                    'content': sanitize_user_visible_text(sanitize_text(raw_content)),
+                    'show_content': sanitize_user_visible_text(sanitize_text(raw_show_content)),
                     'step_type': msg.get('type', ''),
                     'agent_type': msg.get('role', ''),
                 }
 
-                yield f"data: {json.dumps(data)}\n\n"
+                yield encode_event(data)
                 await asyncio.sleep(0.01)
 
+        error_phase = "finalizing"
         if ticket_bundle:
             selected_final_text = _select_ticket_final_answer(streamed_final_answer_text, ticket_bundle)
             if not selected_final_text:
@@ -4797,7 +6423,7 @@ async def generate_chat_stream(
                         replace=chunk_index == 0,
                         linked_user_message_id=latest_user_message_id,
                     )
-                    yield f"data: {json.dumps(forced_chunk)}\n\n"
+                    yield encode_event(forced_chunk)
                     await asyncio.sleep(0.01)
                 latest_final_answer_id = final_message_id
                 streamed_final_answer_text = selected_final_text
@@ -4818,7 +6444,7 @@ async def generate_chat_stream(
                         replace=chunk_index == 0,
                         linked_user_message_id=latest_user_message_id,
                     )
-                    yield f"data: {json.dumps(forced_chunk)}\n\n"
+                    yield encode_event(forced_chunk)
                     await asyncio.sleep(0.01)
                 latest_final_answer_id = final_message_id
                 streamed_final_answer_text = selected_travel_text
@@ -4835,7 +6461,7 @@ async def generate_chat_stream(
                         replace=chunk_index == 0,
                         linked_user_message_id=latest_user_message_id,
                     )
-                    yield f"data: {json.dumps(forced_chunk)}\n\n"
+                    yield encode_event(forced_chunk)
                     await asyncio.sleep(0.01)
                 latest_final_answer_id = final_message_id
                 streamed_final_answer_text = selected_xhs_text
@@ -4853,7 +6479,7 @@ async def generate_chat_stream(
                     'step_type': 'final_answer',
                     'agent_type': 'assistant',
                 }
-                yield f"data: {json.dumps(forced_chunk)}\n\n"
+                yield encode_event(forced_chunk)
                 await asyncio.sleep(0.01)
                 latest_final_answer_id = final_message_id
                 streamed_final_answer_text += realtime_only_answer
@@ -4864,7 +6490,7 @@ async def generate_chat_stream(
             and not _contains_ticket_table(streamed_final_answer_text)
         ):
             appendix = _safe_text(ticket_bundle.get("append_markdown"))
-            sanitized_appendix = sanitize_text(appendix)
+            sanitized_appendix = sanitize_user_visible_text(sanitize_text(appendix))
             if sanitized_appendix:
                 appendix_payload = sanitized_appendix if sanitized_appendix.startswith("\n") else f"\n\n{sanitized_appendix}"
             else:
@@ -4880,29 +6506,30 @@ async def generate_chat_stream(
                 'agent_type': 'assistant',
             }
             if appendix_payload:
-                yield f"data: {json.dumps(appendix_chunk)}\n\n"
+                yield encode_event(appendix_chunk)
                 await asyncio.sleep(0.01)
 
-        yield f"data: {json.dumps({'type': 'chat_complete', 'message_id': message_id})}\n\n"
+        yield encode_event(
+            _chat_complete_payload(
+                request_id=stream_request_id,
+                message_id=message_id,
+                finish_reason="completed",
+            )
+        )
 
     except Exception as e:
-        logger.error(f"流式处理错误: {str(e)}")
-        error_message = str(e)
         diagnostics = _build_runtime_model_diagnostics(controller)
-        quota_hint = ""
-        lower_message = _safe_text(error_message).lower()
-        if "allocationquota" in lower_message or "free tier" in lower_message:
-            quota_hint = (
-                "当前报错是服务商账号额度/策略限制。"
-                "仅修改模型名称不会改变同一账号的额度状态，请切换有额度的 API Key "
-                "或在服务商控制台关闭 Free Tier Only 限制。"
+        logger.error(f"流式处理错误: {e}; phase={error_phase}; diagnostics={diagnostics}")
+        error_data = _safe_stream_error_payload(
+            e,
+            request_id=stream_request_id,
+            phase=error_phase,
+        )
+        yield encode_event(error_data)
+        yield encode_event(
+            _chat_complete_payload(
+                request_id=stream_request_id,
+                message_id="",
+                finish_reason="failed",
             )
-
-        error_data = {
-            'type': 'error',
-            'message': error_message,
-        }
-        if quota_hint:
-            error_data['hint'] = quota_hint
-        error_data.update(diagnostics)
-        yield f"data: {json.dumps(error_data)}\n\n"
+        )

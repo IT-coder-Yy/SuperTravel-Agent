@@ -17,9 +17,13 @@ from services.lifecycle_service import cleanup_runtime, initialize_runtime_with_
 class FakeToolManager:
     def __init__(self):
         self.cleaned = []
+        self.mcp_connections_closed = False
 
     async def cleanup_session(self, session_id):
         self.cleaned.append(session_id)
+
+    async def close_mcp_connections(self):
+        self.mcp_connections_closed = True
 
 
 class FakeLogger:
@@ -46,6 +50,7 @@ class LifecycleServiceTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertEqual(active_sessions, {})
         self.assertCountEqual(tool_manager.cleaned, ["session-1", "session-2"])
+        self.assertTrue(tool_manager.mcp_connections_closed)
 
     async def test_cleanup_runtime_handles_missing_tool_manager(self):
         active_sessions = {"session-3": {"x": 1}}

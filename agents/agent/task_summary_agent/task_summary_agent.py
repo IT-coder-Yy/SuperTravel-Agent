@@ -12,6 +12,7 @@ import json
 import uuid
 import datetime
 import traceback
+import re
 from typing import List, Dict, Any, Optional, Generator
 
 from agents.agent.agent_base import AgentBase
@@ -76,6 +77,8 @@ class TaskSummaryAgent(AgentBase):
 
     # 系统提示模板常量
     SYSTEM_PREFIX_DEFAULT = """你是一个任务总结者，你需要根据原始任务和执行历史，生成清晰完整的回答。最终回复必须是纯用户可读内容，禁止输出任何工具调用语法、标签和本地路径。"""
+
+    MAX_SUMMARY_TOOL_ROUNDS = 3
     
     def __init__(self, model: Any, model_config: Dict[str, Any], system_prefix: str = ""):
         """
@@ -328,115 +331,131 @@ class TaskSummaryAgent(AgentBase):
         
         logger.debug(f"TaskSummaryAgent: 准备了 {len(clean_messages)} 条清理后的消息")
         
-        # 调用LLM
-        response = self.model.chat.completions.create(
-            tools=tools_json,
-            messages=clean_messages,
-            stream=True,
-            stream_options={"include_usage": True},
-            **self.model_request_config
-        )
-        
-        # 处理流式响应
-        yield from self._process_summary_streaming_response(
-            response=response,
-            tool_manager=tool_manager,
-            session_id=session_id
-        )
+        conversation = list(clean_messages)
+        all_tool_results = []
+        tools_reserved_bytes = min(4096, tools_reserved_bytes)
 
-    def _process_summary_streaming_response(self,
-                                          response,
-                                          tool_manager: Any,
-                                          session_id: str) -> Generator[List[Dict[str, Any]], None, None]:
-        """
-        处理任务总结的流式响应
-        
-        Args:
-            response: LLM流式响应
-            tool_manager: 工具管理器
-            session_id: 会话ID
-            
-        Yields:
-            List[Dict[str, Any]]: 处理后的响应消息块
-        """
-        import uuid
-        import time
-        
-        logger.debug("TaskSummaryAgent: 处理流式响应")
-        
-        tool_calls = {}
-        message_id = str(uuid.uuid4())
-        last_tool_call_id = None
-        
-        # 收集所有chunks用于token跟踪
-        start_time = time.time()
-        chunks = []
-        
-        # 处理流式响应
-        for chunk in response:
-            chunks.append(chunk)
-            if len(chunk.choices) == 0:
-                continue
-                
-            if chunk.choices[0].delta.tool_calls:
-                # 处理工具调用
-                for tool_call in chunk.choices[0].delta.tool_calls:
-                    if tool_call.id and len(tool_call.id) > 0:
-                        last_tool_call_id = tool_call.id
-                        
-                    if last_tool_call_id not in tool_calls:
-                        logger.debug(f"TaskSummaryAgent: 检测到新工具调用: {last_tool_call_id}")
-                        tool_calls[last_tool_call_id] = {
-                            'id': last_tool_call_id,
-                            'type': tool_call.type,
-                            'function': {
-                                'name': tool_call.function.name if tool_call.function.name else '',
-                                'arguments': tool_call.function.arguments if tool_call.function.arguments else ''
-                            }
-                        }
-                    else:
-                        # 追加函数参数
-                        if tool_call.function.arguments:
-                            current_arguments = tool_calls[last_tool_call_id]['function'].get('arguments') or ''
-                            tool_calls[last_tool_call_id]['function']['arguments'] = current_arguments + tool_call.function.arguments
-                            
-            elif chunk.choices[0].delta.content:
-                if tool_calls:
-                    # 有工具调用时停止收集文本内容
-                    logger.debug(f"TaskSummaryAgent: 检测到 {len(tool_calls)} 个工具调用，停止收集文本内容")
-                    break
-                
-                # 输出文本内容
-                yield self._create_message_chunk(
-                    content=chunk.choices[0].delta.content,
-                    message_id=message_id,
-                    show_content=chunk.choices[0].delta.content,
-                    message_type='final_answer'
+        for round_index in range(self.MAX_SUMMARY_TOOL_ROUNDS):
+            response = self.model.chat.completions.create(
+                tools=tools_json,
+                messages=self._prepare_messages_for_llm(
+                    conversation,
+                    extra_reserved_bytes=tools_reserved_bytes
+                ),
+                stream=True,
+                stream_options={"include_usage": True},
+                **self.model_request_config
+            )
+            text, tool_calls = self._collect_summary_model_response(
+                response,
+                step_name=f"task_summary_tool_round_{round_index + 1}"
+            )
+
+            if not tool_calls:
+                yield from self._yield_safe_final_answer(
+                    text=text,
+                    tool_results=all_tool_results
                 )
-        
-        # 跟踪token使用
-        self._track_streaming_token_usage(chunks, "task_summary", start_time)
-        
-        # 处理工具调用
-        if tool_calls:
-            yield from self._execute_summary_tool_calls(
+                return
+
+            tool_results = self._execute_summary_tool_calls(
                 tool_calls=tool_calls,
                 tool_manager=tool_manager,
                 session_id=session_id
             )
-        else:
-            # 发送结束消息
-            yield self._create_message_chunk(
-                content='',
-                message_id=message_id,
-                show_content='\n',
-                message_type='final_answer'
+            all_tool_results.extend(tool_results)
+            conversation = self._build_tool_followup_messages(
+                base_messages=conversation,
+                tool_calls=tool_calls,
+                tool_results=tool_results
             )
+
+        logger.warning(
+            f"TaskSummaryAgent: 工具调用达到上限 {self.MAX_SUMMARY_TOOL_ROUNDS}，强制生成最终回答"
+        )
+        conversation.append({
+            'role': 'user',
+            'content': (
+                "工具调用次数已达到上限。请仅基于已有结果立即生成最终用户答案，"
+                "不要再请求工具，也不要输出工具名、内部字段、原始 JSON、调试信息或本地路径。"
+            )
+        })
+        try:
+            response = self.model.chat.completions.create(
+                messages=self._prepare_messages_for_llm(conversation),
+                stream=True,
+                stream_options={"include_usage": True},
+                **self.model_request_config
+            )
+            text, _ = self._collect_summary_model_response(
+                response,
+                step_name="task_summary_tool_limit_final"
+            )
+        except Exception as error:
+            logger.error(f"TaskSummaryAgent: 强制生成最终回答失败: {error}")
+            text = ""
+
+        yield from self._yield_safe_final_answer(
+            text=text,
+            tool_results=all_tool_results
+        )
+
+    def _collect_summary_model_response(self,
+                                        response: Any,
+                                        step_name: str) -> tuple[str, Dict[str, Any]]:
+        """收集一次模型响应中的文本和可能分片返回的工具调用。"""
+        import time
+
+        chunks = []
+        text_parts = []
+        tool_calls = {}
+        call_ids_by_index = {}
+        last_call_id = None
+        start_time = time.time()
+
+        for chunk in response:
+            chunks.append(chunk)
+            if not getattr(chunk, 'choices', None):
+                continue
+
+            delta = chunk.choices[0].delta
+            for position, tool_call in enumerate(getattr(delta, 'tool_calls', None) or []):
+                call_index = getattr(tool_call, 'index', position)
+                call_id = getattr(tool_call, 'id', None)
+                if call_id:
+                    call_ids_by_index[call_index] = call_id
+                    last_call_id = call_id
+                else:
+                    call_id = call_ids_by_index.get(call_index) or last_call_id
+                if not call_id:
+                    call_id = f"summary-call-{len(tool_calls) + 1}"
+                    call_ids_by_index[call_index] = call_id
+                    last_call_id = call_id
+
+                function = getattr(tool_call, 'function', None)
+                current = tool_calls.setdefault(call_id, {
+                    'id': call_id,
+                    'type': getattr(tool_call, 'type', None) or 'function',
+                    'function': {'name': '', 'arguments': ''}
+                })
+                function_name = getattr(function, 'name', None)
+                function_arguments = getattr(function, 'arguments', None)
+                if function_name:
+                    current['function']['name'] = function_name
+                if function_arguments:
+                    current['function']['arguments'] += function_arguments
+
+            delta_content = getattr(delta, 'content', None)
+            if delta_content:
+                text_parts.append(delta_content)
+
+        self._track_streaming_token_usage(chunks, step_name, start_time)
+        return ''.join(text_parts).strip(), tool_calls
 
     def _execute_summary_tool_calls(self,
                                   tool_calls: Dict[str, Any],
                                   tool_manager: Any,
-                                  session_id: str) -> Generator[List[Dict[str, Any]], None, None]:
+                                  session_id: str) -> List[Dict[str, Any]]:
         """
         执行任务总结中的工具调用，并将工具结果传回LLM生成最终回答
         
@@ -448,27 +467,23 @@ class TaskSummaryAgent(AgentBase):
         Yields:
             List[Dict[str, Any]]: 工具执行结果消息块
         """
-        import uuid
-        
         logger.info(f"TaskSummaryAgent: 开始执行 {len(tool_calls)} 个工具调用")
-        
         all_results = []
-        
+
         for tool_call_id, tool_call in tool_calls.items():
+            function_name = str((tool_call.get('function') or {}).get('name') or '')
             try:
-                function_name = tool_call['function']['name']
-                function_args_str = tool_call['function']['arguments']
-                
+                function_args_str = tool_call['function'].get('arguments') or '{}'
                 logger.info(f"TaskSummaryAgent: 执行工具 {function_name}")
-                
-                # 解析参数
+
                 try:
                     function_args = json.loads(function_args_str)
-                except json.JSONDecodeError as e:
-                    logger.error(f"TaskSummaryAgent: 解析工具参数失败: {e}")
+                    if not isinstance(function_args, dict):
+                        raise ValueError("工具参数必须是 JSON 对象")
+                except (json.JSONDecodeError, ValueError) as error:
+                    logger.error(f"TaskSummaryAgent: 解析工具参数失败: {error}")
                     function_args = {}
-                
-                # 执行工具 — 使用 ToolManager 的正确方法 run_tool
+
                 tool_response = tool_manager.run_tool(
                     function_name,
                     messages=[],
@@ -482,28 +497,201 @@ class TaskSummaryAgent(AgentBase):
                     "tool_call_id": tool_call_id,
                     "result": tool_response
                 })
-                
-            except Exception as e:
-                logger.error(f"TaskSummaryAgent: 工具 {function_name} 执行失败: {e}")
+
+            except Exception as error:
+                logger.error(f"TaskSummaryAgent: 工具 {function_name} 执行失败: {error}")
                 all_results.append({
                     "tool_name": function_name,
                     "tool_call_id": tool_call_id,
-                    "result": f"工具{function_name}执行失败: {str(e)}"
+                    "result": {"error": str(error)}
                 })
-        
-        # 将工具结果合并为上下文文本，输出给用户
-        if all_results:
-            combined_parts = []
-            for r in all_results:
-                combined_parts.append(f"[{r['tool_name']}] 结果:\n{r['result']}")
-            combined_result = "\n\n".join(combined_parts)
-            
-            yield self._create_message_chunk(
-                content=combined_result,
-                message_id=str(uuid.uuid4()),
-                show_content=combined_result,
-                message_type='final_answer'
+        return all_results
+
+    def _yield_safe_final_answer(self,
+                                 text: str,
+                                 tool_results: List[Dict[str, Any]]) -> Generator[List[Dict[str, Any]], None, None]:
+        tool_names = [str(result.get('tool_name') or '') for result in tool_results]
+        final_text = str(text or '').strip()
+        if self._looks_like_raw_tool_output(final_text, tool_names):
+            final_text = self._build_tool_results_fallback_answer(tool_results)
+
+        message_id = str(uuid.uuid4())
+        yield self._create_message_chunk(
+            content=final_text,
+            message_id=message_id,
+            show_content=final_text,
+            message_type='final_answer'
+        )
+        yield self._create_message_chunk(
+            content='',
+            message_id=message_id,
+            show_content='\n',
+            message_type='final_answer'
+        )
+
+    def _build_tool_followup_messages(self,
+                                    base_messages: List[Dict[str, Any]],
+                                    tool_calls: Dict[str, Any],
+                                    tool_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        normalized_tool_calls = []
+        result_by_call_id = {
+            str(result.get("tool_call_id") or ""): result
+            for result in tool_results
+        }
+
+        for tool_call_id, tool_call in tool_calls.items():
+            call_id = str(tool_call.get('id') or tool_call_id or uuid.uuid4())
+            function = tool_call.get('function') or {}
+            normalized_tool_calls.append({
+                'id': call_id,
+                'type': tool_call.get('type') or 'function',
+                'function': {
+                    'name': str(function.get('name') or ''),
+                    'arguments': str(function.get('arguments') or '{}')
+                }
+            })
+
+        followup_messages = list(base_messages)
+        followup_messages.append({
+            'role': 'assistant',
+            'tool_calls': normalized_tool_calls
+        })
+
+        for tool_call in normalized_tool_calls:
+            call_id = tool_call['id']
+            result = result_by_call_id.get(call_id)
+            if result is None:
+                result = next(
+                    (
+                        item for item in tool_results
+                        if item.get('tool_name') == tool_call['function']['name']
+                    ),
+                    {"result": ""}
+                )
+            followup_messages.append({
+                'role': 'tool',
+                'tool_call_id': call_id,
+                'content': self._serialize_tool_result(result.get('result'))
+            })
+
+        followup_messages.append({
+            'role': 'user',
+            'content': (
+                "请基于上面的工具结果继续完成任务。需要更多信息时可以继续调用可用工具；"
+                "信息足够时生成最终用户可读答案。"
+                "必须先给自然语言结论，再保留必要的关键事实；"
+                "不要输出工具名、工具调用语法、内部字段、原始工具 JSON、调试信息或本地路径。"
             )
+        })
+        return followup_messages
+
+    def _serialize_tool_result(self, result: Any) -> str:
+        if isinstance(result, str):
+            return result if result.strip() else "{}"
+        try:
+            return json.dumps(result, ensure_ascii=False, default=str)
+        except Exception:
+            return str(result)
+
+    def _looks_like_raw_tool_output(self,
+                                    text: str,
+                                    tool_names: Optional[List[str]] = None) -> bool:
+        stripped = str(text or '').strip()
+        if not stripped:
+            return True
+
+        raw_patterns = [
+            r'^\[[^\]]+\]\s*结果\s*:',
+            r'<invoke\b|</invoke>|<write_file\b|</write_file>|file_write\s*\(',
+            r'\btool_call_id\b',
+            r'"(?:formatted_address|location|latitude|longitude|lat|lng|error)"\s*:',
+            r'Observation\s*:',
+            r'Assistant:\s*Tool calls\s*:',
+            r'(?:[A-Za-z]:\\|/(?:home|Users|tmp|var/tmp)/)[^\s`"\']+',
+        ]
+        if any(re.search(pattern, stripped, flags=re.IGNORECASE) for pattern in raw_patterns):
+            return True
+
+        lowered = stripped.lower()
+        if any(name and name.lower() in lowered for name in (tool_names or [])):
+            return True
+
+        if stripped.startswith(('{', '[')):
+            try:
+                parsed = json.loads(stripped)
+                return isinstance(parsed, (dict, list))
+            except Exception:
+                return False
+
+        return False
+
+    def _build_tool_results_fallback_answer(self, tool_results: List[Dict[str, Any]]) -> str:
+        if not tool_results:
+            return "当前无法生成可靠的自然语言总结，请稍后重试。"
+
+        lines = ["已完成必要的信息查询，关键信息如下："]
+        for result in tool_results:
+            brief = self._humanize_tool_result(result.get("result"))
+            if brief:
+                lines.append(f"- {brief}")
+        if len(lines) == 1:
+            return "已完成信息查询，但当前没有可供展示的可靠结果。"
+        return "\n".join(lines)
+
+    def _humanize_tool_result(self, result: Any) -> str:
+        if isinstance(result, str):
+            text = result.strip()
+            try:
+                parsed = json.loads(text)
+                return self._humanize_tool_result(parsed)
+            except Exception:
+                return self._sanitize_fallback_text(text) if text else ""
+
+        if isinstance(result, list):
+            if not result:
+                return "未查询到可用条目"
+            first_item = self._humanize_tool_result(result[0])
+            return f"共查询到 {len(result)} 条结果；首条为 {first_item}" if first_item else f"共查询到 {len(result)} 条结果"
+
+        if isinstance(result, dict):
+            candidates = []
+            for key in ("name", "title", "formatted_address", "address", "message"):
+                value = result.get(key)
+                if value not in (None, "", [], {}):
+                    candidates.append(self._sanitize_fallback_text(value))
+
+            location = result.get("location")
+            if isinstance(location, dict):
+                latitude = location.get("lat", location.get("latitude"))
+                longitude = location.get("lng", location.get("longitude"))
+            else:
+                latitude = result.get("lat", result.get("latitude"))
+                longitude = result.get("lng", result.get("longitude"))
+            if latitude is not None and longitude is not None:
+                candidates.append(f"坐标为 {latitude}, {longitude}")
+
+            if result.get("distance") not in (None, ""):
+                candidates.append(f"距离为 {self._sanitize_fallback_text(result['distance'])}")
+            if result.get("duration") not in (None, ""):
+                candidates.append(f"预计耗时 {self._sanitize_fallback_text(result['duration'])}")
+            if candidates:
+                return "；".join(item for item in candidates if item)
+            if "error" in result:
+                return "本次信息查询未成功，请稍后重试"
+            return "已取得结构化查询结果"
+
+        return self._sanitize_fallback_text(result) if result is not None else ""
+
+    def _sanitize_fallback_text(self, value: Any) -> str:
+        text = self._truncate_text_with_head_tail(str(value), 300)
+        text = re.sub(
+            r'(?:[A-Za-z]:\\|/(?:home|Users|tmp|var/tmp)/)[^\s`"\']+',
+            "[本地路径已隐藏]",
+            text,
+            flags=re.IGNORECASE
+        )
+        text = re.sub(r'\btool_call_id\b', "内部标识", text, flags=re.IGNORECASE)
+        return text.strip()
 
     def _handle_summary_error(self, error: Exception) -> Generator[List[Dict[str, Any]], None, None]:
         """

@@ -58,6 +58,18 @@ export interface MCPServersResponse {
     active_servers: number;
 }
 
+export interface SystemStatusResponse {
+    status: string;
+    agents_count: number;
+    tools_count: number;
+    active_sessions: number;
+    version: string;
+    model_name?: string;
+    base_url?: string;
+    api_key_masked?: string;
+    config_source?: string;
+}
+
 export interface SkillInfo {
     id: string;
     name: string;
@@ -74,6 +86,65 @@ export interface SkillInfo {
     missing_env: string[];
 }
 
+export interface TravelKnowledgeChunk {
+    title: string;
+    source: string;
+    content: string;
+    knowledge_type?: string;
+    updated_at?: string;
+}
+
+export interface TravelKnowledgeCity {
+    city: string;
+    official_name: string;
+    province: string;
+    country_code?: string;
+    country_name?: string;
+    city_en?: string;
+    local_names?: string[];
+    region?: string;
+    scope?: 'domestic' | 'international';
+    updated_at?: string;
+    knowledge_types?: string[];
+    tags: string[];
+    summary: string;
+    best_for: string;
+    tip: string;
+    chunks: TravelKnowledgeChunk[];
+}
+
+export interface TravelKnowledgeCitiesResponse {
+    total_cities: number;
+    total_chunks: number;
+    cities: TravelKnowledgeCity[];
+}
+
+export interface TravelKnowledgeSearchItem {
+    city: string;
+    official_name: string;
+    province: string;
+    country_code?: string;
+    country_name?: string;
+    city_en?: string;
+    local_names?: string[];
+    region?: string;
+    scope?: 'domestic' | 'international';
+    knowledge_type?: string;
+    updated_at?: string;
+    title: string;
+    source: string;
+    source_url: string;
+    snippet: string;
+    score: number;
+    matched_terms: string[];
+}
+
+export interface TravelKnowledgeSearchResponse {
+    query: string;
+    top_k: number;
+    items: TravelKnowledgeSearchItem[];
+}
+
 export const apiClient = {
     configureSystem: (payload: ConfigureSystemRequest) => requestJson<{ status: string; message: string }>('/api/configure', {
         method: 'POST',
@@ -81,11 +152,19 @@ export const apiClient = {
         body: JSON.stringify(payload)
     }),
 
+    getSystemStatus: () => requestJson<SystemStatusResponse>('/api/status'),
+
     getTools: () => requestJson<ToolInfo[]>('/api/tools'),
 
     getMcpServers: () => requestJson<MCPServersResponse>('/api/mcp-servers'),
 
     getSkills: () => requestJson<SkillInfo[]>('/api/skills'),
+
+    getTravelKnowledgeCities: () => requestJson<TravelKnowledgeCitiesResponse>('/api/knowledge/cities'),
+
+    searchTravelKnowledge: (query: string, topK = 8) => requestJson<TravelKnowledgeSearchResponse>(
+        `/api/knowledge/search?q=${encodeURIComponent(query)}&top_k=${topK}`
+    ),
 
     chatStream: async (payload: unknown, signal?: AbortSignal): Promise<Response> => {
         const response = await fetch('/api/chat-stream', {

@@ -2,6 +2,7 @@ import importlib
 import importlib.util
 import sys
 import asyncio
+import json
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -63,6 +64,32 @@ class ChatRouteServiceTests(unittest.TestCase):
         self.assertEqual(payload["session_id"], "s1")
         self.assertEqual(payload["result"]["deep_research"], False)
         self.assertEqual(logger.errors, [])
+
+    def test_planning_modes_map_to_controller_flags(self):
+        cases = {
+            "fast_chat": (False, False),
+            "standard_plan": (True, False),
+            "deep_research": (True, True),
+        }
+
+        for planning_mode, expected in cases.items():
+            with self.subTest(planning_mode=planning_mode):
+                actual = self.chat_service.resolve_planning_mode_flags(
+                    planning_mode=planning_mode,
+                    use_deepthink=False,
+                    use_multi_agent=False,
+                )
+                self.assertEqual(actual, expected)
+
+    def test_unknown_planning_mode_preserves_existing_flags(self):
+        for flags in ((False, False), (False, True), (True, False), (True, True)):
+            with self.subTest(flags=flags):
+                actual = self.chat_service.resolve_planning_mode_flags(
+                    planning_mode="unsupported_mode",
+                    use_deepthink=flags[0],
+                    use_multi_agent=flags[1],
+                )
+                self.assertEqual(actual, flags)
 
     def test_execute_chat_route_adds_travel_rag_context_for_travel_query(self):
         logger = FakeLogger()
@@ -150,7 +177,11 @@ class ChatRouteServiceTests(unittest.TestCase):
             session_id="s1",
             use_deepthink=False,
             use_multi_agent=True,
+            selected_mcp_servers=None,
             selected_skill_ids=["rail_transport"],
+            profile={},
+            planning_mode=None,
+            allow_web_search=True,
             logger=logger,
         )
 
@@ -199,6 +230,7 @@ class ChatRouteServiceTests(unittest.TestCase):
                 selected_skill_ids=[],
                 use_deepthink=True,
                 use_multi_agent=False,
+                allow_web_search=False,
                 logger=logger,
             )
 
@@ -212,6 +244,7 @@ class ChatRouteServiceTests(unittest.TestCase):
             selected_skill_ids=[],
             use_deepthink=True,
             use_multi_agent=False,
+            allow_web_search=False,
         )
 
     def test_build_chat_stream_route_uses_default_sse_headers_when_missing(self):
@@ -247,6 +280,7 @@ class ChatRouteServiceTests(unittest.TestCase):
             selected_skill_ids=[],
             use_deepthink=True,
             use_multi_agent=True,
+            allow_web_search=True,
         )
 
     def test_build_chat_stream_response_uses_default_sse_headers_when_missing(self):
@@ -287,6 +321,7 @@ class ChatRouteServiceTests(unittest.TestCase):
                             selected_skill_ids=[],
                             use_deepthink=False,
                             use_multi_agent=False,
+                            allow_web_search=False,
                         )
 
         self.assertIs(payload, sentinel)
@@ -299,6 +334,7 @@ class ChatRouteServiceTests(unittest.TestCase):
             selected_skill_ids=[],
             use_deepthink=False,
             use_multi_agent=False,
+            allow_web_search=False,
             sanitize_text=default_sanitizer,
         )
 
@@ -344,7 +380,7 @@ class ChatRouteServiceTests(unittest.TestCase):
         ) as mocked_filter:
             events = asyncio.run(collect_events())
 
-        mocked_filter.assert_awaited_once_with(original_tool_manager, [])
+        mocked_filter.assert_awaited_once_with(original_tool_manager, [], allow_web_search=True)
         self.assertIs(observed["tool_manager"], filtered_tool_manager)
         self.assertTrue(any('"type": "chat_start"' in event for event in events))
         self.assertTrue(any('"type": "chat_complete"' in event for event in events))
@@ -361,6 +397,7 @@ class ChatRouteServiceTests(unittest.TestCase):
         observed = {}
 
         def run_stream(**kwargs):
+            observed["called"] = True
             observed["input_messages"] = kwargs["input_messages"]
             return [[{
                 "content": "hi",
@@ -396,14 +433,16 @@ class ChatRouteServiceTests(unittest.TestCase):
             events = asyncio.run(collect_events())
 
         rag_mock.assert_called_once_with("帮我规划杭州两日游")
-        injected_messages = [
-            message
-            for message in observed["input_messages"]
-            if message.get("type") == "system_travel_rag_context"
-        ]
-        self.assertEqual(len(injected_messages), 1)
-        self.assertIn("旅行知识库上下文", injected_messages[0]["content"])
+        self.assertFalse(observed.get("called", False))
         self.assertTrue(any('"type": "chat_start"' in event for event in events))
+        self.assertTrue(any('"type": "trip_plan"' in event for event in events))
+        payloads = [json.loads(event.removeprefix("data: ").strip()) for event in events]
+        final_text = "".join(
+            payload.get("content", "")
+            for payload in payloads
+            if payload.get("type") == "chat_chunk" and payload.get("step_type") == "final_answer"
+        )
+        self.assertIn("## 1. 目的地介绍", final_text)
         self.assertTrue(any('"type": "chat_complete"' in event for event in events))
 
     def test_build_chat_stream_request_route_delegates_to_field_wrapper(self):
@@ -438,6 +477,40 @@ class ChatRouteServiceTests(unittest.TestCase):
             use_multi_agent=False,
             logger=logger,
         )
+
+    def test_build_chat_stream_request_route_passes_product_settings(self):
+        logger = FakeLogger()
+        profile = {
+            "default_people_type": "朋友",
+            "preferred_budget_level": "标准",
+            "pace": "适中",
+        }
+        request = SimpleNamespace(
+            messages=[SimpleNamespace(role="user", content="规划杭州三日游", message_id="u1", type="normal")],
+            selected_mcp_servers=[],
+            selected_skill_ids=[],
+            use_deepthink=False,
+            use_multi_agent=True,
+            profile=profile,
+            planning_mode="standard_plan",
+            allow_web_search=False,
+            clarification_answers={},
+            selected_knowledge_context=[],
+        )
+        sentinel = object()
+
+        with patch.object(self.chat_service, "build_chat_stream_route", return_value=sentinel) as mocked:
+            payload = self.chat_service.build_chat_stream_request_route(
+                request=request,
+                controller=object(),
+                tool_manager=object(),
+                logger=logger,
+            )
+
+        self.assertIs(payload, sentinel)
+        self.assertEqual(mocked.call_args.kwargs["profile"], profile)
+        self.assertEqual(mocked.call_args.kwargs["planning_mode"], "standard_plan")
+        self.assertFalse(mocked.call_args.kwargs["allow_web_search"])
 
     def test_build_chat_stream_request_runtime_route_delegates_to_request_wrapper(self):
         request = SimpleNamespace(

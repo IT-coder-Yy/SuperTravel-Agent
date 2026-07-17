@@ -1,4 +1,5 @@
 import sys
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -24,6 +25,7 @@ from services.chat_service import (
     _build_web_markdown_table,
     _build_xhs_markdown_table,
     _extract_route_from_query,
+    _enrich_map_locations_with_details,
     _normalize_direct_rows,
     _normalize_interline_rows,
     _normalize_markdown_for_display,
@@ -56,6 +58,34 @@ class FakeController:
 
 
 class ChatServiceTests(unittest.TestCase):
+    def test_poi_detail_and_image_sources_are_kept_separate(self):
+        class ToolManager:
+            def get_tool(self, name):
+                if name == "map_place_details":
+                    return SimpleNamespace(parameters={"uid": {}, "query": {}, "region": {}}, required=[])
+                if name == "search_image_from_web":
+                    return SimpleNamespace(parameters={"query": {}, "count": {}}, required=["query"])
+                return None
+
+            def run_tool(self, name, messages, session_id, **kwargs):
+                if name == "map_place_details":
+                    return {"result": {"uid": "west-lake", "name": "西湖", "location": {"lat": 30.24, "lng": 120.15}, "address": "杭州市西湖区", "detail_info": {"overall_rating": 4.8, "opening_hours": "全天开放"}}}
+                return {"images": [{"image_url": "https://images.example/west-lake.jpg"}]}
+
+        result = _enrich_map_locations_with_details(
+            [{"id": "west-lake", "place_id": "west-lake", "name": "西湖", "lat": 30.24, "lng": 120.15, "category": "景点"}],
+            "杭州",
+            ToolManager(),
+            [{"role": "user", "content": "杭州旅行"}],
+            "poi-source-test",
+        )[0]
+
+        sources = {source["title"]: source for source in result["sources"]}
+        self.assertIn("地图地点详情", sources)
+        self.assertIn("公开图片检索", sources)
+        self.assertEqual(result["field_evidence"]["images"]["source_reference_id"], sources["公开图片检索"]["source_reference_id"])
+        self.assertEqual(result["field_evidence"]["opening_hours"]["source_reference_id"], sources["地图地点详情"]["source_reference_id"])
+
     def test_is_xhs_query_supports_normal_guide_question(self):
         self.assertTrue(_is_xhs_query("杭州三日游攻略怎么安排"))
         self.assertFalse(_is_xhs_query("帮我算一下 123 * 456"))
@@ -581,6 +611,59 @@ class ChatServiceTests(unittest.TestCase):
         self.assertEqual(tool_manager.calls[0][0], "xhs_search_and_summarize")
         self.assertEqual(bundle["rows"][0]["title"], "外滩附近性价比酒店")
 
+    def test_xhs_bundle_filters_non_travel_and_wrong_destination_results(self):
+        class FakeToolManager:
+            def get_tool(self, name):
+                return object() if name == "xhs_search_and_summarize" else None
+
+            def run_tool(self, name, messages, session_id, **kwargs):
+                return {
+                    "summary": "杭州校园招聘与旅行内容混合返回",
+                    "items": [
+                        {"title": "杭州校园招聘", "summary": "杭州校招岗位", "url": "https://www.xiaohongshu.com/explore/job"},
+                        {"title": "杭州三日游路线", "summary": "西湖灵隐寺旅行攻略", "url": "https://www.xiaohongshu.com/explore/travel"},
+                        {"title": "上海旅行攻略", "summary": "外滩 CityWalk", "url": "https://www.xiaohongshu.com/explore/shanghai"},
+                    ],
+                }
+
+        bundle = maybe_prepare_xhs_search_bundle(
+            user_query="杭州三日游攻略怎么安排",
+            tool_manager=FakeToolManager(),
+            message_history=[],
+            session_id="s-xhs-filter",
+        )
+
+        self.assertIsNotNone(bundle)
+        self.assertEqual([row["title"] for row in bundle["rows"]], ["杭州三日游路线"])
+        self.assertEqual(bundle["rejected_row_count"], 2)
+        self.assertNotIn("校园招聘", bundle["append_markdown"])
+        self.assertNotIn("校园招聘", bundle["summary"])
+
+    def test_ticket_bundle_returns_after_single_call_timeout_without_claiming_valid_results(self):
+        class SlowToolManager:
+            def get_tool(self, name):
+                return object() if name == "get-tickets" else None
+
+            def run_tool(self, name, messages, session_id, **kwargs):
+                time.sleep(0.2)
+                return []
+
+        with patch("services.chat_service.TICKET_QUERY_TOTAL_TIMEOUT_SECONDS", 0.05):
+            with patch("services.chat_service.TICKET_TOOL_ATTEMPT_TIMEOUT_SECONDS", 0.02):
+                with patch("services.chat_service._load_12306_station_names", return_value=["广州南", "桂林北"]):
+                    started_at = time.monotonic()
+                    bundle = maybe_prepare_train_ticket_bundle(
+                        user_query="从广州到桂林最佳交通",
+                        tool_manager=SlowToolManager(),
+                        message_history=[],
+                        session_id="s-ticket-timeout",
+                    )
+
+        self.assertLess(time.monotonic() - started_at, 0.15)
+        self.assertFalse(bundle["has_valid_results"])
+        self.assertIn("超过", bundle["ticket_states"]["train"]["error"])
+        self.assertIn("未找到可确认的票务结果", bundle["realtime_only_answer"])
+
     def test_travel_experience_bundle_calls_web_and_map_tools(self):
         class FakeToolManager:
             def __init__(self):
@@ -634,8 +717,83 @@ class ChatServiceTests(unittest.TestCase):
         self.assertIn("旅行体验增强要求", bundle["context_message"])
         self.assertIn("网络搜索参考表", bundle["append_markdown"])
         self.assertNotIn("地图地点表", bundle["append_markdown"])
-        self.assertIn('"map_locations"', bundle["append_markdown"])
+        self.assertNotIn('"map_locations"', bundle["append_markdown"])
         self.assertGreaterEqual(len(bundle["map_locations"]), 2)
+        self.assertFalse(any(row.get("source") == "seed_fallback" for row in bundle["map_locations"]))
+
+    def test_travel_experience_bundle_uses_seed_locations_only_as_reference_fallback(self):
+        class FakeToolManager:
+            def get_tool(self, name):
+                if name == "map_search_places":
+                    return SimpleNamespace(parameters={"query": {}, "region": {}}, required=["query"])
+                return None
+
+            def run_tool(self, name, messages, session_id, **kwargs):
+                query = str(kwargs.get("query") or "")
+                if any(place in query for place in ("西湖风景名胜区", "灵隐寺", "河坊街")):
+                    return {
+                        "places": [
+                            {
+                                "name": query,
+                                "location": {"lat": 30.242, "lng": 120.141},
+                                "address": "杭州市",
+                            }
+                        ]
+                    }
+                return {"places": []}
+
+        bundle = maybe_prepare_travel_experience_bundle(
+            user_query="帮我做一个杭州三日游行程",
+            tool_manager=FakeToolManager(),
+            message_history=[{"role": "user", "content": "帮我做一个杭州三日游行程", "message_id": "u-seed", "type": "normal"}],
+            session_id="s-seed",
+            allow_web_search=False,
+        )
+
+        self.assertIsNotNone(bundle)
+        self.assertTrue(bundle["map_locations"])
+        self.assertTrue(all(row.get("source") == "seed_fallback" for row in bundle["map_locations"]))
+        self.assertTrue(all(row.get("data_type") == "reference_data" for row in bundle["map_locations"]))
+        self.assertNotIn("已完成外部检索", bundle["fallback_answer"])
+
+    def test_travel_experience_bundle_skips_web_search_when_disabled(self):
+        class FakeToolManager:
+            def __init__(self):
+                self.calls = []
+
+            def get_tool(self, name):
+                if name in {"search_web_page", "map_search_places"}:
+                    return SimpleNamespace(parameters={"query": {}, "region": {}}, required=["query"])
+                return None
+
+            def run_tool(self, name, messages, session_id, **kwargs):
+                self.calls.append(name)
+                if name == "map_search_places":
+                    return {
+                        "places": [
+                            {
+                                "name": "西湖风景名胜区",
+                                "location": {"lat": 30.242, "lng": 120.141},
+                                "category": "景点",
+                            }
+                        ]
+                    }
+                return []
+
+        tool_manager = FakeToolManager()
+        bundle = maybe_prepare_travel_experience_bundle(
+            user_query="帮我做一个杭州三日游行程",
+            tool_manager=tool_manager,
+            message_history=[{"role": "user", "content": "帮我做一个杭州三日游行程", "message_id": "u1", "type": "normal"}],
+            session_id="s-no-web",
+            allow_web_search=False,
+        )
+
+        self.assertIsNotNone(bundle)
+        self.assertNotIn("search_web_page", tool_manager.calls)
+        self.assertIn("map_search_places", tool_manager.calls)
+        self.assertEqual(bundle["web_rows"], [])
+        self.assertIn("关闭网页与社区检索", bundle["web_error"])
 
     def test_travel_fallback_does_not_claim_external_unavailable_when_web_rows_exist(self):
         answer = _build_travel_fallback_answer(
@@ -658,6 +816,45 @@ class ChatServiceTests(unittest.TestCase):
 
         self.assertIn("已完成外部检索", answer)
         self.assertNotIn("外部检索结果暂时不可用", answer)
+
+    def test_travel_fallback_states_limit_when_only_seed_reference_exists(self):
+        answer = _build_travel_fallback_answer(
+            {
+                "query": "帮我做一个杭州三日游行程",
+                "kinds": ["行程规划"],
+                "web_rows": [],
+                "map_tool": "map_search_places",
+                "map_locations": [
+                    {
+                        "name": "西湖风景名胜区",
+                        "lat": 30.242,
+                        "lng": 120.141,
+                        "source": "seed_fallback",
+                    }
+                ],
+                "xhs_table": "",
+                "append_markdown": "",
+            }
+        )
+
+        self.assertIn("没有取得可验证的外部实时结果", answer)
+        self.assertNotIn("已完成外部检索", answer)
+
+    def test_travel_fallback_does_not_invent_city_specific_recommendations(self):
+        answer = _build_travel_fallback_answer(
+            {
+                "query": "帮我规划北京3天2夜行程",
+                "kinds": ["行程规划"],
+                "web_rows": [],
+                "map_locations": [],
+                "xhs_table": "",
+                "append_markdown": "",
+            }
+        )
+
+        self.assertIn("具体地点必须在地图或可靠来源返回后再填入", answer)
+        for hardcoded_place in ("故宫博物院", "天安门广场", "颐和园", "798艺术区"):
+            self.assertNotIn(hardcoded_place, answer)
 
     def test_travel_experience_bundle_defaults_hotel_locations_to_hotel_category(self):
         class FakeToolManager:
@@ -708,7 +905,7 @@ class ChatServiceTests(unittest.TestCase):
         self.assertEqual(bundle["kinds"], ["酒店住宿"])
         self.assertEqual(bundle["map_locations"][0]["category"], "酒店")
         self.assertIn("分组样式", bundle["context_message"])
-        self.assertIn("map_locations", bundle["append_markdown"])
+        self.assertNotIn("map_locations", bundle["append_markdown"])
 
     def test_travel_final_answer_does_not_use_user_query_as_h1_or_insert_generic_schedule(self):
         user_query = "帮我规划一次沈阳3天2夜的文化之旅"
@@ -866,11 +1063,12 @@ class ChatServiceTests(unittest.TestCase):
             with patch("services.chat_service.get_output_root_path", return_value=Path(tmpdir)):
                 merged = _select_travel_final_answer(reference_only, bundle, session_id="s-beijing")
 
-        self.assertIn("## Day 1：皇城中轴线与故宫深度游", merged)
+        self.assertIn("## 行程框架", merged)
+        self.assertIn("具体地点必须在地图或可靠来源返回后再填入", merged)
         self.assertIn("## 网络搜索参考表", merged)
         self.assertIn("## 建议与预约提醒", merged)
         self.assertIn("## 地理位置信息", merged)
-        self.assertLess(merged.index("## Day 1"), merged.index("## 网络搜索参考表"))
+        self.assertLess(merged.index("## 行程框架"), merged.index("## 网络搜索参考表"))
         self.assertLess(merged.index("## 网络搜索参考表"), merged.index("## 建议与预约提醒"))
         self.assertLess(merged.index("## 建议与预约提醒"), merged.index("## 地理位置信息"))
 
@@ -963,7 +1161,9 @@ class ChatServiceTests(unittest.TestCase):
 
         self.assertNotIn("## 出行基础信息", merged)
         self.assertNotIn("## 交通与天气建议", merged)
-        self.assertIn("## Day 1：商代文明与汉字源流", merged)
+        self.assertIn("## 行程框架", merged)
+        self.assertIn("具体地点必须在地图或可靠来源返回后再填入", merged)
+        self.assertIn("安阳三日文化游攻略", merged)
         self.assertIn('"map_locations"', merged)
         self.assertIn("安阳3天2夜的文化之旅.md", merged)
 
@@ -1049,6 +1249,46 @@ class ChatServiceTests(unittest.TestCase):
         self.assertNotIn("###", final_content)
         self.assertNotRegex(final_content, r"(?m)^- ")
         self.assertTrue(result.get("realtime_ticket_enforced"))
+
+    def test_execute_chat_once_sanitizes_user_visible_final_answers(self):
+        class LeakyController(FakeController):
+            def run(self, messages, tool_manager, session_id, deep_thinking, summary, deep_research):
+                leaky = (
+                    "已完成查询。\n\n"
+                    "```json\n"
+                    '{"tool_call_id":"call-1","tool_name":"map_geocode","arguments":{}}\n'
+                    "```\n"
+                    "调试文件位于 D:\\travel-agent\\cache\\result.json"
+                )
+                return {
+                    "all_messages": [{"role": "assistant", "type": "final_answer", "content": leaky}],
+                    "new_messages": [{"role": "assistant", "type": "final_answer", "content": leaky}],
+                    "final_output": {"role": "assistant", "type": "final_answer", "content": leaky},
+                }
+
+        with patch("services.chat_service.maybe_prepare_train_ticket_bundle", return_value=None):
+            with patch("services.chat_service.maybe_prepare_travel_experience_bundle", return_value=None):
+                payload = execute_chat_once(
+                    request_messages=[SimpleNamespace(role="user", content="解释一下查询结果", message_id="u-safe", type="normal")],
+                    controller=LeakyController(),
+                    tool_manager=object(),
+                    session_id="s-safe",
+                    use_deepthink=False,
+                    use_multi_agent=False,
+                    allow_web_search=False,
+                )
+
+        result = payload["result"]
+        visible_values = [
+            result["all_messages"][0]["content"],
+            result["new_messages"][0]["content"],
+            result["final_output"]["content"],
+        ]
+        for content in visible_values:
+            self.assertIn("已完成查询", content)
+            self.assertNotIn("tool_call_id", content)
+            self.assertNotIn("map_geocode", content)
+            self.assertNotIn(r"D:\travel-agent", content)
 
     def test_execute_chat_once_skips_travel_enrichment_when_ticket_bundle_exists(self):
         controller = FakeController()

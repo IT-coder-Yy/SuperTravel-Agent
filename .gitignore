@@ -216,6 +216,8 @@ examples/fastapi_react_demo/logs/
 examples/fastapi_react_demo/outputs/
 examples/fastapi_react_demo/frontend/.tmp/
 examples/fastapi_react_demo/frontend/vite-*.log
+examples/fastapi_react_demo/frontend/test-results/
+examples/fastapi_react_demo/frontend/playwright-report/
 
 # ===================================================
 # Project-specific: 编辑器 / AI 工具配置

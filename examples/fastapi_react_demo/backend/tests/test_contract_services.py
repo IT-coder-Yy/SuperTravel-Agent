@@ -84,7 +84,7 @@ class ToolCatalogServiceTests(unittest.TestCase):
 
         self.assertEqual(len(payload), 2)
         self.assertEqual(payload[0]["name"], "calculate")
-        self.assertEqual(payload[0]["description"], "math calculator")
+        self.assertEqual(payload[0]["description"], "执行基础数值计算。")
         self.assertIn("parameters", payload[0])
         self.assertEqual(payload[1]["name"], "factorial")
         self.assertEqual(payload[1]["parameters"], {})

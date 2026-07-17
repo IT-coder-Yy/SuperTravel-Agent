@@ -15,13 +15,16 @@ from mcp.types import CallToolResult
 import traceback
 import time
 import os,sys
+import threading
+
+from agents.tool.map_request_governor import MapRequestGovernor, MapRequestLimitExceeded
 
 
 def _verbose_tool_logging_enabled() -> bool:
     return os.getenv("SAGE_VERBOSE_TOOL_LOGS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 class ToolManager:
-    def __init__(self, is_auto_discover=True):
+    def __init__(self, is_auto_discover=True, map_request_governor=None):
         """初始化工具管理器"""
         logger.info("Initializing ToolManager")
         
@@ -36,6 +39,13 @@ class ToolManager:
         
         self.tools: Dict[str, Union[ToolSpec, McpToolSpec, AgentToolSpec]] = {}
         self._mcp_sessions: Dict[str, Dict[str, Union[ClientSession]]] = {}  # {session_id: {server_name: session}}
+        # stdio MCP 进程必须与它的 ClientSession 运行在同一事件循环中。这个循环按需
+        # 创建并在应用关闭时回收，使 Fetch 等 stdio MCP 在整个后端生命周期内保持连接。
+        self._mcp_runtime_loop = None
+        self._mcp_runtime_thread = None
+        self._mcp_runtime_lock = threading.Lock()
+        self._persistent_stdio_servers: Dict[str, Dict[str, Any]] = {}
+        self.map_request_governor = map_request_governor or MapRequestGovernor()
         
         if is_auto_discover:
             self._auto_discover_tools()
@@ -105,6 +115,120 @@ class ToolManager:
             await self._register_mcp_tools_stdio(server_name, server_params)
         logger.info(f"Successfully registered MCP server: {server_name}")
         return True
+
+    def _get_mcp_runtime_loop(self):
+        """Return the dedicated event loop used by persistent stdio MCP sessions."""
+        with self._mcp_runtime_lock:
+            if self._mcp_runtime_loop and self._mcp_runtime_loop.is_running():
+                return self._mcp_runtime_loop
+
+            loop = asyncio.new_event_loop()
+            thread = threading.Thread(
+                target=self._run_mcp_runtime_loop,
+                args=(loop,),
+                name="persistent-mcp-runtime",
+                daemon=True,
+            )
+            thread.start()
+            self._mcp_runtime_loop = loop
+            self._mcp_runtime_thread = thread
+            return loop
+
+    @staticmethod
+    def _run_mcp_runtime_loop(loop):
+        asyncio.set_event_loop(loop)
+        loop.run_forever()
+        loop.close()
+
+    async def _run_on_mcp_runtime_loop(self, coroutine):
+        loop = self._get_mcp_runtime_loop()
+        future = asyncio.run_coroutine_threadsafe(coroutine, loop)
+        return await asyncio.wrap_future(future)
+
+    async def _connect_persistent_stdio_server(
+        self,
+        server_name: str,
+        server_params: StdioServerParameters,
+    ) -> List[Dict[str, Any]]:
+        """Start a stdio MCP server and keep its transport/session open."""
+        await self._close_persistent_stdio_server(server_name)
+        ready = asyncio.get_running_loop().create_future()
+        shutdown_event = asyncio.Event()
+        connection: Dict[str, Any] = {
+            "shutdown_event": shutdown_event,
+            "lock": asyncio.Lock(),
+        }
+        task = asyncio.create_task(
+            self._persistent_stdio_server_task(server_name, server_params, ready, shutdown_event, connection)
+        )
+        tools = await ready
+        connection["task"] = task
+        self._persistent_stdio_servers[server_name] = connection
+        return tools
+
+    async def _persistent_stdio_server_task(
+        self,
+        server_name: str,
+        server_params: StdioServerParameters,
+        ready: asyncio.Future,
+        shutdown_event: asyncio.Event,
+        connection: Dict[str, Any],
+    ) -> None:
+        """Own a stdio MCP context for its complete lifetime.
+
+        AnyIO requires a context manager to be closed by the task that entered it,
+        so this task remains alive until FastAPI shuts down.
+        """
+        try:
+            async with stdio_client(server_params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    response = await session.list_tools()
+                    tools = [tool.model_dump() if isinstance(tool, Tool) else tool for tool in response.tools]
+                    connection["session"] = session
+                    ready.set_result(tools)
+                    await shutdown_event.wait()
+        except Exception as error:
+            if not ready.done():
+                ready.set_exception(error)
+            else:
+                logger.error(f"Persistent stdio MCP server stopped unexpectedly: {server_name}: {error}")
+
+    async def _close_persistent_stdio_server(self, server_name: str) -> None:
+        connection = self._persistent_stdio_servers.pop(server_name, None)
+        if not connection:
+            return
+        connection["shutdown_event"].set()
+        await connection["task"]
+
+    async def _call_persistent_stdio_tool(self, server_name: str, tool_name: str, kwargs: Dict[str, Any]) -> Any:
+        connection = self._persistent_stdio_servers.get(server_name)
+        if connection is None:
+            raise RuntimeError(f"Persistent stdio MCP server is not connected: {server_name}")
+        async with connection["lock"]:
+            result = await connection["session"].call_tool(tool_name, kwargs)
+            return result.model_dump()
+
+    async def _close_persistent_stdio_servers(self) -> None:
+        for server_name in list(self._persistent_stdio_servers):
+            await self._close_persistent_stdio_server(server_name)
+
+    async def close_mcp_connections(self) -> None:
+        """Close persistent stdio MCP sessions and their dedicated event loop."""
+        loop = self._mcp_runtime_loop
+        thread = self._mcp_runtime_thread
+        if loop is None:
+            return
+
+        try:
+            future = asyncio.run_coroutine_threadsafe(self._close_persistent_stdio_servers(), loop)
+            await asyncio.wrap_future(future)
+        finally:
+            loop.call_soon_threadsafe(loop.stop)
+            if thread and thread.is_alive():
+                await asyncio.to_thread(thread.join, 5)
+            self._mcp_runtime_loop = None
+            self._mcp_runtime_thread = None
 
     def _auto_discover_tools(self, path: str = None):
         """Auto-discover and register all tools in the tools package
@@ -209,21 +333,18 @@ class ToolManager:
             logger.error(f"Error loading MCP config: {str(e)}")
 
     async def _register_mcp_tools_stdio(self, server_name: str, server_params: StdioServerParameters):
-        """Register tools from stdio MCP server"""
+        """Register tools from a stdio MCP server and preserve its connection."""
         logger.info(f"Registering tools from stdio MCP server: {server_name}")
         try:
-            async with stdio_client(server_params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    logger.debug(f"Initializing session for stdio MCP server {server_name}")
-                    start_time = time.time()
-                    await session.initialize()
-                    elapsed = time.time() - start_time
-                    logger.debug(f"Initialized session for stdio MCP server {server_name} in {elapsed:.2f} seconds")
-                    response = await session.list_tools()
-                    tools = response.tools
-                    logger.info(f"Received {len(tools)} tools from stdio MCP server {server_name}")
-                    for tool in tools:
-                        await self._register_mcp_tool(server_name,tool, server_params)
+            start_time = time.time()
+            tools = await self._run_on_mcp_runtime_loop(
+                self._connect_persistent_stdio_server(server_name, server_params)
+            )
+            elapsed = time.time() - start_time
+            logger.debug(f"Initialized persistent stdio MCP server {server_name} in {elapsed:.2f} seconds")
+            logger.info(f"Received {len(tools)} tools from stdio MCP server {server_name}")
+            for tool in tools:
+                await self._register_mcp_tool(server_name, tool, server_params)
         except Exception as e:
             logger.error(f"Failed to connect to stdio MCP server {server_name}: {str(e)}")
             logger.error(traceback.format_exc())
@@ -382,21 +503,37 @@ class ToolManager:
             if isinstance(tool, McpToolSpec):
                 # For MCP tools, we need to handle async execution properly
                 try:
-                    try:
-                        loop = asyncio.get_running_loop()
-                    except RuntimeError:
-                        loop = None
+                    def execute_mcp_call():
+                        try:
+                            loop = asyncio.get_running_loop()
+                        except RuntimeError:
+                            loop = None
 
-                    if loop is not None:
-                        # If we're in an async context (like FastAPI), create a task
-                        import concurrent.futures
-                        with concurrent.futures.ThreadPoolExecutor() as executor:
-                            future = executor.submit(asyncio.run, self._run_mcp_tool_async(tool, session_id, **kwargs))
-                            result = future.result()
+                        if loop is not None:
+                            import concurrent.futures
+                            with concurrent.futures.ThreadPoolExecutor() as executor:
+                                future = executor.submit(asyncio.run, self._run_mcp_tool_async(tool, session_id, **kwargs))
+                                result = future.result()
+                        else:
+                            result = asyncio.run(self._run_mcp_tool_async(tool, session_id, **kwargs))
+                        return self._format_mcp_result(result)
+
+                    if str(getattr(tool, "server_name", "")).lower() == "baidu-map":
+                        try:
+                            final_result = self.map_request_governor.execute(
+                                tool_name=tool_name,
+                                session_id=session_id,
+                                kwargs=kwargs,
+                                callback=execute_mcp_call,
+                            )
+                        except MapRequestLimitExceeded:
+                            return self._format_error_response(
+                                "本次规划的地图实时查询次数已达上限，请使用已核验结果或稍后重试",
+                                tool_name,
+                                "MAP_REQUEST_LIMIT",
+                            )
                     else:
-                        # If no loop is running, use asyncio.run
-                        result = asyncio.run(self._run_mcp_tool_async(tool, session_id, **kwargs))
-                    final_result = self._format_mcp_result(result)
+                        final_result = execute_mcp_call()
                 except RuntimeError as re:
                     if "cannot be called from a running event loop" in str(re):
                         # Fallback: create new event loop in thread
@@ -450,6 +587,10 @@ class ToolManager:
             
             self._log_execution(tool_name, False, "EXECUTION_ERROR")
             return self._format_error_response(error_msg, tool_name, "EXECUTION_ERROR", str(e))
+
+    def begin_map_request_scope(self, session_id: str, scope_id: str = None) -> str:
+        """Start a fresh per-planning request budget while retaining the shared result cache."""
+        return self.map_request_governor.begin_scope(session_id, scope_id)
 
     def _format_mcp_result(self, result) -> str:
         """Format MCP tool result to JSON string"""
@@ -587,12 +728,15 @@ class ToolManager:
                 return result.model_dump()
 
     async def _execute_stdio_mcp_tool(self, tool: McpToolSpec, **kwargs) -> Any:
-        """Execute stdio MCP tool"""
-        async with stdio_client(tool.server_params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool.name, kwargs)
-                return result.model_dump()
+        """Execute through the stdio session kept alive since application startup."""
+        server_name = tool.server_name
+        if server_name not in self._persistent_stdio_servers:
+            await self._run_on_mcp_runtime_loop(
+                self._connect_persistent_stdio_server(server_name, tool.server_params)
+            )
+        return await self._run_on_mcp_runtime_loop(
+            self._call_persistent_stdio_tool(server_name, tool.name, kwargs)
+        )
 
     def _validate_json_response(self, response_text: str, tool_name: str) -> tuple[bool, str]:
         """Validate if response is proper JSON and return validation result"""

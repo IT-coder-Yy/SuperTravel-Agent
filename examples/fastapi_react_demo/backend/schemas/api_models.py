@@ -1,4 +1,4 @@
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -12,12 +12,62 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     type: str = "chat"
+    request_id: Optional[str] = None
     messages: List[ChatMessage]
     use_deepthink: bool = True
     use_multi_agent: bool = True
     session_id: Optional[str] = None
-    selected_mcp_servers: Optional[List[str]] = Field(default_factory=list)
+    selected_mcp_servers: Optional[List[str]] = None
     selected_skill_ids: Optional[List[str]] = Field(default_factory=list)
+    profile: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    planning_mode: Optional[str] = None
+    allow_web_search: bool = True
+    clarification_answers: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    clarification_question_id: Optional[str] = None
+    selected_knowledge_context: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+
+
+class TripEditOperation(BaseModel):
+    operation_id: str
+    plan_id: str
+    base_version: int
+    type: str
+    payload: Dict[str, Any] = Field(default_factory=dict)
+
+
+class TripEditRequest(BaseModel):
+    plan: Dict[str, Any]
+    operation: TripEditOperation
+
+
+class TripEditResponse(BaseModel):
+    operation_id: Optional[str] = None
+    plan: Dict[str, Any]
+    previous_plan: Dict[str, Any]
+    diff: Dict[str, Any]
+
+
+class TripDocumentImportRequest(BaseModel):
+    format: Literal["json", "markdown"]
+    content: Any
+
+
+class TripDocumentExportRequest(BaseModel):
+    document: Dict[str, Any]
+
+
+class ShareCreateRequest(BaseModel):
+    document: Dict[str, Any]
+    scopes: List[Literal["itinerary", "budget", "sources", "checklist", "notes"]] = Field(
+        default_factory=lambda: ["itinerary"]
+    )
+
+
+class DayRouteRequest(BaseModel):
+    day: int = Field(ge=1)
+    plan_version: int = Field(ge=1)
+    scope: Literal["domestic", "international"] = "domestic"
+    activities: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class ConfigRequest(BaseModel):
