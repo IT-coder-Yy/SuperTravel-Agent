@@ -49,6 +49,7 @@ PlanningEventType = Literal[
     "agent_stage_updated",
     "agent_stage_retrying",
     "agent_stage_completed",
+    "provider_queue_waiting",
     "run_soft_timeout",
     "final_plan_section",
     "trip_plan_completed",
@@ -620,6 +621,15 @@ class AgentStagePayload(ContractModel):
     status: Literal["running", "retrying", "completed", "degraded", "failed"]
 
 
+class ProviderQueueWaitingPayload(ContractModel):
+    stage: Literal["realtime_verification"] = "realtime_verification"
+    provider: str = Field(min_length=1)
+    operation: str = Field(min_length=1)
+    priority: Literal["formal", "scheduled_dining", "candidate", "supplemental"]
+    queue_position: int = Field(ge=1)
+    message: Literal["地点核验排队中"] = "地点核验排队中"
+
+
 class SoftTimeoutPayload(ContractModel):
     elapsed_seconds: int = Field(ge=180)
     message: str = Field(min_length=1)
@@ -671,6 +681,7 @@ class PlanningErrorPayload(ContractModel):
 PlanningEventPayload = Union[
     RunStartedPayload,
     AgentStagePayload,
+    ProviderQueueWaitingPayload,
     SoftTimeoutPayload,
     PlanSectionPayload,
     PlanCompletedPayload,
@@ -698,6 +709,7 @@ class PlanningEventEnvelope(ContractModel):
             "agent_stage_updated": AgentStagePayload,
             "agent_stage_retrying": AgentStagePayload,
             "agent_stage_completed": AgentStagePayload,
+            "provider_queue_waiting": ProviderQueueWaitingPayload,
             "run_soft_timeout": SoftTimeoutPayload,
             "final_plan_section": PlanSectionPayload,
             "trip_plan_completed": PlanCompletedPayload,

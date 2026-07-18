@@ -21,6 +21,7 @@ class RuntimeStateServiceTests(unittest.TestCase):
         self.assertIsNone(state.tool_manager)
         self.assertIsNone(state.controller)
         self.assertEqual(state.active_sessions, {})
+        self.assertEqual(state.baidu_request_dispatcher.max_concurrency, 1)
 
     def test_create_runtime_state_active_sessions_not_shared(self):
         state_a = create_runtime_state()
@@ -29,6 +30,7 @@ class RuntimeStateServiceTests(unittest.TestCase):
         state_a.active_sessions["session-1"] = {"x": 1}
 
         self.assertNotIn("session-1", state_b.active_sessions)
+        self.assertIsNot(state_a.baidu_request_dispatcher, state_b.baidu_request_dispatcher)
 
 
 if __name__ == "__main__":

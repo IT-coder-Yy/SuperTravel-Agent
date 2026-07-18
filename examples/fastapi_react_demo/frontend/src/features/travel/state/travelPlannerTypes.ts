@@ -345,6 +345,7 @@ export type PlanningEventType =
   | 'agent_stage_updated'
   | 'agent_stage_retrying'
   | 'agent_stage_completed'
+  | 'provider_queue_waiting'
   | 'run_soft_timeout'
   | 'final_plan_section'
   | 'trip_plan_completed'
@@ -353,6 +354,15 @@ export type PlanningEventType =
   | 'plan_revision_completed'
   | 'run_cancelled'
   | 'error';
+
+export interface ProviderQueueWaitingPayload {
+  stage: 'realtime_verification';
+  provider: string;
+  operation: string;
+  priority: 'formal' | 'scheduled_dining' | 'candidate' | 'supplemental';
+  queue_position: number;
+  message: '地点核验排队中';
+}
 
 export interface PlanningEventEnvelope<TPayload = Record<string, unknown>> {
   event_version: 1;

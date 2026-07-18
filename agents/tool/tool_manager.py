@@ -24,7 +24,12 @@ def _verbose_tool_logging_enabled() -> bool:
     return os.getenv("SAGE_VERBOSE_TOOL_LOGS", "0").strip().lower() in {"1", "true", "yes", "on"}
 
 class ToolManager:
-    def __init__(self, is_auto_discover=True, map_request_governor=None):
+    def __init__(
+        self,
+        is_auto_discover=True,
+        map_request_governor=None,
+        baidu_request_dispatcher=None,
+    ):
         """初始化工具管理器"""
         logger.info("Initializing ToolManager")
         
@@ -45,7 +50,18 @@ class ToolManager:
         self._mcp_runtime_thread = None
         self._mcp_runtime_lock = threading.Lock()
         self._persistent_stdio_servers: Dict[str, Dict[str, Any]] = {}
-        self.map_request_governor = map_request_governor or MapRequestGovernor()
+        self.map_request_governor = map_request_governor or MapRequestGovernor(
+            dispatcher=baidu_request_dispatcher,
+        )
+        self.baidu_request_dispatcher = getattr(
+            self.map_request_governor,
+            "dispatcher",
+            baidu_request_dispatcher,
+        )
+        self.baidu_network_timeout_seconds = max(
+            35.0,
+            float(os.getenv("BAIDU_MAP_NETWORK_TIMEOUT_SECONDS", "35")),
+        )
         
         if is_auto_discover:
             self._auto_discover_tools()
@@ -487,6 +503,7 @@ class ToolManager:
         
         # Remove duplicate session_id from kwargs if present
         session_id = kwargs.pop('session_id', session_id)
+        baidu_request_priority = kwargs.pop('_baidu_priority', None)
         
         # Step 1: Tool Lookup
         tool = self.get_tool(tool_name)
@@ -525,6 +542,7 @@ class ToolManager:
                                 session_id=session_id,
                                 kwargs=kwargs,
                                 callback=execute_mcp_call,
+                                priority=baidu_request_priority,
                             )
                         except MapRequestLimitExceeded:
                             return self._format_error_response(
@@ -591,6 +609,10 @@ class ToolManager:
     def begin_map_request_scope(self, session_id: str, scope_id: str = None) -> str:
         """Start a fresh per-planning request budget while retaining the shared result cache."""
         return self.map_request_governor.begin_scope(session_id, scope_id)
+
+    def get_map_request_metrics(self) -> Dict[str, float | int]:
+        """Return a point-in-time view of Baidu queue and provider execution metrics."""
+        return self.map_request_governor.metrics_snapshot()
 
     def _format_mcp_result(self, result) -> str:
         """Format MCP tool result to JSON string"""
@@ -711,9 +733,15 @@ class ToolManager:
         
         try:
             if isinstance(tool.server_params, SseServerParameters):
-                return await self._execute_sse_mcp_tool(tool, **kwargs)
+                execution = self._execute_sse_mcp_tool(tool, **kwargs)
             else:
-                return await self._execute_stdio_mcp_tool(tool, **kwargs)
+                execution = self._execute_stdio_mcp_tool(tool, **kwargs)
+            if str(server_name).lower() == "baidu-map":
+                return await asyncio.wait_for(
+                    execution,
+                    timeout=self.baidu_network_timeout_seconds,
+                )
+            return await execution
         except Exception as e:
             logger.error(f"MCP tool '{tool.name}' failed on server '{server_name}': {str(e)}")
             logger.debug(f"MCP error details - Tool: {tool.name}, Server: {server_name}, Args: {kwargs}")

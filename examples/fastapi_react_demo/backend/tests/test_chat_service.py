@@ -691,12 +691,14 @@ class ChatServiceTests(unittest.TestCase):
                     return {
                         "places": [
                             {
+                                "uid": "hangzhou-west-lake",
                                 "name": "西湖风景名胜区",
                                 "location": {"lat": 30.242, "lng": 120.141},
                                 "address": "杭州市西湖区",
                                 "category": "景点",
                             },
                             {
+                                "uid": "hangzhou-lingyin-temple",
                                 "name": "灵隐寺",
                                 "location": {"lat": 30.24, "lng": 120.102},
                                 "address": "杭州市西湖区法云弄",
@@ -734,6 +736,7 @@ class ChatServiceTests(unittest.TestCase):
                     return {
                         "places": [
                             {
+                                "uid": f"seed-{query}",
                                 "name": query,
                                 "location": {"lat": 30.242, "lng": 120.141},
                                 "address": "杭州市",
@@ -879,6 +882,7 @@ class ChatServiceTests(unittest.TestCase):
                     return {
                         "places": [
                             {
+                                "uid": "shanghai-waldorf-bund",
                                 "name": "上海外滩华尔道夫酒店",
                                 "location": {"lat": 31.2366, "lng": 121.4908},
                                 "address": "中山东一路2号",
@@ -952,12 +956,14 @@ class ChatServiceTests(unittest.TestCase):
                     return {
                         "places": [
                             {
+                                "uid": "shenyang-palace-hotel",
                                 "name": "沈阳故宫附近酒店",
                                 "location": {"lat": 41.7961, "lng": 123.4613},
                                 "address": "沈阳市沈河区沈阳路附近",
                                 "category": "酒店",
                             },
                             {
+                                "uid": "shenyang-laobian-dumpling",
                                 "name": "老边饺子馆中街店",
                                 "location": {"lat": 41.8002, "lng": 123.4456},
                                 "address": "沈阳市沈河区中街",
@@ -1120,6 +1126,7 @@ class ChatServiceTests(unittest.TestCase):
                     return {
                         "places": [
                             {
+                                "uid": f"anyang-{address}",
                                 "name": address,
                                 "location": {"lat": 36.1 + len(self.calls) / 1000, "lng": 114.3 + len(self.calls) / 1000},
                                 "address": address,

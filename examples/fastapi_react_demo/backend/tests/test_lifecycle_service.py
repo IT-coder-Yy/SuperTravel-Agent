@@ -63,16 +63,21 @@ class LifecycleServiceTests(unittest.IsolatedAsyncioTestCase):
         fake_logger = FakeLogger()
         fake_tool_manager = object()
         fake_controller = object()
+        fake_dispatcher = object()
 
         with patch(
             "services.lifecycle_service.bootstrap_runtime",
             AsyncMock(return_value=(fake_tool_manager, fake_controller, "model-x")),
-        ):
-            tool_manager, controller = await initialize_runtime_with_boundary(fake_logger)
+        ) as mocked:
+            tool_manager, controller = await initialize_runtime_with_boundary(
+                fake_logger,
+                baidu_request_dispatcher=fake_dispatcher,
+            )
 
         self.assertIs(tool_manager, fake_tool_manager)
         self.assertIs(controller, fake_controller)
         self.assertEqual(fake_logger.errors, [])
+        mocked.assert_awaited_once_with(baidu_request_dispatcher=fake_dispatcher)
 
     async def test_initialize_runtime_with_boundary_handles_error(self):
         fake_logger = FakeLogger()

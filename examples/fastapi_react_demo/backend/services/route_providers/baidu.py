@@ -1,43 +1,43 @@
-import asyncio
 import os
-import threading
-import time
 from datetime import datetime, timezone
 from typing import Any, Dict, List
 
 import httpx
 
-
-_MAX_CONCURRENCY = min(2, max(1, int(os.getenv("BAIDU_MAP_MAX_CONCURRENCY", "1"))))
-_MIN_INTERVAL_SECONDS = max(0.0, float(os.getenv("BAIDU_MAP_MIN_INTERVAL_SECONDS", "0.45")))
-_REQUEST_SEMAPHORE = threading.BoundedSemaphore(_MAX_CONCURRENCY)
-_RATE_LOCK = threading.Lock()
-_LAST_REQUEST_STARTED_AT = 0.0
+from agents.tool.baidu_request_dispatcher import BaiduRequestDispatcher
 
 
 class BaiduRouteProvider:
     name = "baidu_directionlite"
     coordinate_system = "BD09LL"
 
-    def __init__(self, api_key: str | None = None, timeout_seconds: float = 12.0) -> None:
+    def __init__(
+        self,
+        api_key: str | None = None,
+        timeout_seconds: float | None = None,
+        dispatcher: BaiduRequestDispatcher | None = None,
+    ) -> None:
         self.api_key = api_key or os.getenv("BAIDU_MAP_API_KEY", "")
-        self.timeout_seconds = timeout_seconds
-
-    @staticmethod
-    def _acquire_request_slot() -> None:
-        global _LAST_REQUEST_STARTED_AT
-        _REQUEST_SEMAPHORE.acquire()
-        with _RATE_LOCK:
-            now = time.monotonic()
-            wait_seconds = max(0.0, _LAST_REQUEST_STARTED_AT + _MIN_INTERVAL_SECONDS - now)
-            _LAST_REQUEST_STARTED_AT = now + wait_seconds
-        if wait_seconds:
-            time.sleep(wait_seconds)
+        configured_timeout = float(os.getenv("BAIDU_MAP_NETWORK_TIMEOUT_SECONDS", "35"))
+        self.timeout_seconds = (
+            max(0.01, timeout_seconds)
+            if timeout_seconds is not None
+            else max(35.0, configured_timeout)
+        )
+        self.dispatcher = dispatcher or BaiduRequestDispatcher()
 
     @staticmethod
     def _endpoint(mode: str) -> str:
-        normalized = {"walk": "walking", "walking": "walking", "cycle": "riding", "cycling": "riding",
-                      "drive": "driving", "driving": "driving", "transit": "transit", "public_transit": "transit"}
+        normalized = {
+            "walk": "walking",
+            "walking": "walking",
+            "cycle": "riding",
+            "cycling": "riding",
+            "drive": "driving",
+            "driving": "driving",
+            "transit": "transit",
+            "public_transit": "transit",
+        }
         return normalized.get(mode, "walking")
 
     @staticmethod
@@ -67,14 +67,28 @@ class BaiduRouteProvider:
             "ak": self.api_key,
             "coord_type": "bd09ll",
         }
-        await asyncio.to_thread(self._acquire_request_slot)
-        try:
+
+        async def request() -> Dict[str, Any]:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
-                response = await client.get(f"https://api.map.baidu.com/directionlite/v1/{endpoint}", params=params)
+                response = await client.get(
+                    f"https://api.map.baidu.com/directionlite/v1/{endpoint}",
+                    params=params,
+                )
                 response.raise_for_status()
-                payload = response.json()
-        finally:
-            _REQUEST_SEMAPHORE.release()
+                return response.json()
+
+        payload = await self.dispatcher.execute_async(
+            request,
+            provider=self.name,
+            operation=f"route:{endpoint}",
+            arguments={
+                "origin": params["origin"],
+                "destination": params["destination"],
+                "coord_type": params["coord_type"],
+            },
+            priority="formal",
+            cache_ttl_seconds=900,
+        )
         if int(payload.get("status", -1)) != 0:
             raise RuntimeError("BAIDU_ROUTE_UNAVAILABLE")
         route = (payload.get("result", {}).get("routes") or [{}])[0]

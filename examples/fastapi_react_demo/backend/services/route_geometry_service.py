@@ -7,6 +7,7 @@ from typing import Any, Dict, Iterable, List, Mapping
 
 import httpx
 
+from agents.tool.baidu_request_dispatcher import BaiduRequestDispatcher
 from services.route_providers import BaiduRouteProvider, OpenRouteServiceProvider
 
 
@@ -30,12 +31,13 @@ async def build_day_route(
     *, day: int, plan_version: int, activities: Iterable[Mapping[str, Any]], scope: str = "domestic",
     baidu_provider: BaiduRouteProvider | None = None,
     international_provider: OpenRouteServiceProvider | None = None,
+    baidu_dispatcher: BaiduRequestDispatcher | None = None,
 ) -> Dict[str, Any]:
     ordered = [item for item in activities if _coordinates(item) is not None and item.get("map_visible", True) is not False]
     provider = (
         international_provider or OpenRouteServiceProvider()
         if scope == "international"
-        else baidu_provider or BaiduRouteProvider()
+        else baidu_provider or BaiduRouteProvider(dispatcher=baidu_dispatcher)
     )
     use_cache = baidu_provider is None and international_provider is None
     cache_key = json.dumps({

@@ -157,9 +157,12 @@ async def cleanup_managed_mcp_processes(tool_manager: Any) -> None:
     setattr(tool_manager, "_managed_mcp_processes", [])
 
 
-async def initialize_tool_manager(app_config: Any) -> ToolManager:
+async def initialize_tool_manager(app_config: Any, baidu_request_dispatcher: Any = None) -> ToolManager:
     """Initialize local tools and register MCP servers from config."""
-    tool_manager = ToolManager(is_auto_discover=False)
+    tool_manager = ToolManager(
+        is_auto_discover=False,
+        baidu_request_dispatcher=baidu_request_dispatcher,
+    )
     tool_manager._auto_discover_tools()
 
     connected_mcp_servers = []

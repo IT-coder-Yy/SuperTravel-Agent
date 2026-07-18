@@ -2213,6 +2213,7 @@ def _run_tool_with_arg_candidates(
     message_history: List[Dict[str, Any]],
     session_id: str,
     arg_candidates: List[Dict[str, Any]],
+    request_priority: Optional[str] = None,
     deadline: Optional[float] = None,
     timeout_label: str = "工具查询",
 ) -> Any:
@@ -2236,6 +2237,9 @@ def _run_tool_with_arg_candidates(
 
     for args in compatible_candidates:
         try:
+            call_args = dict(args)
+            if request_priority:
+                call_args["_baidu_priority"] = request_priority
             raw_result = _run_tool_with_deadline(
                 tool_manager=tool_manager,
                 tool_name=tool_name,
@@ -2243,7 +2247,7 @@ def _run_tool_with_arg_candidates(
                 session_id=session_id,
                 deadline=deadline,
                 timeout_label=timeout_label,
-                **args,
+                **call_args,
             )
             payload = _unwrap_tool_output(raw_result)
             last_payload = payload
@@ -2830,7 +2834,11 @@ def _extract_location_pair(item: Dict[str, Any]) -> Tuple[Optional[float], Optio
     return None, None
 
 
-def _normalize_map_locations(payload: Any, max_rows: int = 10) -> List[Dict[str, Any]]:
+def _normalize_map_locations(
+    payload: Any,
+    max_rows: int = 10,
+    require_coordinates: bool = True,
+) -> List[Dict[str, Any]]:
     raw_items = _first_present_list(payload, ["places", "pois", "results", "items", "data", "content"])
     rows: List[Dict[str, Any]] = []
     seen = set()
@@ -2840,11 +2848,24 @@ def _normalize_map_locations(payload: Any, max_rows: int = 10) -> List[Dict[str,
             continue
         name = _extract_first_value(item, ["name", "title", "address", "uid"], default="")
         lat, lng = _extract_location_pair(item)
-        if not name or lat is None or lng is None:
+        has_valid_coordinates = (
+            lat is not None
+            and lng is not None
+            and -90 <= lat <= 90
+            and -180 <= lng <= 180
+        )
+        if not name or (require_coordinates and not has_valid_coordinates):
             continue
+        if not has_valid_coordinates:
+            lat, lng = None, None
         address = _extract_first_value(item, ["address", "formatted_address", "area", "city"], default="")
         category = _extract_first_value(item, ["category", "type", "tag"], default="")
-        key = (name, round(lat, 6), round(lng, 6))
+        place_id = _safe_text(item.get("uid") or item.get("place_id") or item.get("id"))
+        key = (
+            place_id or re.sub(r"[^\w\u4e00-\u9fff]+", "", name).casefold(),
+            round(lat, 6) if lat is not None else None,
+            round(lng, 6) if lng is not None else None,
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -2855,10 +2876,11 @@ def _normalize_map_locations(payload: Any, max_rows: int = 10) -> List[Dict[str,
         rows.append(
             {
                 "id": f"travel_place_{len(rows) + 1}",
-                "place_id": _safe_text(item.get("uid") or item.get("place_id") or item.get("id")),
+                "place_id": place_id,
                 "name": name,
-                "lat": round(lat, 6),
-                "lng": round(lng, 6),
+                "lat": round(lat, 6) if lat is not None else None,
+                "lng": round(lng, 6) if lng is not None else None,
+                "coordinates_trusted": bool(place_id and has_valid_coordinates),
                 "description": address or "地图检索命中地点",
                 "category": category or "景点",
                 "rating": item.get("rating") or detail_info.get("overall_rating"),
@@ -2918,6 +2940,7 @@ def _enrich_map_locations_with_details(
                     {"id": place_id} if place_id else {"place_name": current.get("name"), "city": destination_city},
                     {"query": current.get("name"), "region": destination_city},
                 ],
+                request_priority="supplemental",
             )
             if not _is_tool_execution_error_payload(detail_payload):
                 detail = _normalize_place_detail_payload(detail_payload)
@@ -2926,6 +2949,8 @@ def _enrich_map_locations_with_details(
                     detail_fetched = True
                     detail_row = detail_rows[0]
                     for key, value in detail_row.items():
+                        if key in {"id", "place_id", "name", "order"} and current.get(key):
+                            continue
                         if value not in (None, "", [], {}):
                             current[key] = value
 
@@ -3025,7 +3050,12 @@ def _select_final_map_candidates(
     max_rows: int = 8,
 ) -> List[Dict[str, Any]]:
     """Select the small POI set that may enter the itinerary before detail/geocode calls."""
-    deduped = _merge_map_locations(locations, [], max_rows=max(8, max_rows * 3))
+    deduped = _merge_map_locations(
+        locations,
+        [],
+        max_rows=max(8, max_rows * 3),
+        require_coordinates=False,
+    )
     wants_itinerary = bool(ITINERARY_QUERY_REGEX.search(_safe_text(query_text)))
     wants_hotel = wants_itinerary or bool(HOTEL_QUERY_REGEX.search(_safe_text(query_text)))
     wants_food = wants_itinerary or bool(FOOD_QUERY_REGEX.search(_safe_text(query_text)))
@@ -3050,7 +3080,12 @@ def _select_final_map_candidates(
             if len(selected) >= max_rows:
                 break
             selected.append(location)
-    return _merge_map_locations(selected, [], max_rows=max_rows)
+    return _merge_map_locations(
+        selected,
+        [],
+        max_rows=max_rows,
+        require_coordinates=False,
+    )
 
 
 def _filter_quality_map_locations(
@@ -3085,6 +3120,7 @@ def _merge_map_locations(
     primary: List[Dict[str, Any]],
     secondary: List[Dict[str, Any]],
     max_rows: int = 20,
+    require_coordinates: bool = True,
 ) -> List[Dict[str, Any]]:
     merged: List[Dict[str, Any]] = []
     seen = set()
@@ -3094,9 +3130,15 @@ def _merge_map_locations(
         name = _safe_text(location.get("name"))
         lat = _extract_float(location.get("lat"))
         lng = _extract_float(location.get("lng"))
-        if not name or lat is None or lng is None:
+        has_coordinates = lat is not None and lng is not None
+        if not name or (require_coordinates and not has_coordinates):
             continue
-        key = (name, round(lat, 5), round(lng, 5))
+        place_id = _safe_text(location.get("place_id") or location.get("uid"))
+        key = (
+            place_id or re.sub(r"[^\w\u4e00-\u9fff]+", "", name).casefold(),
+            round(lat, 5) if lat is not None else None,
+            round(lng, 5) if lng is not None else None,
+        )
         if key in seen:
             continue
         seen.add(key)
@@ -3108,6 +3150,134 @@ def _merge_map_locations(
         location["id"] = f"travel_place_{index}"
         location["order"] = index
     return merged[: max(1, max_rows)]
+
+
+def _has_reusable_poi_coordinates(location: Dict[str, Any]) -> bool:
+    place_id = _safe_text(location.get("place_id") or location.get("uid"))
+    lat = _extract_float(location.get("lat"))
+    lng = _extract_float(location.get("lng"))
+    return bool(
+        place_id
+        and lat is not None
+        and lng is not None
+        and -90 <= lat <= 90
+        and -180 <= lng <= 180
+        and location.get("coordinates_trusted") is not False
+    )
+
+
+def _map_request_priority_for_location(
+    location: Dict[str, Any],
+    *,
+    supplemental: bool = False,
+) -> str:
+    if supplemental:
+        return "supplemental"
+    if location.get("candidate") is True or location.get("status") == "candidate":
+        return "candidate"
+    category = f"{_safe_text(location.get('category'))} {_safe_text(location.get('name'))}"
+    if re.search(r"餐厅|美食|小吃|咖啡|restaurant|food|cafe", category, re.IGNORECASE):
+        return "scheduled_dining"
+    return "formal"
+
+
+def _verify_selected_map_candidates(
+    locations: List[Dict[str, Any]],
+    destination_city: str,
+    tool_manager: Any,
+    message_history: List[Dict[str, Any]],
+    session_id: str,
+) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
+    """Reuse trusted search coordinates and verify only selected unresolved POIs."""
+    detail_tool = _first_available_tool_name(tool_manager, ["map_place_details"])
+    search_tool = _first_available_tool_name(tool_manager, ["map_search_places", "map_poi_extract"])
+    geocode_tool = _first_available_tool_name(tool_manager, ["map_geocode"])
+    verified: List[Dict[str, Any]] = []
+    used_tools: List[str] = []
+    errors: List[str] = []
+
+    for location in locations:
+        current = dict(location)
+        if _has_reusable_poi_coordinates(current):
+            current["coordinate_source"] = current.get("coordinate_source") or "search_reused"
+            verified.append(current)
+            continue
+
+        name = _safe_text(current.get("name"))
+        place_id = _safe_text(current.get("place_id") or current.get("uid"))
+        priority = _map_request_priority_for_location(current)
+        resolved_row: Dict[str, Any] = {}
+        resolved_by = ""
+
+        if place_id and detail_tool:
+            detail_payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=detail_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=[{"uid": place_id}, {"id": place_id}],
+                request_priority=priority,
+            )
+            detail_rows = _normalize_map_locations(detail_payload, max_rows=1)
+            if detail_rows:
+                resolved_row = detail_rows[0]
+                resolved_by = detail_tool
+
+        if not resolved_row and not place_id and search_tool:
+            search_payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=search_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=[
+                    {"query": name, "region": destination_city, "scope": 2},
+                    {"keywords": name, "region": destination_city, "scope": 2},
+                    {"query": f"{destination_city}{name}"},
+                ],
+                request_priority=priority,
+            )
+            search_rows = _normalize_map_locations(search_payload, max_rows=1)
+            if search_rows:
+                resolved_row = search_rows[0]
+                resolved_by = search_tool
+
+        if not resolved_row and geocode_tool:
+            query = f"{destination_city}{name}" if destination_city and destination_city not in name else name
+            geocode_payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=geocode_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=[
+                    {"address": query, "city": destination_city},
+                    {"address": query},
+                ],
+                request_priority=priority,
+            )
+            geocode_rows = _normalize_map_locations(geocode_payload, max_rows=1)
+            if geocode_rows:
+                resolved_row = geocode_rows[0]
+                resolved_by = geocode_tool
+
+        if not resolved_row:
+            errors.append(f"{name}: 地点坐标核验失败")
+            continue
+
+        merged = dict(current)
+        for key, value in resolved_row.items():
+            if value not in (None, "", [], {}):
+                merged[key] = value
+        merged["name"] = name or _safe_text(resolved_row.get("name"))
+        merged["place_id"] = place_id or _safe_text(resolved_row.get("place_id"))
+        merged["coordinates_trusted"] = bool(merged.get("place_id"))
+        merged["coordinate_source"] = "poi_detail" if resolved_by == detail_tool else "verification"
+        if not _has_reusable_poi_coordinates(merged):
+            errors.append(f"{name}: 未获得稳定 POI 与可信坐标")
+            continue
+        used_tools.append(resolved_by)
+        verified.append(merged)
+
+    return verified, used_tools, errors
 
 
 def _run_map_geocode_for_places(
@@ -3126,7 +3296,7 @@ def _run_map_geocode_for_places(
 
     locations: List[Dict[str, Any]] = []
     errors: List[str] = []
-    for place_name, day in place_seeds[:3]:
+    for place_name, day in place_seeds:
         query = f"{destination_city}{place_name}" if destination_city and destination_city not in place_name else place_name
         payload = _run_tool_with_arg_candidates(
             tool_manager=tool_manager,
@@ -3141,6 +3311,7 @@ def _run_map_geocode_for_places(
                 {"keyword": query, "region": destination_city},
                 {"text": query},
             ],
+            request_priority="formal",
         )
         if _is_tool_execution_error_payload(payload):
             errors.append(f"{place_name}: {_tool_error_reason(payload, '地图地理编码失败')}")
@@ -3155,6 +3326,8 @@ def _run_map_geocode_for_places(
         row["description"] = _safe_text(row.get("description")) or f"{destination_city}{place_name}"
         row["source"] = "seed_fallback"
         row["data_type"] = "reference_data"
+        row["coordinates_trusted"] = bool(row.get("place_id"))
+        row["coordinate_source"] = "verification"
         locations.append(row)
 
     return locations, tool_name, "；".join(errors)
@@ -3305,6 +3478,9 @@ def _run_map_search_for_travel(
     query_text = _safe_text(user_query)
 
     def run_search(query: str, max_rows: int, category: str = "") -> Tuple[List[Dict[str, Any]], str]:
+        request_priority = _map_request_priority_for_location({"category": category})
+        if not wants_itinerary and request_priority == "formal":
+            request_priority = "candidate"
         payload = _run_tool_with_arg_candidates(
             tool_manager=tool_manager,
             tool_name=tool_name,
@@ -3318,10 +3494,15 @@ def _run_map_search_for_travel(
                 {"address": query},
                 {"query": query},
             ],
+            request_priority=request_priority,
         )
         if _is_tool_execution_error_payload(payload):
             return [], _tool_error_reason(payload, "地图检索失败")
-        rows = _normalize_map_locations(payload, max_rows=max_rows)
+        rows = _normalize_map_locations(
+            payload,
+            max_rows=max_rows,
+            require_coordinates=False,
+        )
         if category:
             for row in rows:
                 current_category = _safe_text(row.get("category"))
@@ -3350,22 +3531,32 @@ def _run_map_search_for_travel(
 
     candidate_locations = _filter_quality_map_locations(candidate_locations, destination_city)
     final_candidates = _select_final_map_candidates(candidate_locations, query_text, max_rows=8)
+    verified_candidates, verification_tools, verification_errors = _verify_selected_map_candidates(
+        final_candidates,
+        destination_city,
+        tool_manager,
+        message_history,
+        session_id,
+    )
     seed_locations: List[Dict[str, Any]] = []
     seed_tool = ""
     seed_error = ""
-    existing_names = {_safe_text(item.get("name")) for item in final_candidates}
+    existing_names = {_safe_text(item.get("name")) for item in verified_candidates}
     seed_candidates = [item for item in _travel_seed_places(destination_city, user_query) if item[0] not in existing_names]
-    if not final_candidates:
-        # Geocoding is reserved for the final fallback POIs, never the full candidate pool.
+    target_count = 8 if wants_itinerary else max(1, len(final_candidates))
+    missing_count = max(0, target_count - len(verified_candidates))
+    if missing_count:
+        # Fallback geocoding runs only after selection and only for missing formal slots.
         seed_locations, seed_tool, seed_error = _run_map_geocode_for_places(
-            seed_candidates[:3],
+            seed_candidates[:missing_count],
             destination_city,
             user_query,
             tool_manager,
             message_history,
             session_id,
         )
-    merged = _merge_map_locations(final_candidates, seed_locations, max_rows=8)
+        seed_locations = [item for item in seed_locations if _has_reusable_poi_coordinates(item)]
+    merged = _merge_map_locations(verified_candidates, seed_locations, max_rows=8)
     merged = _filter_quality_map_locations(merged, destination_city)
     merged = _enrich_map_locations_with_details(
         merged,
@@ -3376,11 +3567,14 @@ def _run_map_search_for_travel(
     )
     used_tools = ", ".join([
         item for item in [
-            tool_name if final_candidates else "",
+            tool_name if candidate_locations else "",
+            *verification_tools,
             seed_tool if seed_locations else "",
         ] if item
     ])
-    errors = "；".join([item for item in [*batch_errors, seed_error] if item])
+    errors = "；".join([
+        item for item in [*batch_errors, *verification_errors, seed_error] if item
+    ])
     return merged, used_tools or tool_name or seed_tool, errors
 
 

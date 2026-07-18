@@ -1,3 +1,4 @@
+import asyncio
 import json
 import sys
 import threading
@@ -10,31 +11,89 @@ PROJECT_ROOT = Path(__file__).resolve().parents[4]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from agents.tool.map_request_governor import MapRequestGovernor, MapRequestLimitExceeded
+from agents.tool.map_request_governor import MapRequestGovernor
+from agents.tool.baidu_request_dispatcher import BaiduRequestDispatcher
 from agents.tool.tool_base import McpToolSpec, SseServerParameters
 from agents.tool.tool_manager import ToolManager
 
 
 class MapRequestGovernorTests(unittest.TestCase):
-    def test_same_place_query_is_normalized_cached_and_deduplicated(self):
-        governor = MapRequestGovernor(max_requests_per_scope=10, min_interval_seconds=0)
+    def test_tool_manager_uses_injected_application_dispatcher(self):
+        dispatcher = BaiduRequestDispatcher(min_interval_seconds=0)
+        manager = ToolManager(
+            is_auto_discover=False,
+            baidu_request_dispatcher=dispatcher,
+        )
+
+        self.assertIs(manager.baidu_request_dispatcher, dispatcher)
+        self.assertIs(manager.map_request_governor.dispatcher, dispatcher)
+
+    def test_separate_governors_share_dispatcher_cache(self):
+        dispatcher = BaiduRequestDispatcher(min_interval_seconds=0)
+        first_governor = MapRequestGovernor(dispatcher=dispatcher)
+        second_governor = MapRequestGovernor(dispatcher=dispatcher)
         calls = 0
 
         def execute():
             nonlocal calls
             calls += 1
-            return {"places": [{"name": "西湖"}]}
+            return {"places": [{"uid": "poi-1"}]}
+
+        first = first_governor.execute(
+            tool_name="map_search_places",
+            session_id="first",
+            kwargs={"query": "Beijing Palace", "region": "Beijing"},
+            callback=execute,
+        )
+        second = second_governor.execute(
+            tool_name="map_search_places",
+            session_id="second",
+            kwargs={"keywords": "BeijingPalace", "city": "Beijing"},
+            callback=execute,
+        )
+
+        self.assertEqual(first, second)
+        self.assertEqual(calls, 1)
+
+    def test_baidu_mcp_execution_obeys_network_timeout(self):
+        manager = ToolManager(is_auto_discover=False)
+        manager.baidu_network_timeout_seconds = 0.01
+        tool = McpToolSpec(
+            name="map_search_places",
+            description="map",
+            func=lambda: None,
+            parameters={},
+            required=[],
+            server_name="baidu-map",
+            server_params=SseServerParameters(url="http://unused"),
+        )
+
+        async def slow_execution(*args, **kwargs):
+            await asyncio.sleep(0.1)
+
+        manager._execute_sse_mcp_tool = slow_execution
+        with self.assertRaises(asyncio.TimeoutError):
+            asyncio.run(manager._run_mcp_tool_async(tool, "session"))
+
+    def test_same_place_query_is_normalized_cached_and_deduplicated(self):
+        governor = MapRequestGovernor(min_interval_seconds=0)
+        calls = 0
+
+        def execute():
+            nonlocal calls
+            calls += 1
+            return {"places": [{"name": "West Lake"}]}
 
         first = governor.execute(
             tool_name="map_search_places",
             session_id="trip-1",
-            kwargs={"query": "杭州 西湖", "region": "杭州"},
+            kwargs={"query": "Hangzhou West Lake", "region": "Hangzhou"},
             callback=execute,
         )
         second = governor.execute(
             tool_name="map_search_places",
             session_id="trip-1",
-            kwargs={"keywords": "杭州西湖", "city": "杭州"},
+            kwargs={"keywords": "HangzhouWestLake", "city": "Hangzhou"},
             callback=execute,
         )
 
@@ -43,7 +102,7 @@ class MapRequestGovernorTests(unittest.TestCase):
         self.assertEqual(governor.scope_usage("trip-1"), 1)
 
     def test_concurrent_duplicate_query_executes_once(self):
-        governor = MapRequestGovernor(max_requests_per_scope=10, max_concurrency=2, min_interval_seconds=0)
+        governor = MapRequestGovernor(min_interval_seconds=0)
         lock = threading.Lock()
         calls = 0
 
@@ -52,13 +111,13 @@ class MapRequestGovernorTests(unittest.TestCase):
             with lock:
                 calls += 1
             time.sleep(0.03)
-            return {"places": [{"name": "故宫"}]}
+            return {"places": [{"name": "Forbidden City"}]}
 
         def request():
             return governor.execute(
                 tool_name="map_geocode",
                 session_id="trip-2",
-                kwargs={"address": "北京故宫", "city": "北京"},
+                kwargs={"address": "Beijing Forbidden City", "city": "Beijing"},
                 callback=execute,
             )
 
@@ -68,40 +127,24 @@ class MapRequestGovernorTests(unittest.TestCase):
         self.assertEqual(calls, 1)
         self.assertTrue(all(result == results[0] for result in results))
 
-    def test_scope_budget_limits_actual_requests_and_can_be_reset(self):
-        governor = MapRequestGovernor(max_requests_per_scope=3, min_interval_seconds=0)
+    def test_scope_tracks_requests_without_hard_cap(self):
+        governor = MapRequestGovernor(max_requests_per_scope=1, min_interval_seconds=0)
         governor.begin_scope("trip-3", "planning-a")
 
-        for index in range(3):
+        for index in range(4):
             governor.execute(
                 tool_name="map_search_places",
                 session_id="trip-3",
-                kwargs={"query": f"候选地点{index}"},
-                callback=lambda: {"places": []},
-            )
-        with self.assertRaises(MapRequestLimitExceeded):
-            governor.execute(
-                tool_name="map_search_places",
-                session_id="trip-3",
-                kwargs={"query": "超额地点"},
+                kwargs={"query": f"candidate-{index}"},
                 callback=lambda: {"places": []},
             )
 
+        self.assertEqual(governor.scope_usage("trip-3"), 4)
         governor.begin_scope("trip-3", "planning-b")
-        governor.execute(
-            tool_name="map_search_places",
-            session_id="trip-3",
-            kwargs={"query": "新规划地点"},
-            callback=lambda: {"places": []},
-        )
-        self.assertEqual(governor.scope_usage("trip-3"), 1)
+        self.assertEqual(governor.scope_usage("trip-3"), 0)
 
     def test_rate_and_concurrency_peak_are_bounded(self):
-        governor = MapRequestGovernor(
-            max_requests_per_scope=10,
-            max_concurrency=1,
-            min_interval_seconds=0.015,
-        )
+        governor = MapRequestGovernor(min_interval_seconds=0.015)
         lock = threading.Lock()
         active = 0
         peak = 0
@@ -122,7 +165,7 @@ class MapRequestGovernorTests(unittest.TestCase):
             return governor.execute(
                 tool_name="map_search_places",
                 session_id="trip-4",
-                kwargs={"query": f"地点{index}"},
+                kwargs={"query": f"place-{index}"},
                 callback=execute,
             )
 
@@ -131,9 +174,11 @@ class MapRequestGovernorTests(unittest.TestCase):
 
         self.assertEqual(peak, 1)
         ordered_starts = sorted(started_at)
-        self.assertTrue(all(later - earlier >= 0.012 for earlier, later in zip(ordered_starts, ordered_starts[1:])))
+        self.assertTrue(
+            all(later - earlier >= 0.012 for earlier, later in zip(ordered_starts, ordered_starts[1:]))
+        )
 
-    def test_tool_manager_uses_shared_cache_and_returns_limit_error(self):
+    def test_tool_manager_uses_shared_cache_without_scope_limit(self):
         governor = MapRequestGovernor(max_requests_per_scope=1, min_interval_seconds=0)
         manager = ToolManager(is_auto_discover=False, map_request_governor=governor)
         manager.tools["map_search_places"] = McpToolSpec(
@@ -153,13 +198,13 @@ class MapRequestGovernorTests(unittest.TestCase):
             return {"content": [{"type": "text", "text": json.dumps({"query": kwargs["query"]})}]}
 
         manager._run_mcp_tool_async = fake_mcp_call
-        first = manager.run_tool("map_search_places", [], "tool-manager", query="北京故宫")
-        second = manager.run_tool("map_search_places", [], "tool-manager", query="北京故宫")
-        limited = json.loads(manager.run_tool("map_search_places", [], "tool-manager", query="北京颐和园"))
+        first = manager.run_tool("map_search_places", [], "tool-manager", query="place-a")
+        second = manager.run_tool("map_search_places", [], "tool-manager", query="place-a")
+        third = manager.run_tool("map_search_places", [], "tool-manager", query="place-b")
 
         self.assertEqual(first, second)
-        self.assertEqual(calls, 1)
-        self.assertEqual(limited["error_type"], "MAP_REQUEST_LIMIT")
+        self.assertNotEqual(first, third)
+        self.assertEqual(calls, 2)
 
 
 if __name__ == "__main__":

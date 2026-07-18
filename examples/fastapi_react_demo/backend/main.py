@@ -104,7 +104,9 @@ async def initialize_system():
     """初始化系统组件"""
     runtime_state.trip_repository = TripRepository(default_trip_database_path())
     runtime_state.trip_repository.initialize()
-    runtime_state.tool_manager, runtime_state.controller = await initialize_runtime_with_boundary()
+    runtime_state.tool_manager, runtime_state.controller = await initialize_runtime_with_boundary(
+        baidu_request_dispatcher=runtime_state.baidu_request_dispatcher,
+    )
 
 
 async def ensure_tool_manager_ready() -> None:
@@ -131,7 +133,10 @@ async def ensure_tool_manager_ready() -> None:
             return
 
         app_config = get_app_config()
-        runtime_state.tool_manager = await initialize_tool_manager(app_config)
+        runtime_state.tool_manager = await initialize_tool_manager(
+            app_config,
+            baidu_request_dispatcher=runtime_state.baidu_request_dispatcher,
+        )
 
         rebuilt_count = 0
         if runtime_state.tool_manager is not None:
@@ -305,6 +310,7 @@ async def build_day_route_endpoint(request: DayRouteRequest):
         plan_version=request.plan_version,
         activities=request.activities,
         scope=request.scope,
+        baidu_dispatcher=runtime_state.baidu_request_dispatcher,
     )
 
 

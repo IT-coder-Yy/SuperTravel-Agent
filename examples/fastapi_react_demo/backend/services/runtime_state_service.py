@@ -1,6 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, TYPE_CHECKING
 
+from agents.tool.baidu_request_dispatcher import BaiduRequestDispatcher
+
 if TYPE_CHECKING:
     from agents.agent.agent_controller import AgentController
     from agents.tool.tool_manager import ToolManager
@@ -17,6 +19,7 @@ class RuntimeState:
     controller: Optional[AgentController] = None
     active_sessions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     trip_repository: Optional[Any] = None
+    baidu_request_dispatcher: BaiduRequestDispatcher = field(default_factory=BaiduRequestDispatcher)
 
 
 def create_runtime_state() -> RuntimeState:

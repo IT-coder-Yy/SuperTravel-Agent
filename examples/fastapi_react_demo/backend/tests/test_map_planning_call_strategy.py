@@ -9,7 +9,10 @@ for path in (BACKEND_ROOT, PROJECT_ROOT):
     if str(path) not in sys.path:
         sys.path.append(str(path))
 
-from services.chat_service import maybe_prepare_travel_experience_bundle
+from services.chat_service import (
+    _verify_selected_map_candidates,
+    maybe_prepare_travel_experience_bundle,
+)
 
 
 class _MapToolManager:
@@ -69,6 +72,7 @@ class _MapToolManager:
             return {
                 "places": [
                     {
+                        "uid": f"geocoded-{address}",
                         "name": address,
                         "location": {"lat": 39.9, "lng": 116.4},
                         "address": address,
@@ -108,11 +112,16 @@ class MapPlanningCallStrategyTests(unittest.TestCase):
         geocode_calls = [call for call in manager.calls if call[0] == "map_geocode"]
         self.assertEqual(len(search_calls), 3)
         self.assertLessEqual(len(detail_calls), 2)
-        self.assertEqual(geocode_calls, [])
-        self.assertLessEqual(len(search_calls) + len(detail_calls), 5)
+        geocoded_names = {call[1]["address"].replace("北京", "", 1) for call in geocode_calls}
+        self.assertNotIn("故宫博物院", geocoded_names)
+        self.assertLessEqual(len(geocode_calls), 5)
+        self.assertLessEqual(len(search_calls) + len(geocode_calls) + len(detail_calls), 10)
         self.assertLessEqual(len(bundle["map_locations"]), 8)
+        self.assertIn("formal", {call[1].get("_baidu_priority") for call in search_calls})
+        self.assertIn("scheduled_dining", {call[1].get("_baidu_priority") for call in search_calls})
+        self.assertTrue(all(call[1].get("_baidu_priority") == "supplemental" for call in detail_calls))
 
-    def test_geocode_runs_only_for_three_selected_fallback_places(self):
+    def test_geocode_runs_only_for_selected_fallback_places(self):
         manager = _MapToolManager(empty_search=True)
         query = "帮我规划北京三天两夜文化行程"
 
@@ -130,10 +139,48 @@ class MapPlanningCallStrategyTests(unittest.TestCase):
         geocoded_names = {call[1]["address"].replace("北京", "", 1) for call in geocode_calls}
         final_names = {location["name"] for location in bundle["map_locations"]}
         self.assertEqual(len(search_calls), 3)
-        self.assertEqual(len(geocode_calls), 3)
+        self.assertLessEqual(len(geocode_calls), 8)
         self.assertLessEqual(len(detail_calls), 2)
         self.assertEqual(geocoded_names, final_names)
-        self.assertLessEqual(len(search_calls) + len(geocode_calls) + len(detail_calls), 8)
+        self.assertLessEqual(len(search_calls) + len(geocode_calls) + len(detail_calls), 13)
+
+    def test_only_selected_poi_with_missing_coordinates_is_verified(self):
+        manager = _MapToolManager()
+        selected = [
+            {
+                "place_id": "trusted-poi",
+                "name": "Trusted Place",
+                "lat": 39.9,
+                "lng": 116.4,
+                "coordinates_trusted": True,
+                "category": "attraction",
+            },
+            {
+                "place_id": "missing-coordinate-poi",
+                "name": "Missing Coordinate Place",
+                "lat": None,
+                "lng": None,
+                "coordinates_trusted": False,
+                "category": "attraction",
+            },
+        ]
+
+        verified, used_tools, errors = _verify_selected_map_candidates(
+            selected,
+            "Beijing",
+            manager,
+            [{"role": "user", "content": "plan"}],
+            "coordinate-reuse",
+        )
+
+        detail_calls = [call for call in manager.calls if call[0] == "map_place_details"]
+        geocode_calls = [call for call in manager.calls if call[0] == "map_geocode"]
+        self.assertEqual(len(verified), 2)
+        self.assertEqual(verified[0]["coordinate_source"], "search_reused")
+        self.assertEqual(len(detail_calls), 1)
+        self.assertEqual(geocode_calls, [])
+        self.assertEqual(used_tools, ["map_place_details"])
+        self.assertEqual(errors, [])
 
 
 if __name__ == "__main__":

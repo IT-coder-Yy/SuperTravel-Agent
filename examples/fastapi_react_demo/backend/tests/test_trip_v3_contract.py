@@ -10,6 +10,7 @@ from backend.schemas.trip_v3_models import (
     AgentStagePayload,
     ImageAssetV3,
     PlanningEventEnvelope,
+    ProviderQueueWaitingPayload,
     RunStartedPayload,
     TransportOptionV3,
     TravelPlanDocumentV3,
@@ -229,6 +230,33 @@ class TravelPlanV3ContractTests(unittest.TestCase):
             payload=RunStartedPayload(message="开始规划"),
         )
         self.assertEqual("planning", event.payload.status)
+
+        queue_event = PlanningEventEnvelope(
+            event_id="evt_queue_1",
+            run_id="run_1",
+            request_id="req_1",
+            sequence=3,
+            occurred_at=datetime.fromisoformat("2026-07-17T10:00:02+08:00"),
+            type="provider_queue_waiting",
+            payload=ProviderQueueWaitingPayload(
+                provider="baidu-map",
+                operation="map_search_places",
+                priority="formal",
+                queue_position=1,
+            ),
+        )
+        self.assertEqual("地点核验排队中", queue_event.payload.message)
+
+        with self.assertRaises(ValidationError):
+            PlanningEventEnvelope(
+                event_id="evt_queue_2",
+                run_id="run_1",
+                request_id="req_1",
+                sequence=4,
+                occurred_at=datetime.fromisoformat("2026-07-17T10:00:03+08:00"),
+                type="provider_queue_waiting",
+                payload=RunStartedPayload(message="开始规划"),
+            )
 
     def test_v2_adapter_is_deterministic_and_never_promotes_legacy_uncertainty(self):
         payload = build_legacy_v2_document()

@@ -215,6 +215,56 @@
       "title": "PlanningErrorPayload",
       "type": "object"
     },
+    "ProviderQueueWaitingPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "stage": {
+          "const": "realtime_verification",
+          "default": "realtime_verification",
+          "title": "Stage",
+          "type": "string"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "operation": {
+          "minLength": 1,
+          "title": "Operation",
+          "type": "string"
+        },
+        "priority": {
+          "enum": [
+            "formal",
+            "scheduled_dining",
+            "candidate",
+            "supplemental"
+          ],
+          "title": "Priority",
+          "type": "string"
+        },
+        "queue_position": {
+          "minimum": 1,
+          "title": "Queue Position",
+          "type": "integer"
+        },
+        "message": {
+          "const": "地点核验排队中",
+          "default": "地点核验排队中",
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "operation",
+        "priority",
+        "queue_position"
+      ],
+      "title": "ProviderQueueWaitingPayload",
+      "type": "object"
+    },
     "RunCancelledPayload": {
       "additionalProperties": false,
       "properties": {
@@ -313,6 +363,7 @@
         "agent_stage_updated",
         "agent_stage_retrying",
         "agent_stage_completed",
+        "provider_queue_waiting",
         "run_soft_timeout",
         "final_plan_section",
         "trip_plan_completed",
@@ -332,6 +383,9 @@
         },
         {
           "$ref": "#/$defs/AgentStagePayload"
+        },
+        {
+          "$ref": "#/$defs/ProviderQueueWaitingPayload"
         },
         {
           "$ref": "#/$defs/SoftTimeoutPayload"

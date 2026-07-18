@@ -381,9 +381,36 @@ class MainRouteContractTests(unittest.IsolatedAsyncioTestCase):
         ) as mocked:
             await self.main.initialize_system()
 
-        mocked.assert_awaited_once_with()
+        mocked.assert_awaited_once_with(
+            baidu_request_dispatcher=self.main.runtime_state.baidu_request_dispatcher,
+        )
         self.assertIs(self.main.runtime_state.tool_manager, fake_tool_manager)
         self.assertIs(self.main.runtime_state.controller, fake_controller)
+
+    async def test_day_route_uses_application_baidu_dispatcher(self):
+        request = self.main.DayRouteRequest(
+            day=1,
+            plan_version=1,
+            scope="domestic",
+            activities=[],
+        )
+        expected = {"status": "unavailable", "legs": []}
+
+        with patch.object(
+            self.main,
+            "build_day_route",
+            AsyncMock(return_value=expected),
+        ) as mocked:
+            result = await self.main.build_day_route_endpoint(request)
+
+        self.assertEqual(result, expected)
+        mocked.assert_awaited_once_with(
+            day=1,
+            plan_version=1,
+            activities=[],
+            scope="domestic",
+            baidu_dispatcher=self.main.runtime_state.baidu_request_dispatcher,
+        )
 
     async def test_cleanup_system_delegates_to_lifecycle_wrapper(self):
         self.main.runtime_state.active_sessions["session-a"] = {"x": 1}

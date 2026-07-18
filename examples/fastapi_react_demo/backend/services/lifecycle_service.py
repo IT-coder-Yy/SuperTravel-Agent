@@ -12,7 +12,9 @@ else:
     ToolManager = Any
 
 
-async def bootstrap_runtime() -> Tuple[Optional[ToolManager], Optional[AgentController], Optional[str]]:
+async def bootstrap_runtime(
+    baidu_request_dispatcher: Any = None,
+) -> Tuple[Optional[ToolManager], Optional[AgentController], Optional[str]]:
     """Initialize runtime dependencies and resolve active controller."""
     from services.system_service import resolve_controller_from_app_config
     from services.tool_runtime_service import initialize_tool_manager
@@ -23,7 +25,10 @@ async def bootstrap_runtime() -> Tuple[Optional[ToolManager], Optional[AgentCont
     print(f"📊 模型: {app_config.model.model_name}")
     print(f"🔗 API: {app_config.model.base_url}")
 
-    tool_manager = await initialize_tool_manager(app_config)
+    tool_manager = await initialize_tool_manager(
+        app_config,
+        baidu_request_dispatcher=baidu_request_dispatcher,
+    )
     controller, active_model_name, source = resolve_controller_from_app_config(app_config)
 
     if controller is None:
@@ -58,10 +63,15 @@ async def cleanup_runtime(
         await cleanup_managed_mcp_processes(tool_manager)
 
 
-async def initialize_runtime_with_boundary(logger: Any = logger) -> Tuple[Optional[ToolManager], Optional[AgentController]]:
+async def initialize_runtime_with_boundary(
+    logger: Any = logger,
+    baidu_request_dispatcher: Any = None,
+) -> Tuple[Optional[ToolManager], Optional[AgentController]]:
     """Initialize runtime and keep existing startup error semantics."""
     try:
-        tool_manager, controller, _ = await bootstrap_runtime()
+        tool_manager, controller, _ = await bootstrap_runtime(
+            baidu_request_dispatcher=baidu_request_dispatcher,
+        )
         return tool_manager, controller
     except Exception as e:
         logger.error(f"系统初始化失败: {e}")
