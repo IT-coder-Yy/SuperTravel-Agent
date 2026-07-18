@@ -8,13 +8,14 @@ Sage FastAPI + React Demo Backend
 
 import sys
 import asyncio
+import json
 import uuid
 from pathlib import Path
 from typing import List
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, Header
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 import uvicorn
 
 # 添加项目路径
@@ -26,7 +27,11 @@ from agents.utils.logger import logger
 # 导入新的配置加载器
 from config_loader import get_app_config
 from services.mcp_service import build_mcp_servers_runtime_state_http_response
-from services.chat_service import execute_chat_request_runtime_route, build_chat_stream_request_runtime_route
+from services.chat_service import (
+    build_chat_stream_request_runtime_route,
+    execute_chat_request_runtime_route,
+    is_trip_planning_query,
+)
 from services.file_service import build_download_response_safe
 from services.session_service import list_active_sessions_runtime_route, cleanup_session_runtime_route
 from services.system_service import build_system_status_runtime_model_http_response, configure_runtime_request_http_response
@@ -57,7 +62,9 @@ from services.anonymous_device_service import (
     resolve_anonymous_device,
     set_anonymous_device_cookie,
 )
-from services.planning_run_service import attach_persisted_planning_run
+from services.planning_orchestrator import PlanningOrchestrator
+from services.planning_run_service import PlanningRunManager, attach_persisted_planning_run
+from services.provider_gateway import ProviderGateway
 from routes.trip_persistence_routes import create_trip_persistence_router
 from schemas.api_models import (
     ChatMessage,
@@ -104,8 +111,19 @@ async def initialize_system():
     """初始化系统组件"""
     runtime_state.trip_repository = TripRepository(default_trip_database_path())
     runtime_state.trip_repository.initialize()
+    runtime_state.provider_gateway = ProviderGateway()
     runtime_state.tool_manager, runtime_state.controller = await initialize_runtime_with_boundary(
         baidu_request_dispatcher=runtime_state.baidu_request_dispatcher,
+        provider_gateway=runtime_state.provider_gateway,
+    )
+    runtime_state.planning_orchestrator = PlanningOrchestrator(
+        baidu_dispatcher=runtime_state.baidu_request_dispatcher,
+    )
+    runtime_state.planning_run_manager = PlanningRunManager(
+        repository=runtime_state.trip_repository,
+        orchestrator=runtime_state.planning_orchestrator,
+        tool_manager=runtime_state.tool_manager,
+        provider_gateway=runtime_state.provider_gateway,
     )
 
 
@@ -136,7 +154,12 @@ async def ensure_tool_manager_ready() -> None:
         runtime_state.tool_manager = await initialize_tool_manager(
             app_config,
             baidu_request_dispatcher=runtime_state.baidu_request_dispatcher,
+            provider_gateway=runtime_state.provider_gateway,
         )
+        if runtime_state.planning_run_manager is not None:
+            runtime_state.planning_run_manager.update_runtime_dependencies(
+                tool_manager=runtime_state.tool_manager,
+            )
 
         rebuilt_count = 0
         if runtime_state.tool_manager is not None:
@@ -150,6 +173,8 @@ async def ensure_tool_manager_ready() -> None:
 
 async def cleanup_system():
     """清理系统资源"""
+    if runtime_state.planning_run_manager is not None:
+        await runtime_state.planning_run_manager.close()
     await cleanup_runtime_with_boundary(
         active_sessions=runtime_state.active_sessions,
         tool_manager=runtime_state.tool_manager,
@@ -344,6 +369,8 @@ async def delete_share_endpoint(token: str, x_share_management_key: str = Header
 @app.post("/api/chat")
 async def chat_endpoint(request: ChatRequest):
     """聊天API端点（非流式）"""
+    if runtime_state.controller is None:
+        return execute_chat_request_runtime_route(request=request, runtime_state=runtime_state)
     await ensure_tool_manager_ready()
     return execute_chat_request_runtime_route(
         request=request,
@@ -354,6 +381,8 @@ async def chat_endpoint(request: ChatRequest):
 @app.post("/api/chat-stream")
 async def chat_stream(request: ChatRequest, http_request: Request = None):
     """处理聊天请求并返回流式响应"""
+    if runtime_state.controller is None:
+        return build_chat_stream_request_runtime_route(request=request, runtime_state=runtime_state)
     await ensure_tool_manager_ready()
     repository = runtime_state.trip_repository
     trip_id = (request.trip_id or request.session_id or "").strip()
@@ -404,6 +433,36 @@ async def chat_stream(request: ChatRequest, http_request: Request = None):
         identity,
         secure=http_request.url.scheme == "https",
     )
+    planning_run_manager = runtime_state.planning_run_manager
+    if planning_run_manager is not None and is_trip_planning_query(latest_user_message):
+        trip = repository.get_trip(identity.device_id, trip_id)
+        current_snapshot = (trip.get("formalSnapshots") or {}).get("current") or {}
+        current_document = current_snapshot.get("document") or {}
+        planning_run_manager.start(
+            stream_response.body_iterator,
+            run_id=run_id,
+            request_id=run_id,
+            device_id=identity.device_id,
+            trip_id=trip_id,
+            target_revision=int(trip.get("currentRevision") or 0) + 1,
+            existing_plan_id=str(current_document.get("plan_id") or "") or None,
+            requires_baidu_verification=True,
+        )
+        managed_response = StreamingResponse(
+            planning_run_manager.stream(run_id=run_id),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "X-Accel-Buffering": "no",
+            },
+        )
+        set_anonymous_device_cookie(
+            managed_response,
+            identity,
+            secure=http_request.url.scheme == "https",
+        )
+        return managed_response
     return attach_persisted_planning_run(
         stream_response,
         repository=repository,
@@ -411,6 +470,59 @@ async def chat_stream(request: ChatRequest, http_request: Request = None):
         trip_id=trip_id,
         run_id=run_id,
     )
+
+
+def _last_sequence_from_header(last_event_id: str, fallback: int) -> int:
+    text = str(last_event_id or "").strip()
+    if not text:
+        return max(0, fallback)
+    for separator in (":", "_"):
+        if separator in text:
+            text = text.rsplit(separator, 1)[-1]
+    try:
+        return max(max(0, fallback), int(text))
+    except ValueError:
+        return max(0, fallback)
+
+
+@app.get("/api/planning-runs/{run_id}/events")
+async def resume_planning_events(
+    run_id: str,
+    http_request: Request,
+    last_sequence: int = Query(default=0, ge=0),
+    last_event_id: str = Header(default="", alias="Last-Event-ID"),
+):
+    repository = runtime_state.trip_repository
+    manager = runtime_state.planning_run_manager
+    if repository is None or manager is None:
+        raise HTTPException(status_code=503, detail={"code": "PLANNING_RUNTIME_UNAVAILABLE", "message": "规划服务尚未就绪"})
+    identity = resolve_anonymous_device(repository, http_request.cookies.get(DEVICE_COOKIE_NAME))
+    if repository.planning_run(identity.device_id, run_id) is None:
+        raise HTTPException(status_code=404, detail={"code": "PLANNING_RUN_NOT_FOUND", "message": "规划任务不存在"})
+    cursor = _last_sequence_from_header(last_event_id, last_sequence)
+    response = StreamingResponse(
+        manager.stream(run_id=run_id, after_sequence=cursor),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+    set_anonymous_device_cookie(response, identity, secure=http_request.url.scheme == "https")
+    return response
+
+
+@app.delete("/api/planning-runs/{run_id}")
+async def cancel_planning_run(run_id: str, http_request: Request):
+    repository = runtime_state.trip_repository
+    manager = runtime_state.planning_run_manager
+    if repository is None or manager is None:
+        raise HTTPException(status_code=503, detail={"code": "PLANNING_RUNTIME_UNAVAILABLE", "message": "规划服务尚未就绪"})
+    identity = resolve_anonymous_device(repository, http_request.cookies.get(DEVICE_COOKIE_NAME))
+    try:
+        result = await manager.cancel(device_id=identity.device_id, run_id=run_id)
+    except KeyError:
+        raise HTTPException(status_code=404, detail={"code": "PLANNING_RUN_NOT_FOUND", "message": "规划任务不存在"}) from None
+    response = Response(content=json.dumps(result, ensure_ascii=False), media_type="application/json")
+    set_anonymous_device_cookie(response, identity, secure=http_request.url.scheme == "https")
+    return response
 
 
 @app.get("/api/sse/{session_id}")

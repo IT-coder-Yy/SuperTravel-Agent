@@ -181,5 +181,15 @@ export const apiClient = {
         }
 
         return response;
-    }
+    },
+
+    resumePlanningRun: (runId: string, lastSequence: number, signal?: AbortSignal) => fetch(
+        `/api/planning-runs/${encodeURIComponent(runId)}/events?last_sequence=${Math.max(0, lastSequence)}`,
+        { signal }
+    ),
+
+    cancelPlanningRun: (runId: string) => requestJson<{ run_id: string; status: string; cancelled: boolean }>(
+        `/api/planning-runs/${encodeURIComponent(runId)}`,
+        { method: 'DELETE' }
+    )
 };

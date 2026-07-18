@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch, AsyncMock
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -48,12 +49,20 @@ class MainRouteContractTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self._orig_tool_manager = self.main.runtime_state.tool_manager
         self._orig_controller = self.main.runtime_state.controller
+        self._orig_trip_repository = self.main.runtime_state.trip_repository
+        self._orig_provider_gateway = self.main.runtime_state.provider_gateway
+        self._orig_planning_orchestrator = self.main.runtime_state.planning_orchestrator
+        self._orig_planning_run_manager = self.main.runtime_state.planning_run_manager
         self._orig_sessions = dict(self.main.runtime_state.active_sessions)
         self.main.runtime_state.active_sessions.clear()
 
     def tearDown(self):
         self.main.runtime_state.tool_manager = self._orig_tool_manager
         self.main.runtime_state.controller = self._orig_controller
+        self.main.runtime_state.trip_repository = self._orig_trip_repository
+        self.main.runtime_state.provider_gateway = self._orig_provider_gateway
+        self.main.runtime_state.planning_orchestrator = self._orig_planning_orchestrator
+        self.main.runtime_state.planning_run_manager = self._orig_planning_run_manager
         self.main.runtime_state.active_sessions.clear()
         self.main.runtime_state.active_sessions.update(self._orig_sessions)
 
@@ -354,6 +363,82 @@ class MainRouteContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(payload, sentinel)
         mocked.assert_called_once_with(session_id="session-xyz")
 
+    async def test_resume_planning_events_uses_last_event_id_cursor(self):
+        class FakeRepository:
+            @staticmethod
+            def planning_run(device_id, run_id):
+                return {"device_id": device_id, "run_id": run_id}
+
+        class FakeManager:
+            def __init__(self):
+                self.calls = []
+
+            async def stream(self, *, run_id, after_sequence=0):
+                self.calls.append((run_id, after_sequence))
+                yield 'data: {"type":"done"}\n\n'
+
+        repository = FakeRepository()
+        manager = FakeManager()
+        self.main.runtime_state.trip_repository = repository
+        self.main.runtime_state.planning_run_manager = manager
+        request = self.main.Request(
+            {
+                "type": "http",
+                "method": "GET",
+                "path": "/api/planning-runs/run-1/events",
+                "headers": [],
+                "scheme": "http",
+                "server": ("testserver", 80),
+                "client": ("127.0.0.1", 1234),
+                "query_string": b"",
+            }
+        )
+        identity = SimpleNamespace(device_id="device-1")
+
+        with (
+            patch.object(self.main, "resolve_anonymous_device", return_value=identity),
+            patch.object(self.main, "set_anonymous_device_cookie"),
+        ):
+            response = await self.main.resume_planning_events(
+                "run-1",
+                request,
+                last_sequence=4,
+                last_event_id="run-1:7",
+            )
+
+        chunks = [chunk async for chunk in response.body_iterator]
+        self.assertEqual(chunks, ['data: {"type":"done"}\n\n'])
+        self.assertEqual(manager.calls, [("run-1", 7)])
+
+    async def test_cancel_planning_run_delegates_with_owner(self):
+        repository = object()
+        manager = SimpleNamespace(cancel=AsyncMock(return_value={"cancelled": True, "run_id": "run-1"}))
+        self.main.runtime_state.trip_repository = repository
+        self.main.runtime_state.planning_run_manager = manager
+        request = self.main.Request(
+            {
+                "type": "http",
+                "method": "DELETE",
+                "path": "/api/planning-runs/run-1",
+                "headers": [],
+                "scheme": "http",
+                "server": ("testserver", 80),
+                "client": ("127.0.0.1", 1234),
+                "query_string": b"",
+            }
+        )
+        identity = SimpleNamespace(device_id="device-1")
+
+        with (
+            patch.object(self.main, "resolve_anonymous_device", return_value=identity),
+            patch.object(self.main, "set_anonymous_device_cookie"),
+        ):
+            response = await self.main.cancel_planning_run("run-1", request)
+
+        manager.cancel.assert_awaited_once_with(device_id="device-1", run_id="run-1")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b'"cancelled": true', response.body)
+
     async def test_download_file_delegates_to_file_service_wrapper(self):
         sentinel = object()
 
@@ -383,6 +468,7 @@ class MainRouteContractTests(unittest.IsolatedAsyncioTestCase):
 
         mocked.assert_awaited_once_with(
             baidu_request_dispatcher=self.main.runtime_state.baidu_request_dispatcher,
+            provider_gateway=self.main.runtime_state.provider_gateway,
         )
         self.assertIs(self.main.runtime_state.tool_manager, fake_tool_manager)
         self.assertIs(self.main.runtime_state.controller, fake_controller)

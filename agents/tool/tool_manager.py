@@ -29,6 +29,7 @@ class ToolManager:
         is_auto_discover=True,
         map_request_governor=None,
         baidu_request_dispatcher=None,
+        provider_gateway=None,
     ):
         """初始化工具管理器"""
         logger.info("Initializing ToolManager")
@@ -58,6 +59,7 @@ class ToolManager:
             "dispatcher",
             baidu_request_dispatcher,
         )
+        self.provider_gateway = provider_gateway
         self.baidu_network_timeout_seconds = max(
             35.0,
             float(os.getenv("BAIDU_MAP_NETWORK_TIMEOUT_SECONDS", "35")),
@@ -550,6 +552,23 @@ class ToolManager:
                                 tool_name,
                                 "MAP_REQUEST_LIMIT",
                             )
+                    elif self.provider_gateway is not None:
+                        server_name = str(getattr(tool, "server_name", "") or "mcp")
+                        normalized = f"{server_name} {tool_name}".lower()
+                        if any(marker in normalized for marker in ("12306", "ticket", "flight", "bus")):
+                            timeout_class = "realtime_transaction"
+                        elif any(marker in normalized for marker in ("search", "fetch", "xhs", "web")):
+                            timeout_class = "web_research"
+                        else:
+                            timeout_class = "quick_tool"
+                        final_result = self.provider_gateway.execute(
+                            execute_mcp_call,
+                            scope_id=session_id,
+                            provider=server_name,
+                            operation=tool_name,
+                            arguments=kwargs,
+                            timeout_class=timeout_class,
+                        )
                     else:
                         final_result = execute_mcp_call()
                 except RuntimeError as re:
@@ -613,6 +632,9 @@ class ToolManager:
     def get_map_request_metrics(self) -> Dict[str, float | int]:
         """Return a point-in-time view of Baidu queue and provider execution metrics."""
         return self.map_request_governor.metrics_snapshot()
+
+    def get_provider_metrics(self) -> Dict[str, int]:
+        return self.provider_gateway.metrics_snapshot() if self.provider_gateway is not None else {}
 
     def _format_mcp_result(self, result) -> str:
         """Format MCP tool result to JSON string"""

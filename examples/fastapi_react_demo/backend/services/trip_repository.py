@@ -778,11 +778,11 @@ class TripRepository:
         event_id: str,
         event: Dict[str, Any],
         occurred_at: Optional[str] = None,
-    ) -> None:
+    ) -> bool:
         now = _normalized_iso(occurred_at, utc_now_iso())
         expires = (datetime.fromisoformat(now) + timedelta(minutes=5)).isoformat()
         with self._transaction() as connection:
-            connection.execute(
+            cursor = connection.execute(
                 "INSERT OR IGNORE INTO run_events("
                 "run_id, sequence, event_id, event_json, occurred_at, expires_at"
                 ") VALUES (?, ?, ?, ?, ?, ?)",
@@ -794,6 +794,7 @@ class TripRepository:
                 (sequence, utc_now_iso(), run_id),
             )
             connection.execute("DELETE FROM run_events WHERE expires_at < ?", (utc_now_iso(),))
+        return cursor.rowcount > 0
 
     def recent_run_events(self, run_id: str, after_sequence: int = 0) -> List[Dict[str, Any]]:
         now = utc_now_iso()
@@ -812,6 +813,27 @@ class TripRepository:
             }
             for row in rows
         ]
+
+    def planning_run(self, device_id: str, run_id: str) -> Optional[Dict[str, Any]]:
+        with self._connection() as connection:
+            row = connection.execute(
+                "SELECT run_id, device_id, trip_id, request_id, status, started_at, "
+                "updated_at, completed_at, last_sequence FROM planning_runs "
+                "WHERE run_id = ? AND device_id = ?",
+                (run_id, device_id),
+            ).fetchone()
+        return None if row is None else dict(row)
+
+    def clear_run_events(self, device_id: str, run_id: str) -> int:
+        with self._transaction() as connection:
+            owned = connection.execute(
+                "SELECT 1 FROM planning_runs WHERE run_id = ? AND device_id = ?",
+                (run_id, device_id),
+            ).fetchone()
+            if owned is None:
+                raise TripRepositoryError("PLANNING_RUN_NOT_FOUND", "规划任务不存在")
+            cursor = connection.execute("DELETE FROM run_events WHERE run_id = ?", (run_id,))
+        return int(cursor.rowcount)
 
     def delete_trip(self, device_id: str, trip_id: str) -> Dict[str, Any]:
         with self._transaction() as connection:

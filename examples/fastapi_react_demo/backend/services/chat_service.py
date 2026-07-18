@@ -4683,6 +4683,7 @@ def _build_filtered_tool_manager(
         filtered_manager = ToolManager(
             is_auto_discover=False,
             map_request_governor=getattr(original_tool_manager, "map_request_governor", None),
+            provider_gateway=getattr(original_tool_manager, "provider_gateway", None),
         )
         if hasattr(original_tool_manager, "_run_mcp_tool_async"):
             filtered_manager._run_mcp_tool_async = original_tool_manager._run_mcp_tool_async
@@ -6159,7 +6160,7 @@ async def generate_chat_stream(
         append_selected_knowledge_context_message(message_history, selected_knowledge_context)
         append_online_search_policy_message(message_history, allow_web_search)
         message_id = str(uuid.uuid4())
-        stream_session_id = str(uuid.uuid4())
+        stream_session_id = stream_request_id
 
         yield encode_event({"type": "chat_start", "message_id": message_id})
         error_phase = "understanding"

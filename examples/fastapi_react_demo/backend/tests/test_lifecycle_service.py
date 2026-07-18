@@ -77,7 +77,10 @@ class LifecycleServiceTests(unittest.IsolatedAsyncioTestCase):
         self.assertIs(tool_manager, fake_tool_manager)
         self.assertIs(controller, fake_controller)
         self.assertEqual(fake_logger.errors, [])
-        mocked.assert_awaited_once_with(baidu_request_dispatcher=fake_dispatcher)
+        mocked.assert_awaited_once_with(
+            baidu_request_dispatcher=fake_dispatcher,
+            provider_gateway=None,
+        )
 
     async def test_initialize_runtime_with_boundary_handles_error(self):
         fake_logger = FakeLogger()

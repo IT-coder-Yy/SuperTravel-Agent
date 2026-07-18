@@ -14,6 +14,7 @@ else:
 
 async def bootstrap_runtime(
     baidu_request_dispatcher: Any = None,
+    provider_gateway: Any = None,
 ) -> Tuple[Optional[ToolManager], Optional[AgentController], Optional[str]]:
     """Initialize runtime dependencies and resolve active controller."""
     from services.system_service import resolve_controller_from_app_config
@@ -28,6 +29,7 @@ async def bootstrap_runtime(
     tool_manager = await initialize_tool_manager(
         app_config,
         baidu_request_dispatcher=baidu_request_dispatcher,
+        provider_gateway=provider_gateway,
     )
     controller, active_model_name, source = resolve_controller_from_app_config(app_config)
 
@@ -66,11 +68,13 @@ async def cleanup_runtime(
 async def initialize_runtime_with_boundary(
     logger: Any = logger,
     baidu_request_dispatcher: Any = None,
+    provider_gateway: Any = None,
 ) -> Tuple[Optional[ToolManager], Optional[AgentController]]:
     """Initialize runtime and keep existing startup error semantics."""
     try:
         tool_manager, controller, _ = await bootstrap_runtime(
             baidu_request_dispatcher=baidu_request_dispatcher,
+            provider_gateway=provider_gateway,
         )
         return tool_manager, controller
     except Exception as e:

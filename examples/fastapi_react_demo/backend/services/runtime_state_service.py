@@ -20,6 +20,9 @@ class RuntimeState:
     active_sessions: Dict[str, Dict[str, Any]] = field(default_factory=dict)
     trip_repository: Optional[Any] = None
     baidu_request_dispatcher: BaiduRequestDispatcher = field(default_factory=BaiduRequestDispatcher)
+    provider_gateway: Optional[Any] = None
+    planning_orchestrator: Optional[Any] = None
+    planning_run_manager: Optional[Any] = None
 
 
 def create_runtime_state() -> RuntimeState:

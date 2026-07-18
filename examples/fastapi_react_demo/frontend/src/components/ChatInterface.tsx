@@ -53,6 +53,7 @@ import { normalizeTripDays, upsertTripDayPayload } from './tripViewModel';
 import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserTravelProfile } from '../hooks/useUserTravelProfile';
 import { useSelectedKnowledgeContext } from '../hooks/useSelectedKnowledgeContext';
+import { PlanningEventDeduper } from '../features/travel/state/planningEventStream';
 import '../styles/markdown.css';
 
 const { TextArea } = Input;
@@ -2599,7 +2600,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }
 
         // 处理流式响应
-        const reader = response.body?.getReader();
+        let reader = response.body?.getReader();
         if (!reader) {
           throw new Error('无法获取响应流');
         }
@@ -2607,7 +2608,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         let streamBuffer = '';
         let receivedClarification = false;
         let receivedTerminalEvent = false;
-        let lastSequence = 0;
+        let reconnectAttempts = 0;
+        const eventDeduper = new PlanningEventDeduper();
         const decoder = new TextDecoder();
 
         const isCurrentRequest = () => (
@@ -2620,11 +2622,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           try {
             const data = JSON.parse(line.slice(6));
             if (safeText(data.request_id) && data.request_id !== requestId) return;
-            const eventSequence = Number(data.sequence);
-            if (Number.isFinite(eventSequence)) {
-              if (eventSequence <= lastSequence) return;
-              lastSequence = eventSequence;
-            }
+            if (!eventDeduper.accept(data)) return;
             console.log('收到流式数据:', data);
 
             switch (data.type) {
@@ -2684,12 +2682,25 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 }
                 console.log('聊天完成');
                 break;
+              case 'trip_plan_completed':
+                if (isCurrentRequest()) {
+                  receivedTerminalEvent = true;
+                  setPlanningStatus('completed');
+                }
+                break;
+              case 'run_cancelled':
+                if (isCurrentRequest()) {
+                  receivedTerminalEvent = true;
+                  setChatLoadingForId(requestChatId, false);
+                  setPlanningStatus('cancelled');
+                }
+                break;
               case 'error':
                 if (isCurrentRequest()) {
                   receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
                   setPlanningStatus('error');
-                  const composedError = safeText(data.user_message).trim()
+                  const composedError = safeText(data.user_message || data.payload?.user_message).trim()
                     || '暂时无法完成这次规划，请稍后重试。';
 
                   setChatMessagesForId(requestChatId, prev => [...prev, {
@@ -2708,11 +2719,32 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           }
         };
 
+        const resumePlanningReader = async () => {
+          if (receivedTerminalEvent || reconnectAttempts >= 1 || !isCurrentRequest()) return false;
+          reconnectAttempts += 1;
+          const resumed = await apiClient.resumePlanningRun(
+            requestId,
+            eventDeduper.cursor(),
+            abortController.signal,
+          );
+          if (!resumed.ok || !resumed.body) return false;
+          reader = resumed.body.getReader();
+          streamBuffer = '';
+          return true;
+        };
+
         while (true) {
           if (!isCurrentRequest()) {
             break;
           }
-          const { done, value } = await reader.read();
+          let result: ReadableStreamReadResult<Uint8Array>;
+          try {
+            result = await reader.read();
+          } catch (readError) {
+            if (await resumePlanningReader()) continue;
+            throw readError;
+          }
+          const { done, value } = result;
           if (done) {
             if (streamBuffer.trim()) {
               const lines = streamBuffer.split('\n');
@@ -2720,6 +2752,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 processDataLine(line);
               }
             }
+            if (await resumePlanningReader()) continue;
             break;
           }
 
@@ -2819,6 +2852,12 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       })();
 
       const activeController = abortControllersByChatIdRef.current[activeChatId];
+      const activeRunId = requestIdsByChatIdRef.current[activeChatId];
+      if (activeRunId) {
+        void apiClient.cancelPlanningRun(activeRunId).catch((error) => {
+          console.warn('停止规划请求未确认:', error);
+        });
+      }
       if (activeController) {
         activeController.abort();
         const { [activeChatId]: _removedController, ...restControllers } = abortControllersByChatIdRef.current;
@@ -3056,13 +3095,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           throw requestError;
         }
 
-        const reader = response.body?.getReader();
+        let reader = response.body?.getReader();
         if (!reader) {
           throw new Error('无法获取响应流');
         }
 
         let streamBuffer = '';
-        let lastSequence = 0;
+        let receivedTerminalEvent = false;
+        let reconnectAttempts = 0;
+        const eventDeduper = new PlanningEventDeduper();
         const decoder = new TextDecoder();
 
         const isCurrentRequest = () => (
@@ -3075,11 +3116,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           try {
             const data = JSON.parse(line.slice(6));
             if (safeText(data.request_id) && data.request_id !== requestId) return;
-            const eventSequence = Number(data.sequence);
-            if (Number.isFinite(eventSequence)) {
-              if (eventSequence <= lastSequence) return;
-              lastSequence = eventSequence;
-            }
+            if (!eventDeduper.accept(data)) return;
             console.log('收到重新回答流式数据:', data);
 
             switch (data.type) {
@@ -3093,14 +3130,16 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 break;
               case 'chat_complete':
                 if (isCurrentRequest()) {
+                  receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
                 }
                 console.log('重新回答完成');
                 break;
               case 'error':
                 if (isCurrentRequest()) {
+                  receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
-                  const composedError = safeText(data.user_message).trim()
+                  const composedError = safeText(data.user_message || data.payload?.user_message).trim()
                     || '暂时无法重新生成回答，请稍后重试。';
 
                   setChatMessagesForId(requestChatId, (prev) => [...prev, {
@@ -3119,11 +3158,32 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           }
         };
 
+        const resumePlanningReader = async () => {
+          if (receivedTerminalEvent || reconnectAttempts >= 1 || !isCurrentRequest()) return false;
+          reconnectAttempts += 1;
+          const resumed = await apiClient.resumePlanningRun(
+            requestId,
+            eventDeduper.cursor(),
+            abortController.signal,
+          );
+          if (!resumed.ok || !resumed.body) return false;
+          reader = resumed.body.getReader();
+          streamBuffer = '';
+          return true;
+        };
+
         while (true) {
           if (!isCurrentRequest()) {
             break;
           }
-          const { done, value } = await reader.read();
+          let result: ReadableStreamReadResult<Uint8Array>;
+          try {
+            result = await reader.read();
+          } catch (readError) {
+            if (await resumePlanningReader()) continue;
+            throw readError;
+          }
+          const { done, value } = result;
           if (done) {
             if (streamBuffer.trim()) {
               const lines = streamBuffer.split('\n');
@@ -3131,6 +3191,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 processDataLine(line);
               }
             }
+            if (await resumePlanningReader()) continue;
             break;
           }
 
