@@ -133,6 +133,29 @@ class PlanningOrchestratorTests(unittest.IsolatedAsyncioTestCase):
         self.assertFalse(any(event["type"] == "final_plan_section" for event in payloads))
         self.assertFalse(any(event["type"] == "trip_plan_completed" for event in payloads))
 
+    async def test_validation_log_identifies_field_without_document_content(self):
+        orchestrator = PlanningOrchestrator(
+            ordinary_soft_timeout_seconds=1,
+            ordinary_hard_timeout_seconds=2,
+        )
+        invalid_document = build_legacy_v2_document()
+        invalid_document["intent"]["date_range"] = "下周"
+        invalid_document["title"] = "不应写入诊断日志的用户方案标题"
+
+        with self.assertLogs("backend.services.planning_orchestrator", level="WARNING") as captured:
+            async for _chunk in orchestrator.orchestrate(
+                legacy_stream([{"type": "trip_plan", "document": invalid_document, "plan": {}}]),
+                run_id="run-invalid-date",
+                request_id="request-invalid-date",
+                requires_baidu_verification=False,
+            ):
+                pass
+
+        joined = "\n".join(captured.output)
+        self.assertIn("intent.date_range", joined)
+        self.assertIn("V2 行程缺少明确日期", joined)
+        self.assertNotIn("不应写入诊断日志的用户方案标题", joined)
+
     async def test_task_graph_retries_each_professional_task_at_most_twice(self):
         attempts = 0
 

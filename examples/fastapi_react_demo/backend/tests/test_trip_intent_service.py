@@ -30,6 +30,31 @@ class TripIntentServiceTests(unittest.TestCase):
         self.assertEqual(intent.date_range, "8月10日")
         self.assertEqual(intent.days, 3)
 
+    def test_explicit_chinese_date_range_is_normalized_without_losing_end_date(self):
+        intent = extract_trip_intent(
+            "从上海出发，2026年8月15日至8月17日，2名成人，总预算6000元，"
+            "帮我规划杭州3日文化美食之旅"
+        )
+
+        self.assertEqual(intent.date_range, "2026-08-15 至 2026-08-17")
+        self.assertEqual(intent.days, 3)
+        self.assertEqual(intent.people_count, 2)
+
+    def test_shuhuan_is_normalized_as_relaxed_pace(self):
+        intent = extract_trip_intent("帮我规划杭州3日文化美食之旅，节奏舒缓")
+
+        self.assertEqual(intent.pace, "relaxed")
+
+    def test_adult_child_and_senior_counts_are_accumulated(self):
+        intent = extract_trip_intent("2名成人、1名儿童和1名老人去杭州玩3天")
+
+        self.assertEqual(intent.people_count, 4)
+
+    def test_generic_companion_count_remains_supported(self):
+        intent = extract_trip_intent("两位朋友去杭州玩3天")
+
+        self.assertEqual(intent.people_count, 2)
+
     def test_profile_fills_missing_defaults(self):
         intent = extract_trip_intent(
             "帮我规划杭州三日游",

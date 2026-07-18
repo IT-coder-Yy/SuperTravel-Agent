@@ -41,9 +41,9 @@ from backend.schemas.trip_v3_models import (
     ValidationIssueV3,
     ValidationSummaryV3,
 )
+from backend.services.travel_date_service import resolve_date_range
 
 
-_ISO_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
 _TIME_PATTERN = re.compile(r"^(\d{1,2}):(\d{2})$")
 _LOCATION_KINDS = {"attraction", "food", "transport", "hotel", "shopping"}
 _CATEGORY_MAP = {
@@ -93,21 +93,10 @@ def _parse_aware_datetime(value: Any, default_timezone: str = "Asia/Shanghai") -
 
 
 def _parse_date_range(intent: Any) -> Tuple[date, date, int]:
-    matches = _ISO_DATE_PATTERN.findall(str(getattr(intent, "date_range", "") or ""))
-    if not matches:
-        raise ValueError("V2 行程缺少明确日期，不能迁移为正式 V3 文档")
-    start = date.fromisoformat(matches[0])
-    requested_days = int(getattr(intent, "days", 0) or 0)
-    if len(matches) >= 2:
-        end = date.fromisoformat(matches[1])
-    elif requested_days:
-        end = start + timedelta(days=requested_days - 1)
-    else:
-        end = start
-    days = (end - start).days + 1
-    if days < 1 or days > 7:
-        raise ValueError("V2 行程日期必须位于 1～7 天范围内")
-    return start, end, days
+    return resolve_date_range(
+        getattr(intent, "date_range", ""),
+        getattr(intent, "days", 0),
+    )
 
 
 def _source_status(data_type: Any, source_name: str = "") -> SourceStatus:

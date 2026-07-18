@@ -273,6 +273,21 @@ class TravelPlanV3ContractTests(unittest.TestCase):
             {issue.code for issue in first.validation.issues},
         )
 
+    def test_v2_adapter_accepts_real_chinese_start_date_and_infers_three_days(self):
+        payload = build_legacy_v2_document()
+        payload["intent"]["date_range"] = "2026年8月15日"
+        payload["intent"]["days"] = 3
+
+        document = adapt_v2_to_v3(payload)
+
+        self.assertEqual(document.intent.start_date.isoformat(), "2026-08-15")
+        self.assertEqual(document.intent.end_date.isoformat(), "2026-08-17")
+        self.assertEqual(document.intent.days, 3)
+        self.assertEqual(
+            [day.date.isoformat() for day in document.itinerary.days],
+            ["2026-08-15", "2026-08-16", "2026-08-17"],
+        )
+
     def test_json_schema_matches_committed_snapshot(self):
         expected = json.loads(SCHEMA_SNAPSHOT.read_text(encoding="utf-8"))
         self.assertEqual(expected, travel_plan_v3_json_schema())

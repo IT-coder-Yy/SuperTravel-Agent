@@ -3,6 +3,7 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from schemas.trip_models import ClarificationQuestion, TripIntent, UserTravelProfile
 from services.destination_catalog_service import canonical_destination, domestic_city_names, INTERNATIONAL_DESTINATIONS
+from services.travel_date_service import canonicalize_explicit_date_range
 
 
 CITY_NAMES = [
@@ -127,8 +128,10 @@ def _extract_date_range(query: str) -> Optional[str]:
     text = _safe_text(query)
     if not text:
         return None
+    explicit_range = canonicalize_explicit_date_range(text)
+    if explicit_range:
+        return explicit_range
     date_patterns = [
-        r"\d{4}[-/.年]\d{1,2}[-/.月]\d{1,2}日?",
         r"\d{1,2}月\d{1,2}日(?:到|至|-|~)\d{1,2}月?\d{1,2}日?",
         r"\d{1,2}月\d{1,2}日",
         r"(?:今天|明天|后天|本周末|周末|下周|五一|国庆|春节|暑假|寒假|时间未定|日期未定|时间还没定|日期还没定)",
@@ -151,10 +154,16 @@ def _extract_days(query: str) -> Optional[int]:
 
 
 def _extract_people_count(query: str) -> Optional[int]:
-    match = re.search(r"([0-9一二两三四五六七八九十]{1,3})\s*(?:个人|人|位)", query)
-    if not match:
-        return None
-    return _number_from_text(match.group(1))
+    matches = re.findall(
+        r"([0-9一二两三四五六七八九十]{1,3})\s*(?:(?:名|个|位)\s*)?(?:成人|儿童|孩子|老人|人)",
+        query,
+    )
+    counts = [_number_from_text(value) for value in matches]
+    normalized = [value for value in counts if value is not None]
+    if normalized:
+        return sum(normalized)
+    generic_match = re.search(r"([0-9一二两三四五六七八九十]{1,3})\s*(?:个人|人|位)", query)
+    return _number_from_text(generic_match.group(1)) if generic_match else None
 
 
 def _extract_people_type(query: str) -> Optional[str]:
@@ -190,7 +199,7 @@ def _extract_budget(query: str) -> Dict[str, Optional[float]]:
 
 
 def _extract_pace(query: str) -> Optional[str]:
-    if re.search(r"(轻松|松弛|慢游|休闲|不赶)", query):
+    if re.search(r"(轻松|松弛|舒缓|慢游|休闲|不赶)", query):
         return "relaxed"
     if re.search(r"(特种兵|紧凑|多玩|尽量多|高强度|打卡)", query):
         return "intensive"
@@ -269,7 +278,7 @@ def _pace_from_any(value: Any) -> Optional[str]:
         return None
     if text in {"relaxed", "balanced", "intensive"}:
         return text
-    if re.search(r"(轻松|休闲|慢|2-3)", text):
+    if re.search(r"(轻松|松弛|舒缓|休闲|慢|2-3)", text):
         return "relaxed"
     if re.search(r"(紧凑|多玩|特种兵|打卡)", text):
         return "intensive"
@@ -319,7 +328,12 @@ def _apply_answer_values(intent: TripIntent, answers: Dict[str, Any], *, overrid
         if parsed_days:
             intent.days = parsed_days
     if "date_range" in answers and can_set("date_range"):
-        intent.date_range = _safe_text(answers.get("date_range")) or intent.date_range
+        raw_date_range = _safe_text(answers.get("date_range"))
+        intent.date_range = (
+            canonicalize_explicit_date_range(raw_date_range)
+            or raw_date_range
+            or intent.date_range
+        )
     if "people_count" in answers and can_set("people_count"):
         raw_people = _safe_text(answers.get("people_count", ""))
         intent.people_count = _number_from_text(raw_people) or _extract_people_count(raw_people) or intent.people_count

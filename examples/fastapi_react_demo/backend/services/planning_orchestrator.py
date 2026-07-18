@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import inspect
 import json
+import logging
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -61,6 +62,28 @@ STRUCTURED_EVENT_TYPES = {
     "trip_validation",
     "trip_plan",
 }
+
+logger = logging.getLogger(__name__)
+
+
+def validation_diagnostics(error: BaseException) -> List[Dict[str, str]]:
+    """Return field-level diagnostics without logging document inputs."""
+    if isinstance(error, ValidationError):
+        return [
+            {
+                "location": ".".join(str(part) for part in item.get("loc", ())) or "document",
+                "type": str(item.get("type") or "validation_error"),
+                "message": str(item.get("msg") or "文档字段校验失败"),
+            }
+            for item in error.errors(include_url=False, include_input=False)[:8]
+        ]
+    return [
+        {
+            "location": str(getattr(error, "field", "document")),
+            "type": type(error).__name__,
+            "message": str(error) if isinstance(error, ValueError) else "文档类型校验失败",
+        }
+    ]
 
 
 @dataclass(frozen=True)
@@ -541,6 +564,12 @@ class PlanningOrchestrator:
                             document_payload["plan_id"] = existing_plan_id
                         document = TravelPlanDocumentV3.model_validate(document_payload)
                     except (ValidationError, ValueError, TypeError) as error:
+                        logger.warning(
+                            "正式方案校验失败 run_id=%s revision=%s diagnostics=%s",
+                            run_id,
+                            target_revision,
+                            json.dumps(validation_diagnostics(error), ensure_ascii=False),
+                        )
                         async for failed_event in fail_run(
                             "FORMAL_DOCUMENT_VALIDATION_FAILED",
                             "方案未通过完整校验，地图和工作台数据未发布。",
