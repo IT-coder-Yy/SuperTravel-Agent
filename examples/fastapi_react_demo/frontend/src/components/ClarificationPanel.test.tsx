@@ -30,6 +30,7 @@ describe('ClarificationPanel', () => {
     });
     expect(optionGroup.classList.contains('clarification-option-row')).toBe(true);
     expect(within(optionGroup).getAllByRole('button')).toHaveLength(2);
+    expect(screen.getByText('每次只确认一项；补充后继续分析，必要时在这里显示下一项。')).not.toBeNull();
 
     const relaxedOption = screen.getByRole('button', { name: '选择“Relaxed”' });
     fireEvent.click(relaxedOption);
@@ -61,6 +62,7 @@ describe('ClarificationPanel', () => {
 
     expect(onSubmit).toHaveBeenCalledTimes(1);
     expect(onSubmit).toHaveBeenCalledWith({ pace: 'One major sight per day' });
+    expect(submitButton.textContent).toContain('使用此答案');
   });
 
   it('shows the profile action only for a usable default and submits its trimmed value', () => {
@@ -117,7 +119,7 @@ describe('ClarificationPanel', () => {
       expect((button as HTMLButtonElement).disabled).toBe(true);
     });
     expect((screen.getByRole('textbox') as HTMLInputElement).disabled).toBe(true);
-    expect(screen.getByRole('status').textContent).toContain('正在结合你的回答继续分析...');
+    expect(screen.getByRole('status').textContent).toContain('正在确认这项信息...');
   });
 
   it('replaces the question in place and resets draft and submission state', () => {
@@ -145,6 +147,7 @@ describe('ClarificationPanel', () => {
     rerender(
       <ClarificationPanel
         question={nextQuestion}
+        answeredCount={1}
         onSubmit={onSubmit}
         onSkip={onSkip}
       />,
@@ -152,6 +155,7 @@ describe('ClarificationPanel', () => {
 
     expect(screen.queryByText('Which travel pace do you prefer?')).toBeNull();
     expect(screen.getByText('What is your budget?')).not.toBeNull();
+    expect(screen.getByText('已补充 1 项')).not.toBeNull();
     expect((screen.getByRole('textbox') as HTMLInputElement).value).toBe('');
     expect((screen.getByRole('button', { name: '选择“Economy”' }) as HTMLButtonElement).disabled).toBe(false);
     expect((screen.getByRole('button', { name: '提交自定义答案并继续分析' }) as HTMLButtonElement).disabled).toBe(true);

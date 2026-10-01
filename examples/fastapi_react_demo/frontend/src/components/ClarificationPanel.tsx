@@ -9,6 +9,7 @@ export interface ClarificationQuestion {
   reason: string;
   options: string[];
   allow_custom: boolean;
+  allow_skip?: boolean;
   profile_default_value?: string | null;
 }
 
@@ -83,9 +84,9 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({
       <div className="clarification-panel-header">
         <div>
           <h3>补充关键信息</h3>
-          <p>回答后我会结合已有信息继续分析，必要时再确认下一项。</p>
+          <p>每次只确认一项；补充后继续分析，必要时在这里显示下一项。</p>
         </div>
-        {answeredCount > 0 && <Tag color="blue">已回答 {answeredCount} 轮</Tag>}
+        {answeredCount > 0 && <Tag color="blue">已补充 {answeredCount} 项</Tag>}
       </div>
 
       <div
@@ -134,7 +135,7 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({
           <div className="clarification-custom-answer">
             <Input
               value={customAnswer}
-              placeholder="也可以直接输入"
+              placeholder="输入其他答案"
               aria-label={customAnswerLabel}
               disabled={interactionLocked}
               onChange={(event) => {
@@ -156,7 +157,7 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({
               aria-label="提交自定义答案并继续分析"
               onClick={submitCustomAnswer}
             >
-              提交
+              使用此答案
             </Button>
           </div>
         )}
@@ -191,12 +192,12 @@ const ClarificationPanel: React.FC<ClarificationPanelProps> = ({
         {interactionLocked ? (
           <>
             <LoadingOutlined aria-hidden="true" />
-            <span>正在结合你的回答继续分析...</span>
+            <span>正在确认这项信息...</span>
           </>
         ) : (
           <>
             <span className="clarification-panel-status-dot" aria-hidden="true" />
-            <span>选择或输入答案后继续分析</span>
+            <span>选择推荐答案，或输入更准确的信息</span>
           </>
         )}
       </div>
