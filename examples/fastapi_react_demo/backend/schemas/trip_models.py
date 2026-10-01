@@ -46,6 +46,9 @@ class TripIntent(BaseModel):
     date_range: Optional[str] = None
     days: Optional[int] = None
     people_count: Optional[int] = None
+    adult_count: Optional[int] = Field(default=None, ge=0)
+    child_count: Optional[int] = Field(default=None, ge=0)
+    senior_count: Optional[int] = Field(default=None, ge=0)
     people_type: Optional[str] = None
     budget_total: Optional[float] = None
     budget_per_person: Optional[float] = None
@@ -172,11 +175,17 @@ class TripActivity(BaseModel):
     duration_minutes: Optional[int] = Field(default=None, ge=0)
     title: str
     activity_type: Literal["attraction", "food", "hotel", "transport", "free_time"] = "attraction"
+    meal_type: Optional[Literal["breakfast", "lunch", "dinner"]] = None
     place: Optional[TripPlace] = None
     map_visible: bool = True
     transport_to_next: Optional[str] = None
     route_to_next: Optional[RouteLeg] = None
     estimated_cost: Optional[float] = None
+    estimated_cost_currency: Optional[str] = None
+    estimated_cost_cny_reference_amount: Optional[float] = Field(default=None, ge=0)
+    estimated_cost_exchange_rate_as_of: Optional[str] = None
+    estimated_cost_unit: Literal["group", "per_traveler"] = "group"
+    official_traveler_prices: Dict[str, float] = Field(default_factory=dict)
     reservation: Optional[Dict[str, Any]] = None
     evidence_refs: List[Any] = Field(default_factory=list)
     notes: List[str] = Field(default_factory=list)
@@ -200,6 +209,12 @@ class TripActivity(BaseModel):
         elif not legacy_transport and isinstance(route, dict):
             normalized["transport_to_next"] = route.get("mode")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_meal_type(self) -> "TripActivity":
+        if self.meal_type and self.activity_type != "food":
+            raise ValueError("meal_type 只能用于餐饮活动")
+        return self
 
 
 class TripDay(BaseModel):
@@ -315,6 +330,8 @@ class TransportOption(BaseModel):
     service_number: Optional[str] = None
     departure_station: Optional[str] = None
     arrival_station: Optional[str] = None
+    departure_hub: Optional[TripPlace] = None
+    arrival_hub: Optional[TripPlace] = None
     departure_time: Optional[str] = None
     arrival_time: Optional[str] = None
     duration_minutes: Optional[int] = Field(default=None, ge=0)
@@ -322,6 +339,7 @@ class TransportOption(BaseModel):
     price: Optional[float] = Field(default=None, ge=0)
     currency: str = "CNY"
     availability: Literal["available", "limited", "unknown"] = "unknown"
+    seat_options: List[Dict[str, Any]] = Field(default_factory=list)
     booking_url: Optional[str] = None
     source_reference_id: Optional[str] = None
     data_type: DataConfidence = "reference_data"
@@ -337,12 +355,14 @@ class TransportSection(BaseModel):
     options: List[TransportOption] = Field(default_factory=list)
     status: SectionStatus = "needs_confirmation"
     status_reason: Optional[str] = None
+    official_query_url: Optional[str] = None
 
 
 class HotelRecommendation(BaseModel):
     hotel_id: str = Field(default_factory=lambda: f"hotel_{uuid.uuid4().hex}")
     area: str = "待确认"
     name: str = "待确认"
+    place: Optional[TripPlace] = None
     nightly_price: Optional[float] = Field(default=None, ge=0)
     total_price: Optional[float] = Field(default=None, ge=0)
     currency: str = "CNY"
@@ -352,6 +372,7 @@ class HotelRecommendation(BaseModel):
     reasons: List[str] = Field(default_factory=list)
     booking_url: Optional[str] = None
     source_reference_id: Optional[str] = None
+    source_reference_ids: List[str] = Field(default_factory=list)
     data_type: DataConfidence = "reference_data"
     updated_at: Optional[str] = None
 
@@ -448,6 +469,7 @@ class TravelPlanDocumentV2(BaseModel):
     validation: Dict[str, Any] = Field(default_factory=dict)
     checklist: List[Dict[str, Any]] = Field(default_factory=list)
     notes: List[Dict[str, Any]] = Field(default_factory=list)
+    candidate_places: List[TripPlace] = Field(default_factory=list, max_length=15)
 
     @model_validator(mode="after")
     def validate_directions_and_map_locations(self) -> "TravelPlanDocumentV2":

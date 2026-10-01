@@ -245,16 +245,23 @@
       "activity_id": "candidate_hz_1",
       "kind": "attraction",
       "title": "杭州候选契约地点",
+      "duration_minutes": 120,
       "place": {
         "poi_id": "poi_hz_candidate_1",
         "name": "杭州候选契约地点",
         "category": "attraction",
         "city": "杭州",
+        "opening_hours": "09:00-18:00",
         "timezone": "Asia/Shanghai",
         "coordinates": {"latitude": 30.265, "longitude": 120.145, "coordinate_system": "WGS84"},
         "evidence_refs": ["src_map_hz"]
       },
-      "evidence_refs": ["src_map_hz"]
+      "evidence_refs": ["src_map_hz"],
+      "insertion_options": [
+        {"day": 1, "start_at": "12:00", "end_at": "14:00", "position": 1},
+        {"day": 2, "start_at": "11:30", "end_at": "13:30", "position": 1},
+        {"day": 3, "start_at": "09:00", "end_at": "11:00", "position": 0}
+      ]
     }
   ],
   "action_items": [

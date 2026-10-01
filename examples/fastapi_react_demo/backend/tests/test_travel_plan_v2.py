@@ -48,5 +48,6 @@ def test_v2_rejects_map_locations_not_in_current_itinerary():
     document.pop("plan", None)
     document.pop("imported_at", None)
     document["map_guidance"]["location_ids"] = ["unrelated-poi"]
-    with pytest.raises(ValueError, match="结构无效"):
+    with pytest.raises(ValueError, match=r"map_guidance.*location_ids") as captured:
         validate_trip_document(document)
+    assert captured.value.diagnostics[0]["location"] == "map_guidance.location_ids"

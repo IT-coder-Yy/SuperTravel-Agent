@@ -22,6 +22,7 @@ class TripUpsertRequest(BaseModel):
     trip_plan: Optional[Dict[str, Any]] = None
     trip_document: Optional[Dict[str, Any]] = None
     trip_workspace: Optional[Dict[str, Any]] = None
+    agent_timeline: Optional[Dict[str, Any]] = None
 
 
 class LegacyTripMigrationRequest(BaseModel):
@@ -36,6 +37,13 @@ class TripDraftRequest(BaseModel):
 class FormalSnapshotApplyRequest(BaseModel):
     operation_id: str = Field(min_length=1, max_length=120)
     document: Dict[str, Any]
+
+
+class DraftFormalSnapshotApplyRequest(BaseModel):
+    """将已持久化的唯一草稿原子提升为新的正式版本。"""
+
+    operation_id: str = Field(min_length=1, max_length=120)
+    expected_draft_revision: int = Field(ge=1)
 
 
 class FormalSnapshotRestoreRequest(BaseModel):

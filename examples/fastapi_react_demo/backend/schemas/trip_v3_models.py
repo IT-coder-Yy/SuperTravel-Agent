@@ -1,10 +1,14 @@
 from __future__ import annotations
 
-from datetime import date, datetime
-from typing import Any, Dict, List, Literal, Optional, Union
+from datetime import date, datetime, timezone
+import math
+from typing import Any, Dict, List, Literal, Mapping, Optional, Union
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, ValidationInfo, model_validator
 
+
+DateValue = date
 
 SourceStatus = Literal[
     "realtime_verified",
@@ -79,14 +83,47 @@ class ContractModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
 
+def is_valid_route_geometry(geometry: Any) -> bool:
+    """Return true only for finite, renderable GeoJSON LineString route geometry."""
+    if not isinstance(geometry, Mapping) or geometry.get("type") != "LineString":
+        return False
+    coordinates = geometry.get("coordinates")
+    if not isinstance(coordinates, list) or len(coordinates) < 2:
+        return False
+    for point in coordinates:
+        if not isinstance(point, (list, tuple)) or len(point) < 2:
+            return False
+        lng, lat = point[0], point[1]
+        if isinstance(lng, bool) or isinstance(lat, bool):
+            return False
+        try:
+            longitude, latitude = float(lng), float(lat)
+        except (TypeError, ValueError):
+            return False
+        if not (
+            math.isfinite(longitude)
+            and math.isfinite(latitude)
+            and -180 <= longitude <= 180
+            and -90 <= latitude <= 90
+        ):
+            return False
+    return True
+
+
 class TravelerCountV3(ContractModel):
-    adults: int = Field(default=1, ge=1)
+    adults: int = Field(default=1, ge=0)
     children: int = Field(default=0, ge=0)
     seniors: int = Field(default=0, ge=0)
 
     @property
     def total(self) -> int:
         return self.adults + self.children + self.seniors
+
+    @model_validator(mode="after")
+    def require_at_least_one_traveler(self) -> "TravelerCountV3":
+        if self.total < 1:
+            raise ValueError("至少需要一位出行人")
+        return self
 
 
 class MoneyV3(ContractModel):
@@ -105,8 +142,9 @@ class MoneyV3(ContractModel):
 class TripIntentV3(ContractModel):
     origin: str = Field(min_length=1)
     destination: str = Field(min_length=1)
-    start_date: date
-    end_date: date
+    date_mode: Literal["fixed", "flexible"] = "fixed"
+    start_date: Optional[date] = None
+    end_date: Optional[date] = None
     days: int = Field(ge=1, le=7)
     travelers: TravelerCountV3
     budget: MoneyV3
@@ -116,6 +154,12 @@ class TripIntentV3(ContractModel):
 
     @model_validator(mode="after")
     def validate_date_range(self) -> "TripIntentV3":
+        if self.date_mode == "flexible":
+            if self.start_date is not None or self.end_date is not None:
+                raise ValueError("日期待定行程不能携带虚构的起止日期")
+            return self
+        if self.start_date is None or self.end_date is None:
+            raise ValueError("固定日期行程必须提供起止日期")
         expected_days = (self.end_date - self.start_date).days + 1
         if expected_days != self.days:
             raise ValueError("intent.days 必须与起止日期的自然日数量一致")
@@ -143,7 +187,7 @@ class TripPlaceV3(ContractModel):
     phone: Optional[str] = None
     opening_hours: Optional[str] = None
     timezone: Optional[str] = None
-    coordinates: CoordinatesV3
+    coordinates: Optional[CoordinatesV3] = None
     summary: Optional[str] = None
     review_summary: Optional[ReviewSummaryV3] = None
     evidence_refs: List[str] = Field(default_factory=list)
@@ -160,6 +204,10 @@ class ImageAssetV3(ContractModel):
     export_allowed: bool = False
     attribution_required: bool = True
     attribution_text: Optional[str] = None
+    attribution_url: Optional[str] = None
+    provider_name: Optional[str] = None
+    provider_url: Optional[str] = None
+    download_location: Optional[str] = None
     source_ref: Optional[str] = None
     checked_at: Optional[AwareDatetime] = None
 
@@ -180,8 +228,52 @@ class TransportTimeV3(ContractModel):
 
     @model_validator(mode="after")
     def require_timezone_for_local_time(self) -> "TransportTimeV3":
-        if self.local_iso is not None and not self.timezone:
-            raise ValueError("local_iso 存在时必须提供 IANA timezone")
+        temporal_values = [self.utc, self.local_iso, self.beijing_iso]
+        has_temporal_value = any(value is not None for value in temporal_values)
+        if not has_temporal_value:
+            return self
+        if not all(value is not None for value in temporal_values) or not self.timezone:
+            raise ValueError("已规范化交通时刻必须同时保存 UTC、当地时间、北京时间和 IANA timezone")
+        try:
+            local_zone = ZoneInfo(self.timezone)
+        except ZoneInfoNotFoundError as exc:
+            raise ValueError("交通时刻 timezone 必须是有效 IANA 标识") from exc
+
+        localized = self.local_iso.astimezone(local_zone)
+        if (
+            self.local_iso.replace(tzinfo=None) != localized.replace(tzinfo=None)
+            or self.local_iso.utcoffset() != localized.utcoffset()
+        ):
+            raise ValueError("local_iso 必须与 timezone 的当地日期、时间和偏移量一致")
+
+        utc_value = self.utc.astimezone(timezone.utc)
+        if localized.astimezone(timezone.utc) != utc_value:
+            raise ValueError("UTC 与当地交通时刻必须表示同一时刻")
+
+        beijing_zone = ZoneInfo("Asia/Shanghai")
+        expected_beijing = utc_value.astimezone(beijing_zone)
+        localized_beijing = self.beijing_iso.astimezone(beijing_zone)
+        if (
+            self.beijing_iso.replace(tzinfo=None) != localized_beijing.replace(tzinfo=None)
+            or self.beijing_iso.utcoffset() != localized_beijing.utcoffset()
+            or localized_beijing != expected_beijing
+        ):
+            raise ValueError("beijing_iso 必须与 UTC 表示同一北京时间")
+        return self
+
+
+class TransportSeatOptionV3(ContractModel):
+    """One provider-returned cabin or seat class for a real-time transport option."""
+
+    name: str = Field(min_length=1)
+    availability: Literal["available", "limited", "unavailable", "unknown"] = "unknown"
+    remaining_text: Optional[str] = None
+    price: Optional[MoneyV3] = None
+
+    @model_validator(mode="after")
+    def protect_realtime_claims(self) -> "TransportSeatOptionV3":
+        if self.availability in {"available", "limited", "unavailable"} and not self.remaining_text:
+            raise ValueError("座席余量状态必须保留 Provider 返回的余量文本")
         return self
 
 
@@ -191,12 +283,15 @@ class TransportOptionV3(ContractModel):
     service_number: Optional[str] = None
     departure_place: Optional[str] = None
     arrival_place: Optional[str] = None
+    departure_hub: Optional[TripPlaceV3] = None
+    arrival_hub: Optional[TripPlaceV3] = None
     departure_time: Optional[TransportTimeV3] = None
     arrival_time: Optional[TransportTimeV3] = None
     duration_minutes: Optional[int] = Field(default=None, ge=0)
     transfers: Optional[int] = Field(default=None, ge=0)
     price: Optional[MoneyV3] = None
     availability: Literal["available", "limited", "unknown"] = "unknown"
+    seat_options: List[TransportSeatOptionV3] = Field(default_factory=list, max_length=12)
     booking_url: Optional[str] = None
     source_status: SourceStatus = "user_confirmation_required"
     source_refs: List[str] = Field(default_factory=list)
@@ -210,6 +305,24 @@ class TransportOptionV3(ContractModel):
         has_specific_schedule = bool(self.service_number or self.departure_time or self.arrival_time)
         if has_specific_schedule and self.source_status != "realtime_verified":
             raise ValueError("具体班次和时刻必须来自实时已核验数据")
+        departure = self.departure_time
+        arrival = self.arrival_time
+        has_complete_context = lambda value: bool(
+            value
+            and value.utc is not None
+            and value.local_iso is not None
+            and value.beijing_iso is not None
+            and value.timezone
+        )
+        if has_complete_context(departure) and has_complete_context(arrival):
+            if arrival.utc < departure.utc:
+                raise ValueError("到达交通时刻不能早于出发交通时刻")
+            expected_day_offset = max(
+                (arrival.local_iso.date() - departure.local_iso.date()).days,
+                0,
+            )
+            if arrival.day_offset != expected_day_offset:
+                raise ValueError("到达 day_offset 必须与当地日期差一致")
         return self
 
 
@@ -277,8 +390,12 @@ class RouteLegV3(ContractModel):
 
     @model_validator(mode="after")
     def validate_ready_route(self) -> "RouteLegV3":
-        if self.status == "ready" and (not self.provider or self.geometry is None):
-            raise ValueError("ready 路线必须包含真实 provider 与 geometry")
+        if self.status == "ready" and (
+            not self.provider
+            or self.coordinate_system not in {"WGS84", "BD09LL"}
+            or not is_valid_route_geometry(self.geometry)
+        ):
+            raise ValueError("ready 路线必须包含真实 provider、坐标系与有效 LineString geometry")
         return self
 
 
@@ -287,6 +404,21 @@ class ReservationInfoV3(ContractModel):
     status: Literal["not_required", "needs_confirmation", "recommended"] = "needs_confirmation"
     guidance: Optional[str] = None
     source_ref: Optional[str] = None
+
+
+class CandidateInsertionOptionV3(ContractModel):
+    """One server-checked time slot that a candidate may occupy."""
+
+    day: int = Field(ge=1, le=7)
+    start_at: str = Field(pattern=r"^\d{2}:\d{2}$")
+    end_at: str = Field(pattern=r"^\d{2}:\d{2}$")
+    position: int = Field(ge=0)
+
+    @model_validator(mode="after")
+    def validate_time_range(self) -> "CandidateInsertionOptionV3":
+        if self.end_at <= self.start_at:
+            raise ValueError("候选插入时段必须有正向时长")
+        return self
 
 
 class TripActivityV3(ContractModel):
@@ -299,14 +431,19 @@ class TripActivityV3(ContractModel):
     end_at: Optional[str] = Field(default=None, pattern=r"^\d{2}:\d{2}$")
     duration_minutes: Optional[int] = Field(default=None, ge=0)
     fixed_time: bool = False
+    meal_type: Optional[Literal["breakfast", "lunch", "dinner"]] = None
     place: Optional[TripPlaceV3] = None
     images: List[ImageAssetV3] = Field(default_factory=list, max_length=3)
     cover_image_id: Optional[str] = None
     estimated_cost: Optional[MoneyV3] = None
     reservation: Optional[ReservationInfoV3] = None
+    estimated_cost_unit: Literal["per_traveler", "group"] = "per_traveler"
+    official_traveler_prices: Dict[Literal["adult", "child", "senior"], MoneyV3] = Field(default_factory=dict)
     note_id: Optional[str] = None
     evidence_refs: List[str] = Field(default_factory=list)
     route_to_next: Optional[RouteLegV3] = None
+    insertion_options: List[CandidateInsertionOptionV3] = Field(default_factory=list, max_length=7)
+    insertion_unavailable_reason: Optional[str] = None
 
     @model_validator(mode="after")
     def validate_activity_state(self) -> "TripActivityV3":
@@ -315,6 +452,21 @@ class TripActivityV3(ContractModel):
             raise ValueError("活动图片 image_id 不能重复")
         if self.cover_image_id and self.cover_image_id not in image_ids:
             raise ValueError("cover_image_id 必须指向当前活动图片")
+        if self.meal_type and self.kind != "food":
+            raise ValueError("meal_type 只能用于餐饮活动")
+        if bool(self.start_at) != bool(self.end_at):
+            raise ValueError("活动开始和结束时间必须同时提供")
+        if self.start_at and self.end_at:
+            start_hour, start_minute = (int(value) for value in self.start_at.split(":"))
+            end_hour, end_minute = (int(value) for value in self.end_at.split(":"))
+            start_minutes = start_hour * 60 + start_minute
+            end_minutes = end_hour * 60 + end_minute
+            if start_minutes >= 24 * 60 or end_minutes >= 24 * 60:
+                raise ValueError("活动时间必须是当天有效的 HH:MM")
+            if end_minutes <= start_minutes:
+                raise ValueError("活动结束时间必须晚于开始时间")
+            if self.duration_minutes is not None and self.duration_minutes <= 0:
+                raise ValueError("已排期活动时长必须大于 0")
         if self.place is not None and self.kind not in {"free_time", "other"}:
             if self.place.category != self.kind:
                 raise ValueError("活动 kind 必须与地点 category 一致")
@@ -324,6 +476,8 @@ class TripActivityV3(ContractModel):
         elif self.kind not in {"free_time", "other"}:
             if self.place is None:
                 raise ValueError("正式地点型活动必须绑定真实地点")
+        if self.day is not None and (self.insertion_options or self.insertion_unavailable_reason):
+            raise ValueError("已排期活动不能保留候选插入信息")
         return self
 
 
@@ -337,7 +491,7 @@ class TripAnchorV3(ContractModel):
 
 class TripDayV3(ContractModel):
     day: int = Field(ge=1, le=7)
-    date: date
+    date: Optional[DateValue] = None
     timezone: str = Field(min_length=1)
     theme: Optional[str] = None
     note_id: Optional[str] = None
@@ -403,6 +557,18 @@ class BudgetCategoryV3(ContractModel):
     amount: MoneyV3
 
 
+class TravelerBudgetCostV3(ContractModel):
+    traveler_type: Literal["adult", "child", "senior"]
+    count: int = Field(ge=0)
+    estimated_total: Optional[MoneyV3] = None
+    pricing_status: Literal[
+        "standard_price",
+        "official_discount_verified",
+        "adult_price_assumed",
+        "not_applicable",
+    ] = "not_applicable"
+
+
 class BudgetSummaryV3(ContractModel):
     total_budget: MoneyV3
     estimated_total: Optional[MoneyV3] = None
@@ -410,6 +576,7 @@ class BudgetSummaryV3(ContractModel):
     unknown_cost_count: int = Field(default=0, ge=0)
     over_budget: bool = False
     overrun_amount: Optional[MoneyV3] = None
+    traveler_costs: List[TravelerBudgetCostV3] = Field(default_factory=list)
     warnings: List[str] = Field(default_factory=list)
 
 
@@ -495,8 +662,9 @@ class TravelPlanDocumentV3(ContractModel):
     validation: ValidationSummaryV3
 
     @model_validator(mode="after")
-    def validate_document_integrity(self) -> "TravelPlanDocumentV3":
-        if not self.validation.valid:
+    def validate_document_integrity(self, info: ValidationInfo) -> "TravelPlanDocumentV3":
+        # 草稿允许携带待修复的业务冲突；发布、导出默认仍严格要求正式校验通过。
+        if not self.validation.valid and not (info.context or {}).get("draft"):
             raise ValueError("正式 V3 文档必须通过业务校验")
         if self.status == "degraded" and not self.validation.degraded:
             raise ValueError("degraded 文档必须在 validation 中明确降级")
@@ -515,11 +683,20 @@ class TravelPlanDocumentV3(ContractModel):
         actual_days = [day.day for day in self.itinerary.days]
         if actual_days != expected_days:
             raise ValueError("itinerary.days 必须从 1 开始连续排列")
-        if [day.date for day in self.itinerary.days] != [
-            date.fromordinal(self.intent.start_date.toordinal() + offset)
-            for offset in range(self.intent.days)
-        ]:
-            raise ValueError("行程日期必须与 intent 日期区间一致")
+        if self.intent.date_mode == "fixed":
+            assert self.intent.start_date is not None
+            if [day.date for day in self.itinerary.days] != [
+                date.fromordinal(self.intent.start_date.toordinal() + offset)
+                for offset in range(self.intent.days)
+            ]:
+                raise ValueError("行程日期必须与 intent 日期区间一致")
+        elif any(day.date is not None for day in self.itinerary.days):
+            raise ValueError("日期待定行程必须按第 1 天至第 N 天表达，不能填入虚构日期")
+
+        if self.intent.date_mode == "flexible":
+            for section in (self.outbound_transport, self.return_transport):
+                if section.options or section.selected_option_id:
+                    raise ValueError("日期待定行程不能包含具体往返交通方案")
 
         activities = [activity for day in self.itinerary.days for activity in day.activities]
         candidates = self.candidate_pool
@@ -528,6 +705,43 @@ class TravelPlanDocumentV3(ContractModel):
         activity_ids = [activity.activity_id for activity in activities + candidates]
         if len(activity_ids) != len(set(activity_ids)):
             raise ValueError("活动 activity_id 在正式日程和候选池中必须全局唯一")
+
+        for day in self.itinerary.days:
+            timed = [activity for activity in day.activities if activity.start_at and activity.end_at]
+            timed.sort(key=lambda activity: (activity.start_at or "", activity.end_at or ""))
+            for left, right in zip(timed, timed[1:]):
+                if (left.end_at or "") > (right.start_at or ""):
+                    raise ValueError(f"第 {day.day} 天活动时间不能重叠")
+
+        def selected_option(section: TransportSectionV3) -> Optional[TransportOptionV3]:
+            return next(
+                (option for option in section.options if option.option_id == section.selected_option_id),
+                None,
+            )
+
+        outbound = selected_option(self.outbound_transport)
+        first_day = self.itinerary.days[0]
+        if outbound and outbound.arrival_time and outbound.arrival_time.local_iso and first_day.date:
+            arrival = outbound.arrival_time.local_iso
+            if arrival.date() == first_day.date:
+                earliest_start = min(
+                    (activity.start_at for activity in first_day.activities if activity.start_at),
+                    default=None,
+                )
+                if earliest_start and earliest_start < arrival.strftime("%H:%M"):
+                    raise ValueError("首日活动不能早于所选去程到达时间")
+
+        returning = selected_option(self.return_transport)
+        last_day = self.itinerary.days[-1]
+        if returning and returning.departure_time and returning.departure_time.local_iso and last_day.date:
+            departure = returning.departure_time.local_iso
+            if departure.date() == last_day.date:
+                latest_end = max(
+                    (activity.end_at for activity in last_day.activities if activity.end_at),
+                    default=None,
+                )
+                if latest_end and latest_end > departure.strftime("%H:%M"):
+                    raise ValueError("末日活动不能晚于所选返程出发时间")
 
         anchors = [anchor for day in self.itinerary.days for anchor in day.anchors]
         anchor_ids = [anchor.anchor_id for anchor in anchors]
@@ -612,6 +826,9 @@ class RunStartedPayload(ContractModel):
 
 
 class AgentStagePayload(ContractModel):
+    task_id: Optional[str] = None
+    attempt: Optional[int] = Field(default=None, ge=1)
+    result: Optional[Dict[str, Any]] = None
     stage: PlanningStage
     agent_name: str = Field(min_length=1)
     task: str = Field(min_length=1)
@@ -676,6 +893,7 @@ class PlanningErrorPayload(ContractModel):
     user_message: str = Field(min_length=1)
     retryable: bool = False
     actions: List[str] = Field(default_factory=list)
+    details: List[Dict[str, str]] = Field(default_factory=list, max_length=8)
 
 
 PlanningEventPayload = Union[

@@ -1,5 +1,6 @@
 import sys
 import unittest
+from datetime import date, timedelta
 from pathlib import Path
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
@@ -10,10 +11,45 @@ if str(BACKEND_ROOT) not in sys.path:
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.append(str(PROJECT_ROOT))
 
-from schemas.api_models import ChatMessage, ChatRequest, ConfigRequest, SkillInfo, SystemStatus, PowerPaintStatus
+from pydantic import ValidationError
+
+from schemas.api_models import (
+    ChatMessage,
+    ChatRequest,
+    ConfigRequest,
+    PowerPaintStatus,
+    SkillInfo,
+    SystemStatus,
+    TripEditRequest,
+)
 
 
 class ApiModelsContractTests(unittest.TestCase):
+    def test_trip_edit_accepts_document_only_and_rejects_missing_fact_source(self):
+        request = TripEditRequest(
+            document={"schema_version": "3.0"},
+            operation={
+                "operation_id": "op-document-only",
+                "plan_id": "plan-v3",
+                "base_version": 1,
+                "type": "shift_activity_time",
+                "payload": {"activity_id": "a1", "delta_minutes": 15},
+            },
+        )
+
+        self.assertIsNone(request.plan)
+        self.assertEqual("3.0", request.document["schema_version"])
+        with self.assertRaises(ValidationError):
+            TripEditRequest(
+                operation={
+                    "operation_id": "op-missing",
+                    "plan_id": "plan-v3",
+                    "base_version": 1,
+                    "type": "shift_activity_time",
+                    "payload": {},
+                }
+            )
+
     def test_chat_request_defaults_are_stable(self):
         request = ChatRequest(messages=[ChatMessage(role="user", content="hello")])
 
@@ -29,6 +65,8 @@ class ApiModelsContractTests(unittest.TestCase):
         self.assertEqual(request.clarification_answers, {})
         self.assertIsNone(request.request_id)
         self.assertEqual(request.selected_knowledge_context, [])
+        self.assertEqual(request.input_source, "natural_language")
+        self.assertIsNone(request.structured_trip_request)
 
         another = ChatRequest(messages=[ChatMessage(role="user", content="world")])
         self.assertIsNone(another.selected_mcp_servers)
@@ -44,6 +82,52 @@ class ApiModelsContractTests(unittest.TestCase):
         )
 
         self.assertFalse(request.allow_web_search)
+
+    def test_chat_request_accepts_a_complete_structured_trip(self):
+        start_date = date.today() + timedelta(days=30)
+        end_date = start_date + timedelta(days=2)
+        request = ChatRequest(
+            messages=[ChatMessage(role="user", content="请规划杭州三日游")],
+            input_source="structured_form",
+            structured_trip_request={
+                "origin": "上海",
+                "destination": "杭州",
+                "start_date": start_date.isoformat(),
+                "end_date": end_date.isoformat(),
+                "adults": 2,
+                "children": 0,
+                "seniors": 0,
+                "budget": 6000,
+                "party_type": "情侣",
+                "preferences": ["人文历史", "当地美食"],
+            },
+        )
+
+        self.assertEqual(request.structured_trip_request.destination, "杭州")
+        self.assertEqual(request.structured_trip_request.party_type, "情侣")
+
+    def test_structured_source_requires_a_valid_structured_trip(self):
+        with self.assertRaises(ValidationError):
+            ChatRequest(
+                messages=[ChatMessage(role="user", content="请规划行程")],
+                input_source="structured_form",
+            )
+
+        with self.assertRaises(ValidationError):
+            ChatRequest(
+                messages=[ChatMessage(role="user", content="请规划行程")],
+                input_source="structured_form",
+                structured_trip_request={
+                    "origin": "杭州",
+                    "destination": "杭州",
+                    "start_date": "2026-08-15",
+                    "end_date": "2026-08-17",
+                    "adults": 0,
+                    "children": 0,
+                    "seniors": 0,
+                    "budget": 6000,
+                },
+            )
 
     def test_config_request_defaults_are_stable(self):
         config = ConfigRequest(api_key="k-1")

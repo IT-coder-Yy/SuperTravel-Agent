@@ -72,6 +72,13 @@
           ],
           "default": null
         },
+        "traveler_costs": {
+          "items": {
+            "$ref": "#/$defs/TravelerBudgetCostV3"
+          },
+          "title": "Traveler Costs",
+          "type": "array"
+        },
         "warnings": {
           "items": {
             "type": "string"
@@ -84,6 +91,41 @@
         "total_budget"
       ],
       "title": "BudgetSummaryV3",
+      "type": "object"
+    },
+    "CandidateInsertionOptionV3": {
+      "additionalProperties": false,
+      "description": "One server-checked time slot that a candidate may occupy.",
+      "properties": {
+        "day": {
+          "maximum": 7,
+          "minimum": 1,
+          "title": "Day",
+          "type": "integer"
+        },
+        "start_at": {
+          "pattern": "^\\d{2}:\\d{2}$",
+          "title": "Start At",
+          "type": "string"
+        },
+        "end_at": {
+          "pattern": "^\\d{2}:\\d{2}$",
+          "title": "End At",
+          "type": "string"
+        },
+        "position": {
+          "minimum": 0,
+          "title": "Position",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "day",
+        "start_at",
+        "end_at",
+        "position"
+      ],
+      "title": "CandidateInsertionOptionV3",
       "type": "object"
     },
     "CoordinatesV3": {
@@ -365,6 +407,54 @@
           ],
           "default": null,
           "title": "Attribution Text"
+        },
+        "attribution_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attribution Url"
+        },
+        "provider_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Name"
+        },
+        "provider_url": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Url"
+        },
+        "download_location": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Download Location"
         },
         "source_ref": {
           "anyOf": [
@@ -960,6 +1050,28 @@
           "default": null,
           "title": "Arrival Place"
         },
+        "departure_hub": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TripPlaceV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arrival_hub": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TripPlaceV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "departure_time": {
           "anyOf": [
             {
@@ -1029,6 +1141,14 @@
           "title": "Availability",
           "type": "string"
         },
+        "seat_options": {
+          "items": {
+            "$ref": "#/$defs/TransportSeatOptionV3"
+          },
+          "maxItems": 12,
+          "title": "Seat Options",
+          "type": "array"
+        },
         "booking_url": {
           "anyOf": [
             {
@@ -1079,6 +1199,56 @@
         "mode"
       ],
       "title": "TransportOptionV3",
+      "type": "object"
+    },
+    "TransportSeatOptionV3": {
+      "additionalProperties": false,
+      "description": "One provider-returned cabin or seat class for a real-time transport option.",
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "availability": {
+          "default": "unknown",
+          "enum": [
+            "available",
+            "limited",
+            "unavailable",
+            "unknown"
+          ],
+          "title": "Availability",
+          "type": "string"
+        },
+        "remaining_text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Remaining Text"
+        },
+        "price": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "TransportSeatOptionV3",
       "type": "object"
     },
     "TransportSectionV3": {
@@ -1236,12 +1406,59 @@
       "title": "TransportTimeV3",
       "type": "object"
     },
+    "TravelerBudgetCostV3": {
+      "additionalProperties": false,
+      "properties": {
+        "traveler_type": {
+          "enum": [
+            "adult",
+            "child",
+            "senior"
+          ],
+          "title": "Traveler Type",
+          "type": "string"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "estimated_total": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/MoneyV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "pricing_status": {
+          "default": "not_applicable",
+          "enum": [
+            "standard_price",
+            "official_discount_verified",
+            "adult_price_assumed",
+            "not_applicable"
+          ],
+          "title": "Pricing Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "traveler_type",
+        "count"
+      ],
+      "title": "TravelerBudgetCostV3",
+      "type": "object"
+    },
     "TravelerCountV3": {
       "additionalProperties": false,
       "properties": {
         "adults": {
           "default": 1,
-          "minimum": 1,
+          "minimum": 0,
           "title": "Adults",
           "type": "integer"
         },
@@ -1457,6 +1674,23 @@
           "title": "Fixed Time",
           "type": "boolean"
         },
+        "meal_type": {
+          "anyOf": [
+            {
+              "enum": [
+                "breakfast",
+                "lunch",
+                "dinner"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Meal Type"
+        },
         "place": {
           "anyOf": [
             {
@@ -1510,6 +1744,29 @@
           ],
           "default": null
         },
+        "estimated_cost_unit": {
+          "default": "per_traveler",
+          "enum": [
+            "per_traveler",
+            "group"
+          ],
+          "title": "Estimated Cost Unit",
+          "type": "string"
+        },
+        "official_traveler_prices": {
+          "additionalProperties": {
+            "$ref": "#/$defs/MoneyV3"
+          },
+          "propertyNames": {
+            "enum": [
+              "adult",
+              "child",
+              "senior"
+            ]
+          },
+          "title": "Official Traveler Prices",
+          "type": "object"
+        },
         "note_id": {
           "anyOf": [
             {
@@ -1539,6 +1796,26 @@
             }
           ],
           "default": null
+        },
+        "insertion_options": {
+          "items": {
+            "$ref": "#/$defs/CandidateInsertionOptionV3"
+          },
+          "maxItems": 7,
+          "title": "Insertion Options",
+          "type": "array"
+        },
+        "insertion_unavailable_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Insertion Unavailable Reason"
         }
       },
       "required": [
@@ -1602,9 +1879,17 @@
           "type": "integer"
         },
         "date": {
-          "format": "date",
-          "title": "Date",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Date"
         },
         "timezone": {
           "minLength": 1,
@@ -1652,7 +1937,6 @@
       },
       "required": [
         "day",
-        "date",
         "timezone"
       ],
       "title": "TripDayV3",
@@ -1671,15 +1955,40 @@
           "title": "Destination",
           "type": "string"
         },
-        "start_date": {
-          "format": "date",
-          "title": "Start Date",
+        "date_mode": {
+          "default": "fixed",
+          "enum": [
+            "fixed",
+            "flexible"
+          ],
+          "title": "Date Mode",
           "type": "string"
         },
+        "start_date": {
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Date"
+        },
         "end_date": {
-          "format": "date",
-          "title": "End Date",
-          "type": "string"
+          "anyOf": [
+            {
+              "format": "date",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Date"
         },
         "days": {
           "maximum": 7,
@@ -1721,8 +2030,6 @@
       "required": [
         "origin",
         "destination",
-        "start_date",
-        "end_date",
         "days",
         "travelers",
         "budget"
@@ -1866,7 +2173,15 @@
           "title": "Timezone"
         },
         "coordinates": {
-          "$ref": "#/$defs/CoordinatesV3"
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoordinatesV3"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "summary": {
           "anyOf": [
@@ -1902,8 +2217,7 @@
       "required": [
         "poi_id",
         "name",
-        "category",
-        "coordinates"
+        "category"
       ],
       "title": "TripPlaceV3",
       "type": "object"

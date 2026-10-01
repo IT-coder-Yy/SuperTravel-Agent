@@ -3,6 +3,44 @@
     "AgentStagePayload": {
       "additionalProperties": false,
       "properties": {
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Task Id"
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt"
+        },
+        "result": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Result"
+        },
         "stage": {
           "enum": [
             "requirements_analysis",
@@ -205,6 +243,17 @@
             "type": "string"
           },
           "title": "Actions",
+          "type": "array"
+        },
+        "details": {
+          "items": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "maxItems": 8,
+          "title": "Details",
           "type": "array"
         }
       },
