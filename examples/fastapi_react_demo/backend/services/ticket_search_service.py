@@ -4,6 +4,17 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Iterable, Mapping
 
 
+OFFICIAL_RAIL_QUERY_URL = "https://www.12306.cn/index/"
+
+
+def transport_query_guidance(origin: str = "", destination: str = "") -> str:
+    route = f"“{origin} → {destination}”的" if origin and destination else ""
+    return (
+        f"暂无可靠实时票务数据。请通过官方交通查询渠道核验{route}可用交通方式、"
+        "班次、出发与到达地点、时间及票价，并为两端接驳预留时间。"
+    )
+
+
 def _number(value: Any) -> float | None:
     match = re.search(r"\d+(?:\.\d+)?", str(value or "").replace(",", ""))
     return float(match.group()) if match else None
@@ -12,7 +23,7 @@ def _number(value: Any) -> float | None:
 def _duration_minutes(value: Any) -> int | None:
     text = str(value or "")
     hours = re.search(r"(\d+)\s*(?:小时|h)", text, re.I)
-    minutes = re.search(r"(\d+)\s*(?:分钟|min)", text, re.I)
+    minutes = re.search(r"(\d+)\s*(?:分钟?|min)", text, re.I)
     if not hours and not minutes:
         return None
     total = int(hours.group(1)) * 60 if hours else 0
@@ -31,6 +42,9 @@ def _availability(note: Any) -> str:
         return "unknown"
     if re.search(r"候补|紧张|少量|limited", text, re.I):
         return "limited"
+    remaining = re.search(r"余票\s*[:：]?\s*(\d+)", text)
+    if remaining:
+        return "limited" if int(remaining.group(1)) <= 5 else "available"
     if re.search(r"有票|可预订|available", text, re.I):
         return "available"
     return "unknown"
@@ -38,7 +52,15 @@ def _availability(note: Any) -> str:
 
 def _data_type(source: str) -> str:
     normalized = source.casefold()
-    live_markers = ("12306", "official api", "official_api", "provider api", "provider_api")
+    live_markers = (
+        "12306",
+        "get-tickets",
+        "query_12306",
+        "official api",
+        "official_api",
+        "provider api",
+        "provider_api",
+    )
     reference_markers = ("web", "网页", "ctrip", "携程", "search", "搜索")
     if any(marker in normalized for marker in reference_markers):
         return "reference_data"
@@ -51,8 +73,62 @@ def _option_id(row: Mapping[str, Any], mode: str, direction: str) -> str:
     return f"transport_{digest}"
 
 
+def _seat_availability(remaining: Any) -> str:
+    text = str(remaining or "").strip()
+    if not text:
+        return "unknown"
+    if re.search(r"无|售罄|候补|不可订|^0$", text, re.I):
+        return "unavailable"
+    count = _number(text)
+    if count is not None:
+        return "limited" if count <= 5 else "available"
+    if re.search(r"紧张|少量|limited", text, re.I):
+        return "limited"
+    if re.search(r"有票|可订|available|充足", text, re.I):
+        return "available"
+    return "unknown"
+
+
+def _seat_options(row: Mapping[str, Any], *, source_is_live: bool) -> list[Dict[str, Any]]:
+    """Keep provider-returned seat/cabin choices without inventing availability."""
+    if not source_is_live:
+        return []
+
+    raw_options = row.get("seat_options")
+    if not isinstance(raw_options, list):
+        seat = str(row.get("seat") or "").strip()
+        note = str(row.get("note") or "")
+        remaining_match = re.search(r"余票\s*[:：]?\s*([^，,；;\s]+)", note)
+        raw_options = ([{
+            "name": seat,
+            "remaining_text": remaining_match.group(1) if remaining_match else "",
+            "price": row.get("price"),
+        }] if seat and seat != "-" else [])
+
+    normalized: list[Dict[str, Any]] = []
+    seen = set()
+    for item in raw_options:
+        if not isinstance(item, Mapping):
+            continue
+        name = str(item.get("name") or item.get("seat") or item.get("seat_name") or "").strip()
+        if not name or name == "-" or name in seen:
+            continue
+        seen.add(name)
+        remaining_text = str(item.get("remaining_text") or item.get("remaining") or item.get("left") or "").strip()
+        price = _number(item.get("price"))
+        normalized.append({
+            "name": name,
+            "availability": _seat_availability(remaining_text),
+            "remaining_text": remaining_text or None,
+            "price": price,
+            "currency": "CNY",
+        })
+    return normalized[:12]
+
+
 def _options(rows: Iterable[Mapping[str, Any]], mode: str, source: str, queried_at: str, direction: str) -> list[Dict[str, Any]]:
     result = []
+    data_type = _data_type(source)
     for row in rows:
         departure_station, arrival_station = _split_route(row.get("route"))
         result.append({
@@ -63,21 +139,32 @@ def _options(rows: Iterable[Mapping[str, Any]], mode: str, source: str, queried_
             "duration_minutes": _duration_minutes(row.get("duration")), "transfers": 0,
             "price": _number(row.get("price")), "currency": "CNY",
             "availability": _availability(row.get("note")), "booking_url": None,
+            "seat_options": _seat_options(row, source_is_live=data_type == "confirmed_live_data"),
             "source_reference_id": f"source_ticket_{direction}_{mode}",
-            "data_type": _data_type(source),
+            "data_type": data_type,
             "queried_at": queried_at,
         })
     return result
 
 
-def transport_section_from_bundle(bundle: Mapping[str, Any] | None, direction: str, scope: str, travel_date: str | None) -> Dict[str, Any]:
+def transport_section_from_bundle(
+    bundle: Mapping[str, Any] | None,
+    direction: str,
+    scope: str,
+    travel_date: str | None,
+    fallback_guidance: str | None = None,
+) -> Dict[str, Any]:
     supported_modes = ["flight"] if scope == "international" else ["train", "intercity_bus", "flight"]
+    official_query_url = OFFICIAL_RAIL_QUERY_URL if scope == "domestic" else None
     if not travel_date:
         return {"direction": direction, "scope": scope, "travel_date": None, "supported_modes": supported_modes,
-                "recommended_option_id": None, "options": [], "status": "needs_date", "status_reason": "需要明确出行日期"}
+                "recommended_option_id": None, "options": [], "status": "needs_date", "status_reason": "需要明确出行日期",
+                "official_query_url": official_query_url}
     if not bundle:
         return {"direction": direction, "scope": scope, "travel_date": travel_date, "supported_modes": supported_modes,
-                "recommended_option_id": None, "options": [], "status": "needs_confirmation", "status_reason": "暂无可靠实时票务数据"}
+                "recommended_option_id": None, "options": [], "status": "needs_confirmation",
+                "status_reason": fallback_guidance or transport_query_guidance(),
+                "official_query_url": official_query_url}
     queried_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
     options = []
     if scope == "domestic":
@@ -90,5 +177,6 @@ def transport_section_from_bundle(bundle: Mapping[str, Any] | None, direction: s
         "direction": direction, "scope": scope, "travel_date": travel_date, "supported_modes": supported_modes,
         "recommended_option_id": options[0]["option_id"] if options else None, "options": options,
         "status": "ready" if options else "unavailable",
-        "status_reason": None if options else "实时查询已结束，但没有可验证的有效结果",
+        "status_reason": None if options else (fallback_guidance or transport_query_guidance()),
+        "official_query_url": official_query_url,
     }

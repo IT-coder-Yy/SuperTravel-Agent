@@ -166,6 +166,20 @@ class FallbackTicketManager:
         raise AssertionError(f"unexpected tool: {name}")
 
 
+class UnavailableFallbackTicketManager:
+    def __init__(self):
+        self.calls = []
+
+    def get_tool(self, name):
+        if name in {"get-tickets", "query_12306_realtime_tickets"}:
+            return object()
+        return None
+
+    def run_tool(self, name, messages, session_id, **kwargs):
+        self.calls.append((name, kwargs))
+        return {"error": True, "error_type": "ticket_provider_unavailable", "message": "provider unavailable"}
+
+
 class TicketQueryFixTests(unittest.TestCase):
     def _prepare_bundle(self, manager):
         with patch("services.chat_service._load_12306_station_names", return_value=["杭州", "南京"]):
@@ -234,6 +248,24 @@ class TicketQueryFixTests(unittest.TestCase):
         self.assertEqual(bundle["ticket_states"]["train"]["status"], "success")
         self.assertEqual(bundle["direct_rows"][0]["trip_no"], "G88")
         self.assertEqual(bundle["direct_source"], "get-tickets, query_12306_realtime_tickets")
+
+    def test_local_provider_outage_is_not_retried_for_every_station_alias(self):
+        manager = UnavailableFallbackTicketManager()
+
+        with patch("services.chat_service._station_query_pairs", return_value=[
+            ("上海", "杭州"),
+            ("上海虹桥", "杭州东"),
+            ("上海南", "杭州西"),
+        ]):
+            maybe_prepare_train_ticket_bundle(
+                user_query="2026-10-12 上海到杭州火车票",
+                tool_manager=manager,
+                message_history=[],
+                session_id="s-provider-outage",
+            )
+
+        local_calls = [name for name, _kwargs in manager.calls if name == "query_12306_realtime_tickets"]
+        self.assertEqual(local_calls, ["query_12306_realtime_tickets"])
 
     def test_train_success_is_preserved_when_flight_and_bus_fail(self):
         manager = RecordingTicketManager(
