@@ -30,22 +30,51 @@ import {
   CalendarOutlined
 } from '@ant-design/icons';
 import ReactMarkdown from 'react-markdown';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { PrismLight as SyntaxHighlighter } from 'react-syntax-highlighter';
+import bashLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
+import cssLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/css';
+import javascriptLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/javascript';
+import jsonLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/json';
+import jsxLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/jsx';
+import markupLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/markup';
+import pythonLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/python';
+import tsxLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/tsx';
+import typescriptLanguage from 'react-syntax-highlighter/dist/esm/languages/prism/typescript';
 import { tomorrow } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import remarkGfm from 'remark-gfm';
 import { v4 as uuidv4 } from 'uuid';
 import { useChatHistory, ChatHistoryItem } from '../hooks/useChatHistory';
-import { apiClient, SkillInfo } from '../services/apiClient';
+import { apiClient, type DemoCaseSummary, SkillInfo } from '../services/apiClient';
+import { tripHistoryApi } from '../services/tripHistoryApi';
 import { getChatMessages, setChatMessages } from '../utils/chatSessionRuntime';
-import MapComponent, { DayRouteGeometry } from './MapComponent';
+import type { DayRouteGeometry } from './MapComponent';
+
+SyntaxHighlighter.registerLanguage('bash', bashLanguage);
+SyntaxHighlighter.registerLanguage('css', cssLanguage);
+SyntaxHighlighter.registerLanguage('javascript', javascriptLanguage);
+SyntaxHighlighter.registerLanguage('json', jsonLanguage);
+SyntaxHighlighter.registerLanguage('jsx', jsxLanguage);
+SyntaxHighlighter.registerLanguage('markup', markupLanguage);
+SyntaxHighlighter.registerLanguage('python', pythonLanguage);
+SyntaxHighlighter.registerLanguage('tsx', tsxLanguage);
+SyntaxHighlighter.registerLanguage('typescript', typescriptLanguage);
+import {
+  normalizeDayRoutes,
+  formalDayRoutes,
+  routeAvailability,
+  routeAvailabilityMessage,
+} from './map/routePresentation';
 import ClarificationPanel, { ClarificationQuestion } from './ClarificationPanel';
-import TripWorkspace, {
+import {
   TripWorkspaceBudget,
   TripWorkspaceIssue,
   TripWorkspaceRepair,
   TripWorkspaceSource,
   TripWorkspaceState,
-  TripWorkspaceValidation
+  TripWorkspaceValidation,
+  type TripActivityDeleteImpact,
+  type TripDayRouteOptimizationPreview,
+  type TripDraftValidation,
 } from './TripWorkspace';
 import TripProductTools from './TripProductTools';
 import { statusAfterCompletion, statusAfterStreamClosed, type PlanningStatus } from './planningState';
@@ -54,12 +83,55 @@ import { useAppSettings } from '../hooks/useAppSettings';
 import { useUserTravelProfile } from '../hooks/useUserTravelProfile';
 import { useSelectedKnowledgeContext } from '../hooks/useSelectedKnowledgeContext';
 import { PlanningEventDeduper } from '../features/travel/state/planningEventStream';
+import { readFormalRevisionStream } from '../features/travel/state/formalRevisionStream';
+import { restoreFormalSnapshotState } from '../features/travel/state/formalSnapshotRestore';
+import { selectActiveFormalDocument } from '../features/travel/state/formalDocumentSelection';
+import {
+  createTripEditDraft,
+  readTripEditDraftMirror,
+  removeTripEditDraftMirror,
+  restoreTripEditDraft,
+  selectTripEditDocument,
+  type TripEditDraftOperation,
+  type TripEditDraftPayload,
+  writeTripEditDraftMirror,
+} from '../features/travel/state/tripEditDraft';
+import {
+  detectDestinationMutation,
+  type DestinationMutation,
+} from '../features/travel/state/destinationMutationGuard';
+import {
+  applyPlanningTimelineEvent,
+  createAgentRunTimeline,
+  restoreAgentRunTimeline,
+  serializeAgentRunTimeline,
+  type AgentRunTimelineState,
+  type PlanningTimelineEvent,
+} from '../features/travel/agent/AgentRunTimeline';
+import TripCreateForm from '../features/travel/create/TripCreateForm';
+import type { TripCreateRequest } from '../features/travel/create/tripCreateTypes';
+import DemoCaseGallery, { type DemoReplayCase } from '../features/travel/demo/DemoCaseGallery';
+import DemoReplayControls, { type DemoReplayPhase } from '../features/travel/demo/DemoReplayControls';
+import TravelPlannerWorkbench, {
+  buildCandidateMapLocations,
+} from '../features/travel/workbench/TravelPlannerWorkbench';
+import ConversationMessageList from '../features/travel/conversation/ConversationMessageList';
+import TravelPlanMessage from '../features/travel/conversation/TravelPlanMessage';
+import {
+  createEmptyTripWorkspace,
+  setTravelPlannerField,
+  type MobilePrimaryView,
+  type TravelPlannerLocation as LocationPoint,
+  type TravelPlannerState,
+} from '../features/travel/state/travelPlannerReducer';
+import type { TravelPlanDocumentV3 } from '../features/travel/state/travelPlannerTypes';
+import { useTravelPlannerState } from '../features/travel/state/TravelPlannerStateProvider';
 import '../styles/markdown.css';
 
 const { TextArea } = Input;
 const { Text } = Typography;
 
-interface Message {
+export interface Message {
   id: string;
   role: 'user' | 'assistant' | 'system';
   content: string; // 真正的消息内容，用于后续对话
@@ -71,23 +143,16 @@ interface Message {
   endTime?: Date; // 消息结束时间
   duration?: number; // 耗时（毫秒）
   linkedUserMessageId?: string; // 重新回答版本归属的用户问题ID
+  /** 已提交且通过 V3 业务校验的正式方案；仅用于对应这条最终回答。 */
+  formalDocument?: TravelPlanDocumentV3;
+  /** 同一份行程的后续正式版本已发布，保留此消息仅用于历史追溯。 */
+  supersededByRevision?: number;
 }
 
-interface MessageGroup {
-  userMessage: Message;
+export interface MessageGroup {
+  userMessage?: Message;
   deepThinkMessages: Message[];
   finalAnswer?: Message | Message[]; // 支持单个或多个最终答案
-}
-
-interface LocationPoint {
-  id: string;
-  name: string;
-  lat: number;
-  lng: number;
-  description?: string;
-  category?: string;
-  day?: number | string;
-  order?: number | string;
 }
 
 type FeedbackType = 'like' | 'dislike';
@@ -107,12 +172,22 @@ interface RegenerateRequestContext {
   messageIdMap: Record<string, string>;
 }
 
-interface ChatInterfaceProps {
+type PlanningRequestError = Error & {
+  code?: string;
+  status?: number;
+  userMessage?: string;
+};
+
+export interface ChatInterfaceProps {
   currentChatId?: string;
   loadedMessages?: ChatHistoryItem['messages'] | null;
   loadedTripPlan?: Record<string, unknown> | null;
   loadedTripDocument?: Record<string, unknown> | null;
   loadedTripWorkspace?: Record<string, unknown> | null;
+  loadedAgentTimeline?: Record<string, unknown> | null;
+  loadedTripDraft?: TripEditDraftPayload | null;
+  loadedHasPreviousFormalSnapshot?: boolean;
+  onRequestNewTrip?: (prefilledPrompt?: string) => void;
 }
 
 interface PendingClarification {
@@ -124,12 +199,71 @@ interface PendingClarification {
   intent?: Record<string, unknown>;
 }
 
-type MobilePrimaryView = 'chat' | 'trip' | 'map';
+interface DemoReplayState {
+  case: DemoReplayCase;
+  phase: DemoReplayPhase;
+  speed: 1 | 2;
+  currentEvent: number;
+  totalEvents: number;
+  error?: string;
+}
 
-const SIDE_PANEL_MAP_PERCENT_STORAGE_KEY = 'supertravelagent.sidePanelMapPercent';
 const CLARIFICATION_SKIP_VALUE = '__skip__';
 
 const safeText = (value: unknown): string => (typeof value === 'string' ? value : '');
+const toDemoReplayCase = (item: DemoCaseSummary): DemoReplayCase => ({
+  id: item.id,
+  title: item.title,
+  summary: item.summary,
+  meta: `${item.days} 天 · ${item.traveler_label} · ${item.origin}出发 · ${item.preferences.slice(0, 2).join('、') || '旅行体验'}`,
+  recordingStatus: item.recording_status,
+  eventCount: item.event_count,
+  notice: item.notice,
+  template: item.template,
+});
+const isTravelPlanDocumentV3 = (value: unknown): value is TravelPlanDocumentV3 => {
+  if (!value || typeof value !== 'object') return false;
+  const document = value as Record<string, unknown>;
+  return document.schema_version === '3.0'
+    && typeof document.plan_id === 'string'
+    && document.plan_id.trim().length > 0
+    && Number.isInteger(Number(document.revision));
+};
+
+const normalizeTripDraftValidation = (value: unknown): TripDraftValidation | null => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const payload = value as Record<string, unknown>;
+  const normalizeIssues = (items: unknown): TripWorkspaceIssue[] => (
+    Array.isArray(items) ? items.flatMap((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+      const issue = item as Record<string, unknown>;
+      const code = safeText(issue.code).trim();
+      const message = safeText(issue.message).trim();
+      if (!code || !message) return [];
+      const day = Number(issue.day);
+      return [{
+        code,
+        message,
+        target_id: safeText(issue.target_id).trim() || undefined,
+        day: Number.isInteger(day) && day > 0 ? day : undefined,
+      }];
+    }) : []
+  );
+  return {
+    can_apply: payload.can_apply === true,
+    status: safeText(payload.status).trim() || undefined,
+    hard_errors: normalizeIssues(payload.hard_errors),
+    soft_warnings: normalizeIssues(payload.soft_warnings),
+  };
+};
+
+const formalDocumentMessageId = (document: TravelPlanDocumentV3): string => (
+  `formal-plan:${document.plan_id}:${document.revision}`
+);
+
+const formalDocumentSummary = (document: TravelPlanDocumentV3): string => (
+  `${document.title}（正式方案 v${document.revision}）`
+);
 const tripSnapshotSignature = (
   plan: Record<string, unknown> | null,
   document: Record<string, unknown> | null,
@@ -142,11 +276,6 @@ const tripSnapshotSignature = (
     notes: document?.notes || [],
     delivery: document?.delivery || {},
   })}`;
-};
-
-const readSidePanelMapPercent = (): number => {
-  const saved = Number(window.localStorage.getItem(SIDE_PANEL_MAP_PERCENT_STORAGE_KEY));
-  return Number.isFinite(saved) ? Math.min(65, Math.max(55, saved)) : 60;
 };
 
 const getClarificationProfileDefault = (
@@ -173,15 +302,6 @@ const getClarificationProfileDefault = (
   }
   return safeText(value).trim();
 };
-
-const createEmptyTripWorkspace = (): TripWorkspaceState => ({
-  days: [],
-  locations: [],
-  sources: [],
-  budget: null,
-  validation: null,
-  repair: null,
-});
 
 const restorePlanFromWorkspace = (
   workspace: TripWorkspaceState,
@@ -237,7 +357,7 @@ const buildStableLocationId = (loc: Partial<LocationPoint>): string => {
 };
 
 export interface ChatInterfaceRef {
-  startNewChat: () => void;
+  startNewChat: (prefilledPrompt?: string) => void;
   loadChat: (
     messages: ChatHistoryItem['messages'],
     tripPlan?: Record<string, unknown> | null,
@@ -247,41 +367,122 @@ export interface ChatInterfaceRef {
 }
 
 const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
-  ({ currentChatId, loadedMessages, loadedTripPlan, loadedTripDocument, loadedTripWorkspace }, ref) => {
-    const { saveChat } = useChatHistory();
+  ({
+    currentChatId,
+    loadedMessages,
+    loadedTripPlan,
+    loadedTripDocument,
+    loadedTripWorkspace,
+    loadedAgentTimeline,
+    loadedTripDraft,
+    loadedHasPreviousFormalSnapshot = false,
+    onRequestNewTrip,
+  }, ref) => {
+    const { saveChat, getChat } = useChatHistory();
     const { settings } = useAppSettings();
     const { profile } = useUserTravelProfile();
     const { selectedKnowledgeContext, clearSelectedKnowledgeContext } = useSelectedKnowledgeContext();
     const [messages, setMessages] = useState<Message[]>([]);
     const [inputText, setInputTextState] = useState('');
     const [isInputEmpty, setIsInputEmpty] = useState(true);
+    const [isExistingTripComposerOpen, setIsExistingTripComposerOpen] = useState(false);
+    const [pendingDestinationMutation, setPendingDestinationMutation] = useState<DestinationMutation | null>(null);
+    const [agentTimelinesByChatId, setAgentTimelinesByChatId] = useState<Record<string, AgentRunTimelineState>>({});
+    const agentTimelinesByChatIdRef = useRef<Record<string, AgentRunTimelineState>>({});
+    const [tripCreateFormRevision, setTripCreateFormRevision] = useState(0);
+    const [demoCases, setDemoCases] = useState<DemoReplayCase[]>([]);
+    const [demoReplay, setDemoReplay] = useState<DemoReplayState | null>(null);
+    const [tripCreateTemplate, setTripCreateTemplate] = useState<(Partial<TripCreateRequest> & { days?: number }) | null>(null);
     const [isLoading, setIsLoading] = useState(false);
-    const [planningStatus, setPlanningStatus] = useState<PlanningStatus>('idle');
     const [useDeepThink, setUseDeepThink] = useState(true);
     const [useMultiAgent, setUseMultiAgent] = useState(true);
     const [sessionId, setSessionId] = useState(() => uuidv4());
-    const [showMap, setShowMap] = useState(settings.showMapDefault);
-    const [chatPanelWidthPercent, setChatPanelWidthPercent] = useState(70.6);
-    const [mapLocations, setMapLocations] = useState<LocationPoint[]>([]);
-    const [mapSuppressed, setMapSuppressed] = useState(false);
     const [messageFeedback, setMessageFeedback] = useState<Record<string, FeedbackType>>({});
     const [answerPageByUserMessageId, setAnswerPageByUserMessageId] = useState<Record<string, number>>({});
     const [pendingClarification, setPendingClarification] = useState<PendingClarification | null>(null);
-    const [tripWorkspace, setTripWorkspace] = useState<TripWorkspaceState>(() => createEmptyTripWorkspace());
-    const [activeTripPlan, setActiveTripPlan] = useState<Record<string, unknown> | null>(null);
-    const [activeTripDocument, setActiveTripDocument] = useState<Record<string, unknown> | null>(null);
-    const [previousTripPlan, setPreviousTripPlan] = useState<Record<string, unknown> | null>(null);
     const [isTripEditLoading, setIsTripEditLoading] = useState(false);
-    const [dayRoutes, setDayRoutes] = useState<DayRouteGeometry[]>([]);
-    const [activeMapGroupId, setActiveMapGroupId] = useState('');
-    const [selectedLocationId, setSelectedLocationId] = useState('');
-    const [sidePanelMapPercent, setSidePanelMapPercent] = useState(readSidePanelMapPercent);
-    const [mobilePrimaryView, setMobilePrimaryView] = useState<MobilePrimaryView>('chat');
+    const [previousTripDocument, setPreviousTripDocument] = useState<Record<string, unknown> | null>(null);
+    const [hasTripEditDraft, setHasTripEditDraft] = useState(false);
+    const [tripDraftValidation, setTripDraftValidation] = useState<TripDraftValidation | null>(null);
+    const [canRestorePreviousFormal, setCanRestorePreviousFormal] = useState(false);
+    const { state: travelPlannerState, dispatch: dispatchTravelPlanner } = useTravelPlannerState();
+    const {
+      planningStatus,
+      showMap,
+      chatPanelWidthPercent,
+      mapLocations,
+      mapSuppressed,
+      tripWorkspace,
+      activeTripPlan,
+      activeTripDocument,
+      previousTripPlan,
+      dayRoutes,
+      activeMapGroupId,
+      selectedLocationId,
+      sidePanelMapPercent,
+      mobilePrimaryView,
+    } = travelPlannerState;
+    const updateTravelPlannerField = <Field extends keyof TravelPlannerState,>(
+      field: Field,
+      value: React.SetStateAction<TravelPlannerState[Field]>,
+    ) => dispatchTravelPlanner(setTravelPlannerField(field, value));
+    const setPlanningStatus: React.Dispatch<React.SetStateAction<PlanningStatus>> =
+      (value) => updateTravelPlannerField('planningStatus', value);
+    const setShowMap: React.Dispatch<React.SetStateAction<boolean>> =
+      (value) => updateTravelPlannerField('showMap', value);
+    const setChatPanelWidthPercent: React.Dispatch<React.SetStateAction<number>> =
+      (value) => updateTravelPlannerField('chatPanelWidthPercent', value);
+    const setMapLocations: React.Dispatch<React.SetStateAction<LocationPoint[]>> =
+      (value) => updateTravelPlannerField('mapLocations', value);
+    const setMapSuppressed: React.Dispatch<React.SetStateAction<boolean>> =
+      (value) => updateTravelPlannerField('mapSuppressed', value);
+    const setTripWorkspace: React.Dispatch<React.SetStateAction<TripWorkspaceState>> =
+      (value) => updateTravelPlannerField('tripWorkspace', value);
+    const setActiveTripPlan: React.Dispatch<React.SetStateAction<Record<string, unknown> | null>> =
+      (value) => updateTravelPlannerField('activeTripPlan', value);
+    const setActiveTripDocument: React.Dispatch<React.SetStateAction<Record<string, unknown> | null>> =
+      (value) => updateTravelPlannerField('activeTripDocument', value);
+    const setPreviousTripPlan: React.Dispatch<React.SetStateAction<Record<string, unknown> | null>> =
+      (value) => updateTravelPlannerField('previousTripPlan', value);
+    const setDayRoutes: React.Dispatch<React.SetStateAction<DayRouteGeometry[]>> =
+      (value) => updateTravelPlannerField('dayRoutes', value);
+    const setActiveMapGroupId: React.Dispatch<React.SetStateAction<string>> =
+      (value) => updateTravelPlannerField('activeMapGroupId', value);
+    const setSelectedLocationId: React.Dispatch<React.SetStateAction<string>> =
+      (value) => updateTravelPlannerField('selectedLocationId', value);
+    const setSidePanelMapPercent: React.Dispatch<React.SetStateAction<number>> =
+      (value) => updateTravelPlannerField('sidePanelMapPercent', value);
+    const setMobilePrimaryView: React.Dispatch<React.SetStateAction<MobilePrimaryView>> =
+      (value) => updateTravelPlannerField('mobilePrimaryView', value);
+    const activeTripIntent = activeTripPlan?.intent as Record<string, unknown> | undefined;
+    const activeTripDocumentIntent = activeTripDocument?.intent as Record<string, unknown> | undefined;
+    const documentDestinationOverview = activeTripDocument?.destination_overview as Record<string, unknown> | undefined;
+    const formalTripDestination = (
+      safeText(activeTripIntent?.destination)
+      || safeText(activeTripDocumentIntent?.destination)
+      || safeText(documentDestinationOverview?.name_zh)
+    ).trim();
+    const activeTripPlanKey = safeText(activeTripPlan?.plan_id) && Array.isArray(activeTripPlan?.trip_days)
+      && activeTripPlan.trip_days.length > 0
+      ? `${safeText(activeTripPlan.plan_id)}:${Number(activeTripPlan.version) || 0}`
+      : '';
+    const formalTripKey = safeText(activeTripDocument?.schema_version) === '3.0'
+      ? `${safeText(activeTripDocument?.plan_id)}:${Number(activeTripDocument?.revision) || 0}`
+      : activeTripPlanKey;
+    const hasFormalTrip = Boolean(formalTripKey && formalTripDestination);
+    const shouldCollapseComposer = hasFormalTrip && !isExistingTripComposerOpen && !isLoading;
     const [isNarrowLayout, setIsNarrowLayout] = useState(
       () => window.matchMedia('(max-width: 768px)').matches
     );
     const activeTripPlanRef = useRef<Record<string, unknown> | null>(null);
     const activeTripDocumentRef = useRef<Record<string, unknown> | null>(null);
+    const formalDocumentByChatIdRef = useRef<Record<string, TravelPlanDocumentV3>>({});
+    const tripEditOperationsRef = useRef<TripEditDraftOperation[]>([]);
+    const hasTripEditDraftRef = useRef(false);
+    const pendingDraftApplyOperationIdRef = useRef<string | null>(null);
+    const tripEditLoadingChatIdRef = useRef<string | null>(null);
+    const pendingFormalRestoreOperationIdRef = useRef<string | null>(null);
+    const revisionStreamAbortControllerRef = useRef<AbortController | null>(null);
     const tripWorkspaceRef = useRef<TripWorkspaceState>(createEmptyTripWorkspace());
     const skipNextAutoSaveRef = useRef(false);
     const lastPersistedPlanSignatureRef = useRef('');
@@ -299,9 +500,56 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       tripWorkspaceRef.current = tripWorkspace;
     }, [tripWorkspace]);
 
+    const setTripEditDraftState = (value: boolean) => {
+      hasTripEditDraftRef.current = value;
+      setHasTripEditDraft(value);
+      if (!value) setTripDraftValidation(null);
+    };
+
     useEffect(() => {
+      if (!hasTripEditDraft || !isTravelPlanDocumentV3(activeTripDocument)) {
+        setTripDraftValidation(null);
+        return;
+      }
+      let cancelled = false;
+      void fetch('/api/trip-drafts/validate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ document: activeTripDocument }),
+      }).then(async (response) => {
+        if (!response.ok || cancelled) return;
+        const validation = normalizeTripDraftValidation(await response.json());
+        if (!cancelled) setTripDraftValidation(validation);
+      }).catch(() => {
+        // 校验读取失败时仍保留草稿；后续应用继续由服务端最终判定。
+      });
+      return () => { cancelled = true; };
+    }, [activeTripDocument, hasTripEditDraft]);
+
+    useEffect(() => {
+      const chatId = getActiveChatId();
+      const timeline = agentTimelinesByChatIdRef.current[chatId];
+      if (!chatId || isDemoReplayChat(chatId) || !timeline || timeline.status === 'planning') return;
+      const currentMessages = getChatMessages(messagesByChatIdRef.current, chatId);
+      if (currentMessages.length > 0) scheduleSaveChat(chatId, currentMessages);
+    }, [agentTimelinesByChatId]);
+
+    useEffect(() => {
+      setIsExistingTripComposerOpen(false);
+      setPendingDestinationMutation(null);
+    }, [formalTripKey]);
+
+    useEffect(() => {
+      if (isDemoReplayChat(getActiveChatId())) {
+        setDayRoutes([]);
+        return;
+      }
       if (!activeTripPlan) {
         setDayRoutes([]);
+        return;
+      }
+      if (isTravelPlanDocumentV3(activeTripDocument)) {
+        setDayRoutes(formalDayRoutes(activeTripDocument));
         return;
       }
       const version = Number(activeTripPlan.version);
@@ -328,29 +576,46 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         });
         if (!response.ok) throw new Error('ROUTE_UNAVAILABLE');
         return response.json() as Promise<DayRouteGeometry>;
-      })).then((routes) => {
+      })).then((rawRoutes) => {
+        const routes = normalizeDayRoutes(rawRoutes);
+        const routeStatus = routeAvailability(routes);
         setDayRoutes(routes);
         setActiveTripDocument((current) => {
-          if (!current) return current;
+          if (!current || isTravelPlanDocumentV3(current)) return current;
           backgroundDocumentUpdateRef.current = true;
           return {
             ...current,
             map_guidance: {
               ...(current.map_guidance as Record<string, unknown> || {}),
-              status: routes.some((route) => route.status === 'ready' || route.status === 'partial') ? 'ready' : 'unavailable',
-              status_reason: routes.some((route) => route.status === 'ready' || route.status === 'partial')
+              status: routeStatus === 'ready' ? 'ready' : routeStatus === 'partial' ? 'degraded' : 'unavailable',
+              status_reason: routeStatus === 'ready'
                 ? '已按日计算真实道路路线'
-                : '真实路线暂不可用，当前仅显示日程地点',
+                : routeAvailabilityMessage(routeStatus),
               day_routes: routes,
               unavailable_segments: routes.flatMap((route) => route.legs.filter((leg) => leg.status === 'unavailable')),
             },
           };
         });
       }).catch((error) => {
-        if (error?.name !== 'AbortError') setDayRoutes([]);
+        if (error?.name === 'AbortError') return;
+        setDayRoutes([]);
+        setActiveTripDocument((current) => {
+          if (!current || isTravelPlanDocumentV3(current)) return current;
+          backgroundDocumentUpdateRef.current = true;
+          return {
+            ...current,
+            map_guidance: {
+              ...(current.map_guidance as Record<string, unknown> || {}),
+              status: 'unavailable',
+              status_reason: routeAvailabilityMessage('unavailable'),
+              day_routes: [],
+              unavailable_segments: [],
+            },
+          };
+        });
       });
       return () => controller.abort();
-    }, [activeTripPlan]);
+    }, [activeTripPlan, isTravelPlanDocumentV3(activeTripDocument) ? activeTripDocument : null]);
 
     useEffect(() => {
       const mediaQuery = window.matchMedia('(max-width: 768px)');
@@ -382,6 +647,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const [skillLoading, setSkillLoading] = useState(false);
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
+    const chatScrollRegionRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<any>(null);
     const chatMapLayoutRef = useRef<HTMLDivElement>(null);
     const tripSidePanelRef = useRef<HTMLDivElement>(null);
@@ -391,11 +657,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const isComposingRef = useRef(false);
     const isMountedRef = useRef(true);
     const activeRequestIdRef = useRef<string | null>(null);
+    const planningStartedAtRef = useRef<Record<string, number>>({});
     const activeAbortControllerRef = useRef<AbortController | null>(null);
     const activeRegenerateContextRef = useRef<RegenerateRequestContext | null>(null);
     const currentChatIdRef = useRef(currentChatId || '');
     const sessionIdRef = useRef(sessionId);
     const activeChatIdRef = useRef(currentChatId || sessionId);
+    const lastLoadedChatIdRef = useRef<string | null>(null);
     const messagesRef = useRef<Message[]>(messages);
     const messagesByChatIdRef = useRef<Record<string, Message[]>>({});
     const loadingByChatIdRef = useRef<Record<string, boolean>>({});
@@ -403,8 +671,12 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const abortControllersByChatIdRef = useRef<Record<string, AbortController>>({});
     const regenerateContextsByChatIdRef = useRef<Record<string, RegenerateRequestContext | null>>({});
     const saveTimersByChatIdRef = useRef<Record<string, number>>({});
+    const pendingStructuredReplacementByChatIdRef = useRef<Record<string, boolean>>({});
     const lastAutoOpenedMapSignatureRef = useRef('');
     const hasStructuredTripLocationsRef = useRef(false);
+    const demoReplayAbortControllerRef = useRef<AbortController | null>(null);
+    const demoReplayTokenRef = useRef(0);
+    const demoReplayChatIdsRef = useRef(new Set<string>());
 
     currentChatIdRef.current = currentChatId || '';
     sessionIdRef.current = sessionId;
@@ -420,6 +692,20 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       isChatMapResizingRef.current = true;
       document.body.style.cursor = 'col-resize';
       document.body.style.userSelect = 'none';
+    };
+
+    const resizeChatMapByKeyboard = (event: React.KeyboardEvent<HTMLDivElement>) => {
+      const keyboardTargets: Record<string, number> = {
+        ArrowLeft: chatPanelWidthPercent - 2,
+        ArrowRight: chatPanelWidthPercent + 2,
+        Home: 35,
+        End: 75,
+      };
+      const nextPercent = keyboardTargets[event.key];
+      if (nextPercent === undefined) return;
+
+      event.preventDefault();
+      setChatPanelWidthPercent(clampChatPanelWidthPercent(nextPercent));
     };
 
     const startSidePanelResize = (event: React.MouseEvent<HTMLDivElement>) => {
@@ -500,10 +786,6 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       };
     }, [isNarrowLayout]);
 
-    useEffect(() => {
-      window.localStorage.setItem(SIDE_PANEL_MAP_PERCENT_STORAGE_KEY, sidePanelMapPercent.toFixed(2));
-    }, [sidePanelMapPercent]);
-
     const areLocationsEquivalent = (a: LocationPoint[], b: LocationPoint[]): boolean => {
       if (a.length !== b.length) return false;
       for (let i = 0; i < a.length; i++) {
@@ -583,8 +865,94 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       return currentChatIdRef.current || sessionIdRef.current;
     };
 
+    const isDemoReplayChat = (chatId: string): boolean => demoReplayChatIdsRef.current.has(chatId);
+
+    const restoreActiveTripDocument = (document: Record<string, unknown>): boolean => {
+      const restored = restoreFormalSnapshotState({ current: { document } });
+      if (!restored) return false;
+      activeTripDocumentRef.current = restored.document;
+      activeTripPlanRef.current = restored.plan;
+      setActiveTripDocument(restored.document);
+      setActiveTripPlan(restored.plan);
+      tripWorkspaceRef.current = restored.workspace;
+      setTripWorkspace(restored.workspace);
+      setMapLocations(restored.workspace.locations as LocationPoint[]);
+      setMapSuppressed(restored.workspace.locations.length === 0);
+      return true;
+    };
+
+    const persistTripEditDraft = async (
+      chatId: string,
+      document: Record<string, unknown>,
+      operations: TripEditDraftOperation[],
+    ): Promise<void> => {
+      if (!chatId || isDemoReplayChat(chatId) || !isTravelPlanDocumentV3(document)) return;
+      const draft = createTripEditDraft(document, operations);
+      await tripHistoryApi.saveDraft(chatId, draft);
+      writeTripEditDraftMirror(chatId, draft);
+    };
+
+    const persistedTravelState = (chatId: string) => {
+      const activeDocument = activeTripDocumentRef.current;
+      if (hasTripEditDraftRef.current) {
+        const formalDocument = formalDocumentByChatIdRef.current[chatId];
+        const restored = formalDocument
+          ? restoreFormalSnapshotState({ current: { document: formalDocument as unknown as Record<string, unknown> } })
+          : null;
+        if (restored) {
+          return {
+            tripPlan: restored.plan,
+            tripDocument: restored.document,
+            tripWorkspace: restored.workspace as unknown as Record<string, unknown>,
+          };
+        }
+      }
+      return {
+        tripPlan: activeTripPlanRef.current,
+        tripDocument: activeDocument,
+        tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+      };
+    };
+
+    const replaceAgentTimelines = (next: Record<string, AgentRunTimelineState>) => {
+      agentTimelinesByChatIdRef.current = next;
+      setAgentTimelinesByChatId(next);
+    };
+
+    const restoreAgentTimelineForChat = (chatId: string, payload: unknown) => {
+      if (!chatId) return;
+      const restored = restoreAgentRunTimeline(payload);
+      const previous = agentTimelinesByChatIdRef.current;
+      if (!restored && !previous[chatId]) return;
+      const next = { ...previous };
+      if (restored) next[chatId] = restored;
+      else delete next[chatId];
+      replaceAgentTimelines(next);
+    };
+
+    const getPersistedAgentTimeline = (chatId: string): Record<string, unknown> | null => (
+      serializeAgentRunTimeline(agentTimelinesByChatIdRef.current[chatId])
+    );
+
+    const recordAgentTimelineEvent = (event: PlanningTimelineEvent, chatId: string) => {
+      if (event.type === 'run_started') planningStartedAtRef.current[chatId] = Date.now();
+      const previous = agentTimelinesByChatIdRef.current;
+      const current = previous[chatId]
+        || createAgentRunTimeline(safeText(event.request_id).trim() || chatId);
+      const nextTimeline = applyPlanningTimelineEvent(current, event);
+      if (nextTimeline === current && previous[chatId]) return;
+      replaceAgentTimelines({ ...previous, [chatId]: nextTimeline });
+    };
+
+    const clearAgentTimeline = (chatId: string) => {
+      const previous = agentTimelinesByChatIdRef.current;
+      if (!previous[chatId]) return;
+      const { [chatId]: _removed, ...remaining } = previous;
+      replaceAgentTimelines(remaining);
+    };
+
     const scheduleSaveChat = (chatId: string, nextMessages: Message[]) => {
-      if (!chatId || nextMessages.length === 0) return;
+      if (!chatId || isDemoReplayChat(chatId) || nextMessages.length === 0) return;
 
       const existingTimer = saveTimersByChatIdRef.current[chatId];
       if (existingTimer) {
@@ -592,12 +960,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       }
 
       saveTimersByChatIdRef.current[chatId] = window.setTimeout(() => {
+        if (isDemoReplayChat(chatId)) return;
         const latestMessages = getChatMessages(messagesByChatIdRef.current, chatId);
         if (latestMessages.length > 0) {
+          const persisted = persistedTravelState(chatId);
           saveChat(chatId, latestMessages, undefined, {
-            tripPlan: activeTripPlanRef.current,
-            tripDocument: activeTripDocumentRef.current,
-            tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+            tripPlan: persisted.tripPlan,
+            tripDocument: persisted.tripDocument,
+            tripWorkspace: persisted.tripWorkspace,
+            agentTimeline: getPersistedAgentTimeline(chatId),
           });
         }
         delete saveTimersByChatIdRef.current[chatId];
@@ -620,28 +991,28 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         setMessages(nextMessages);
       }
 
-      if (options.persist !== false) {
+      if (options.persist !== false && !isDemoReplayChat(chatId)) {
         scheduleSaveChat(chatId, nextMessages);
       }
 
       return nextMessages;
     };
 
-    const interruptedResponseText = '本次回复已中断：页面刷新、切换会话或停止响应会断开实时连接。请重新发送上一条问题。';
+    const interruptedResponseText = '实时连接已断开，后台规划仍在继续；完成后页面会自动恢复正式方案。';
 
     const isTerminalAssistantMessage = (message: Message): boolean => {
       if (message.role !== 'assistant') return false;
       const type = safeText(message.type).trim();
-      return !type || type === 'normal' || type === 'final_answer';
+      return !type || type === 'normal' || type === 'final_answer' || type === 'formal_plan';
     };
 
-    const createInterruptedResponseMessage = (): Message => {
+    const createInterruptedResponseMessage = (content = interruptedResponseText): Message => {
       const now = new Date();
       return {
         id: uuidv4(),
         role: 'assistant',
-        content: interruptedResponseText,
-        displayContent: interruptedResponseText,
+        content,
+        displayContent: content,
         timestamp: now,
         type: 'final_answer',
         startTime: now,
@@ -650,7 +1021,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       };
     };
 
-    const withInterruptedResponseIfNeeded = (sourceMessages: Message[]): Message[] => {
+    const withInterruptedResponseIfNeeded = (
+      sourceMessages: Message[],
+      content = interruptedResponseText,
+    ): Message[] => {
       const lastUserIndex = (() => {
         for (let index = sourceMessages.length - 1; index >= 0; index -= 1) {
           if (sourceMessages[index].role === 'user') return index;
@@ -670,20 +1044,48 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
       return [
         ...sourceMessages.slice(0, lastUserIndex + 1),
-        createInterruptedResponseMessage(),
+        createInterruptedResponseMessage(content),
       ];
+    };
+
+    const withRestoredFormalPlan = (
+      sourceMessages: Message[],
+      document: unknown,
+    ): Message[] => {
+      if (!isTravelPlanDocumentV3(document)) return sourceMessages;
+      if (sourceMessages.some((message) => (
+        message.formalDocument?.plan_id === document.plan_id
+        && message.formalDocument.revision === document.revision
+      ))) return sourceMessages;
+      const now = new Date();
+      return [...sourceMessages, {
+        id: formalDocumentMessageId(document),
+        role: 'assistant',
+        content: formalDocumentSummary(document),
+        displayContent: formalDocumentSummary(document),
+        timestamp: now,
+        type: 'formal_plan',
+        agentType: '旅行规划',
+        startTime: now,
+        endTime: now,
+        duration: 0,
+        formalDocument: document,
+      }];
     };
 
     const persistInterruptedActiveRequests = () => {
       Object.keys(requestIdsByChatIdRef.current).forEach((chatId) => {
+        if (isDemoReplayChat(chatId)) return;
         const currentMessages = getChatMessages(messagesByChatIdRef.current, chatId);
         const nextMessages = withInterruptedResponseIfNeeded(currentMessages);
         if (nextMessages !== currentMessages && nextMessages.length > 0) {
           messagesByChatIdRef.current = setChatMessages(messagesByChatIdRef.current, chatId, nextMessages);
+          const persisted = persistedTravelState(chatId);
           saveChat(chatId, nextMessages, undefined, {
-            tripPlan: activeTripPlanRef.current,
-            tripDocument: activeTripDocumentRef.current,
-            tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+            tripPlan: persisted.tripPlan,
+            tripDocument: persisted.tripDocument,
+            tripWorkspace: persisted.tripWorkspace,
+            agentTimeline: getPersistedAgentTimeline(chatId),
           });
         }
       });
@@ -1451,6 +1853,14 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           if (!name || !Number.isFinite(rawLat) || !Number.isFinite(rawLng)) return null;
           const lat = Number(rawLat.toFixed(6));
           const lng = Number(rawLng.toFixed(6));
+          const reviewSummary = item.review_summary
+            && typeof item.review_summary === 'object'
+            && !Array.isArray(item.review_summary)
+            ? item.review_summary as Record<string, unknown>
+            : null;
+          const reviewSourceRefs = reviewSummary && Array.isArray(reviewSummary.source_refs)
+            ? reviewSummary.source_refs
+            : [];
           return {
             id: buildStableLocationId({
               id: safeText(item.id),
@@ -1470,7 +1880,17 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
             city: safeText(item.city) || undefined,
             rating: Number.isFinite(Number(item.rating)) ? Number(item.rating) : null,
             images: Array.isArray(item.images) ? item.images.map(safeText).filter(Boolean) : [],
+            image_assets: Array.isArray(item.image_assets)
+              ? item.image_assets.filter((asset): asset is Record<string, unknown> => Boolean(asset) && typeof asset === 'object')
+              : [],
             summary: safeText(item.summary) || undefined,
+            review_summary: reviewSummary
+              ? {
+                  text: safeText(reviewSummary.text),
+                  source_refs: reviewSourceRefs.map(safeText).filter(Boolean),
+                  updated_at: safeText(reviewSummary.updated_at) || null,
+                }
+              : null,
             suggested_duration_minutes: Number.isFinite(Number(item.suggested_duration_minutes)) ? Number(item.suggested_duration_minutes) : null,
             opening_hours: item.opening_hours,
             reservation: item.reservation,
@@ -1652,23 +2072,124 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       }));
     };
 
-    const handleImportedTripDocument = (document: Record<string, unknown>) => {
-      const importedPlan = document.plan;
-      if (!importedPlan || typeof importedPlan !== 'object') return;
-      setPreviousTripPlan(activeTripPlan);
-      setActiveTripPlan(importedPlan as Record<string, unknown>);
-      if (safeText(document.schema_version) === '2.0') {
-        setActiveTripDocument(document);
-      }
-      mergeTripPlanPayload(importedPlan as Record<string, unknown>);
-      const importedValidation = normalizeTripValidation(document.validation);
-      setTripWorkspace((previous) => ({ ...previous, validation: importedValidation || previous.validation }));
-      setPlanningStatus('completed');
-      setShowMap(true);
+    const clearPendingStructuredReplacement = (chatId: string) => {
+      const { [chatId]: _removed, ...remaining } = pendingStructuredReplacementByChatIdRef.current;
+      pendingStructuredReplacementByChatIdRef.current = remaining;
+    };
+
+    const beginValidatedStructuredReplacement = (chatId: string) => {
+      if (!pendingStructuredReplacementByChatIdRef.current[chatId]) return;
+      clearPendingStructuredReplacement(chatId);
+      const emptyWorkspace = createEmptyTripWorkspace();
+      activeTripPlanRef.current = null;
+      activeTripDocumentRef.current = null;
+      tripWorkspaceRef.current = emptyWorkspace;
+      tripEditOperationsRef.current = [];
+      setTripEditDraftState(false);
+      setCanRestorePreviousFormal(false);
+      setPreviousTripDocument(null);
+      hasStructuredTripLocationsRef.current = false;
+      dispatchTravelPlanner({ type: 'trip/begin-structured-replacement' });
+    };
+
+    /**
+     * V3 正式文档只会在后端完成校验和快照提交后到达这里。将它绑定到本轮
+     * 最终回答，而不是在渲染时读取全局 current document，避免历史版本串台。
+     */
+    const upsertFormalPlanMessage = (document: TravelPlanDocumentV3, targetChatId: string) => {
+      formalDocumentByChatIdRef.current = {
+        ...formalDocumentByChatIdRef.current,
+        [targetChatId]: document,
+      };
+
+      const now = new Date();
+      const runStartedAt = planningStartedAtRef.current[targetChatId];
+      const runDuration = runStartedAt ? Math.max(0, now.getTime() - runStartedAt) : undefined;
+      delete planningStartedAtRef.current[targetChatId];
+      setChatMessagesForId(targetChatId, (previous) => {
+        const nextBaseMessages = previous.map((message) => {
+          const previousDocument = message.formalDocument;
+          if (
+            previousDocument
+            && previousDocument.plan_id === document.plan_id
+            && previousDocument.revision < document.revision
+          ) {
+            return { ...message, supersededByRevision: document.revision };
+          }
+          return message;
+        });
+        let latestUserIndex = -1;
+        for (let index = nextBaseMessages.length - 1; index >= 0; index -= 1) {
+          if (nextBaseMessages[index].role === 'user') {
+            latestUserIndex = index;
+            break;
+          }
+        }
+        const linkedUserMessageId = latestUserIndex >= 0 ? previous[latestUserIndex].id : undefined;
+
+        let existingIndex = nextBaseMessages.findIndex((message) => (
+          message.id === formalDocumentMessageId(document)
+          || (
+            message.formalDocument?.plan_id === document.plan_id
+            && message.formalDocument.revision === document.revision
+          )
+        ));
+
+        // 兼容已有的 Markdown 最终答案：同一轮刚收到的正式 V3 文档应升级它，
+        // 不能再追加一份视觉重复的方案。
+        if (existingIndex < 0 && latestUserIndex >= 0) {
+          for (let index = nextBaseMessages.length - 1; index > latestUserIndex; index -= 1) {
+            const candidate = nextBaseMessages[index];
+            if (
+              candidate.role === 'assistant'
+              && !candidate.formalDocument
+              && (!candidate.type || candidate.type === 'normal' || candidate.type === 'final_answer')
+            ) {
+              existingIndex = index;
+              break;
+            }
+          }
+        }
+
+        if (existingIndex >= 0) {
+          const nextMessages = [...nextBaseMessages];
+          const existing = nextMessages[existingIndex];
+          nextMessages[existingIndex] = {
+            ...existing,
+            type: 'formal_plan',
+            content: existing.content || formalDocumentSummary(document),
+            displayContent: existing.displayContent || formalDocumentSummary(document),
+            formalDocument: document,
+            linkedUserMessageId: existing.linkedUserMessageId || linkedUserMessageId,
+            timestamp: now,
+            endTime: now,
+            duration: runDuration ?? existing.duration,
+          };
+          return nextMessages;
+        }
+
+        return [...nextBaseMessages, {
+          id: formalDocumentMessageId(document),
+          role: 'assistant' as const,
+          content: formalDocumentSummary(document),
+          displayContent: formalDocumentSummary(document),
+          timestamp: now,
+          type: 'formal_plan',
+          agentType: '旅行规划',
+          startTime: runStartedAt ? new Date(runStartedAt) : now,
+          endTime: now,
+          duration: runDuration || 0,
+          linkedUserMessageId,
+          formalDocument: document,
+        }];
+      });
     };
 
     const handleTripStructuredEvent = (data: any, targetChatId: string) => {
       if (!isMountedRef.current || activeChatIdRef.current !== targetChatId) return;
+      // 后端只会在 V3 正式数据校验通过后转发这些结构化事件。
+      // 在此之前保留旧正式方案，避免停止或失败时工作台被清空。
+      beginValidatedStructuredReplacement(targetChatId);
       if (!isNarrowLayout) {
         setShowMap(true);
       }
@@ -1752,6 +2273,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       if ((data.type === 'trip_plan' || data.type === 'trip_plan_delta') && data.plan && typeof data.plan === 'object') {
         if (data.document && typeof data.document === 'object') {
           const tripDocument = data.document as Record<string, any>;
+          if (safeText(tripDocument.schema_version) === '3.0') {
+            const formalDocument = tripDocument as TravelPlanDocumentV3;
+            if (isTravelPlanDocumentV3(formalDocument)) {
+              upsertFormalPlanMessage(formalDocument, targetChatId);
+            }
+            if (restoreActiveTripDocument(tripDocument)) return;
+          }
           setActiveTripDocument(tripDocument);
           const documentSources = normalizeTripSources(tripDocument.sources);
           const documentBudget = normalizeTripBudget(tripDocument.budget);
@@ -1767,19 +2295,178 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       }
     };
 
-    const applyTripEditOperation = async (type: string, payload: Record<string, unknown>) => {
-      if (!activeTripPlan || isTripEditLoading) return;
-      const planId = safeText(activeTripPlan.plan_id);
-      const version = Number(activeTripPlan.version);
-      if (!planId || !Number.isInteger(version)) return;
+    const getActivityDeleteImpact = async (activityId: string): Promise<TripActivityDeleteImpact | null> => {
+      if (!activeTripDocument || !isTravelPlanDocumentV3(activeTripDocument)) return null;
+      try {
+        const response = await fetch('/api/trip-drafts/delete-impact', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ document: activeTripDocument, activity_id: activityId }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result || typeof result !== 'object' || Array.isArray(result)) {
+          const detail = result?.detail && typeof result.detail === 'object' ? result.detail : null;
+          const message = detail && typeof detail.message === 'string' ? detail.message : '';
+          throw new Error(message || '无法读取删除影响，请稍后重试。');
+        }
+        const impact = result as Record<string, unknown>;
+        const count = (key: string) => Math.max(0, Number(impact[key]) || 0);
+        if (safeText(impact.activity_id) !== activityId) throw new Error('删除影响数据无效，请稍后重试。');
+        return {
+          activity_id: activityId,
+          activity_title: safeText(impact.activity_title),
+          day: count('day') || undefined,
+          notes: count('notes'),
+          reservation_reminders: count('reservation_reminders'),
+          checklist_items: count('checklist_items'),
+          image_references: count('image_references'),
+          route_segments: count('route_segments'),
+          map_markers: count('map_markers'),
+          total_related_items: count('total_related_items'),
+        };
+      } catch (_error) {
+        const requestChatId = getActiveChatId();
+        const message = _error instanceof Error && _error.message
+          ? _error.message
+          : '无法读取删除影响，请稍后重试。';
+        setChatMessagesForId(requestChatId, (previous) => [...previous, {
+          id: uuidv4(),
+          role: 'system',
+          content: message,
+          displayContent: message,
+          timestamp: new Date(),
+          type: 'error',
+        }]);
+        return null;
+      }
+    };
 
+    const getDayRouteOptimizationPreview = async (day: number): Promise<TripDayRouteOptimizationPreview | null> => {
+      if (!activeTripDocument || !isTravelPlanDocumentV3(activeTripDocument)) return null;
+      try {
+        const response = await fetch('/api/trip-drafts/route-optimization-preview', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ document: activeTripDocument, day }),
+        });
+        const result = await response.json();
+        if (!response.ok || !result || typeof result !== 'object' || Array.isArray(result)) {
+          const detail = result?.detail && typeof result.detail === 'object' ? result.detail : null;
+          const message = detail && typeof detail.message === 'string' ? detail.message : '';
+          throw new Error(message || '无法生成当天路线优化预览，请稍后重试。');
+        }
+        const preview = result as Record<string, unknown>;
+        const previewDay = Number(preview.day);
+        if (!Number.isInteger(previewDay) || previewDay !== day) throw new Error('路线优化预览数据无效，请稍后重试。');
+        const normalizeOrder = (value: unknown) => (
+          Array.isArray(value) ? value.flatMap((item) => {
+            if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+            const activity = item as Record<string, unknown>;
+            const activityId = safeText(activity.activity_id).trim();
+            const title = safeText(activity.title).trim();
+            return activityId && title ? [{ activity_id: activityId, title, fixed_time: activity.fixed_time === true }] : [];
+          }) : []
+        );
+        const normalizeChanges = (value: unknown) => (
+          Array.isArray(value) ? value.filter((item) => item && typeof item === 'object' && !Array.isArray(item)) as Record<string, unknown>[] : []
+        );
+        const count = (key: string) => Math.max(0, Number(preview[key]) || 0);
+        const orderChanges = normalizeChanges(preview.order_changes).flatMap((item) => {
+          const activityId = safeText(item.activity_id).trim();
+          const title = safeText(item.title).trim();
+          const beforeOrder = Number(item.before_order);
+          const afterOrder = Number(item.after_order);
+          return activityId && title && Number.isInteger(beforeOrder) && Number.isInteger(afterOrder)
+            ? [{ activity_id: activityId, title, before_order: beforeOrder, after_order: afterOrder }]
+            : [];
+        });
+        const timeChanges = normalizeChanges(preview.time_changes).flatMap((item) => {
+          const activityId = safeText(item.activity_id).trim();
+          const title = safeText(item.title).trim();
+          const before = item.before && typeof item.before === 'object' ? item.before as Record<string, unknown> : {};
+          const after = item.after && typeof item.after === 'object' ? item.after as Record<string, unknown> : {};
+          return activityId && title ? [{
+            activity_id: activityId,
+            title,
+            before: { start_at: safeText(before.start_at) || null, end_at: safeText(before.end_at) || null },
+            after: { start_at: safeText(after.start_at) || null, end_at: safeText(after.end_at) || null },
+          }] : [];
+        });
+        const currentOrder = normalizeOrder(preview.current_order);
+        const optimizedOrder = normalizeOrder(preview.optimized_order);
+        if (preview.can_optimize === true && optimizedOrder.length === 0) {
+          throw new Error('路线优化预览数据不完整，请稍后重试。');
+        }
+        return {
+          day,
+          can_optimize: preview.can_optimize === true,
+          reason: safeText(preview.reason).trim() || null,
+          current_order: currentOrder,
+          optimized_order: optimizedOrder,
+          fixed_activity_count: count('fixed_activity_count'),
+          order_changes: orderChanges,
+          time_changes: timeChanges,
+          route_segments: count('route_segments'),
+        };
+      } catch (_error) {
+        const requestChatId = getActiveChatId();
+        const message = _error instanceof Error && _error.message
+          ? _error.message
+          : '无法生成当天路线优化预览，请稍后重试。';
+        setChatMessagesForId(requestChatId, (previous) => [...previous, {
+          id: uuidv4(),
+          role: 'system',
+          content: message,
+          displayContent: message,
+          timestamp: new Date(),
+          type: 'error',
+        }]);
+        return null;
+      }
+    };
+
+    const applyTripEditOperation = async (type: string, payload: Record<string, unknown>): Promise<boolean> => {
+      const chatId = getActiveChatId();
+      if (!chatId || tripEditLoadingChatIdRef.current === chatId) return false;
+      const workingDocument = selectTripEditDocument(
+        activeTripDocument,
+        activeTripDocumentRef.current,
+        formalDocumentByChatIdRef.current[chatId],
+      );
+      const restoredWorkingState = workingDocument
+        ? restoreFormalSnapshotState({ current: { document: workingDocument } })
+        : null;
+      const workingPlan = restoredWorkingState?.plan || activeTripPlan || activeTripPlanRef.current;
+      const planId = isTravelPlanDocumentV3(workingDocument)
+        ? safeText(workingDocument.plan_id)
+        : safeText(workingPlan?.plan_id);
+      const version = isTravelPlanDocumentV3(workingDocument)
+        ? Number(workingDocument.revision)
+        : Number(workingPlan?.version);
+      if (!planId || !Number.isInteger(version)) {
+        const message = '当前正式行程尚未同步完成，请稍后重试。';
+        setChatMessagesForId(chatId, (previous) => [...previous, {
+          id: uuidv4(),
+          role: 'system',
+          content: message,
+          displayContent: message,
+          timestamp: new Date(),
+          type: 'error',
+        }]);
+        return false;
+      }
+
+      tripEditLoadingChatIdRef.current = chatId;
       setIsTripEditLoading(true);
       try {
         const response = await fetch('/api/trip-edit', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            plan: activeTripPlan,
+            plan: workingPlan,
+            document: workingDocument && isTravelPlanDocumentV3(workingDocument)
+              ? workingDocument
+              : undefined,
             operation: {
               operation_id: uuidv4(),
               plan_id: planId,
@@ -1791,39 +2478,307 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         });
         const result = await response.json();
         if (!response.ok || !result?.plan || typeof result.plan !== 'object') {
-          throw new Error('TRIP_EDIT_FAILED');
+          const detail = result?.detail && typeof result.detail === 'object' ? result.detail : null;
+          const message = detail && typeof detail.message === 'string' ? detail.message : '';
+          throw new Error(message || '行程修改未能完成，当前版本已保留，请稍后重试。');
+        }
+        if (result.document && isTravelPlanDocumentV3(result.document)) {
+          const draftDocument = result.document as Record<string, unknown>;
+          const operation: TripEditDraftOperation = {
+            operation_id: safeText(result.operation_id).trim() || uuidv4(),
+            type,
+            payload,
+            base_version: version,
+          };
+          const nextOperations = [...tripEditOperationsRef.current, operation].slice(-20);
+          await persistTripEditDraft(chatId, draftDocument, nextOperations);
+          if (!restoreActiveTripDocument(draftDocument)) throw new Error('TRIP_EDIT_DOCUMENT_INVALID');
+          tripEditOperationsRef.current = nextOperations;
+          setPreviousTripPlan(workingPlan);
+          setPreviousTripDocument(workingDocument);
+          setTripEditDraftState(true);
+          setTripDraftValidation(normalizeTripDraftValidation(result.draft_validation));
+          const invalidatedRouteDays = Array.isArray(result.diff?.affected_days)
+            ? result.diff.affected_days.filter((day: unknown): day is number => Number.isInteger(day))
+            : [];
+          if (result.diff?.routes_revalidation_required && invalidatedRouteDays.length > 0) {
+            setDayRoutes((current) => current.map((route) => (
+              invalidatedRouteDays.includes(route.day)
+                ? { ...route, status: 'unavailable', legs: [] }
+                : route
+            )));
+          }
+          return true;
         }
         if (result.previous_plan && typeof result.previous_plan === 'object') {
           setPreviousTripPlan(result.previous_plan);
         }
         mergeTripPlanPayload(result.plan as Record<string, unknown>);
+        return true;
       } catch (_error) {
         const requestChatId = getActiveChatId();
+        const message = _error instanceof Error && _error.message && _error.message !== 'TRIP_EDIT_FAILED'
+          ? _error.message
+          : '行程修改未能完成，当前版本已保留，请稍后重试。';
         setChatMessagesForId(requestChatId, (previous) => [...previous, {
           id: uuidv4(),
           role: 'system',
-          content: '行程修改未能完成，当前版本已保留，请稍后重试。',
-          displayContent: '行程修改未能完成，当前版本已保留，请稍后重试。',
+          content: message,
+          displayContent: message,
           timestamp: new Date(),
           type: 'error',
         }]);
+        return false;
+      } finally {
+        if (tripEditLoadingChatIdRef.current === chatId) {
+          tripEditLoadingChatIdRef.current = null;
+        }
+        if (getActiveChatId() === chatId) setIsTripEditLoading(false);
+      }
+    };
+
+    const undoLastTripEdit = () => {
+      if (!previousTripPlan || !previousTripDocument || isTripEditLoading) return;
+      const restoredDocument = previousTripDocument;
+      if (!restoreActiveTripDocument(restoredDocument)) return;
+      setPreviousTripPlan(null);
+      setPreviousTripDocument(null);
+      const nextOperations = tripEditOperationsRef.current.slice(0, -1);
+      tripEditOperationsRef.current = nextOperations;
+      const chatId = getActiveChatId();
+      if (nextOperations.length > 0) {
+        setTripEditDraftState(true);
+        void persistTripEditDraft(chatId, restoredDocument, nextOperations).catch((error) => {
+          console.error('保存撤销后的行程草稿失败:', error);
+        });
+        return;
+      }
+      setTripEditDraftState(false);
+      removeTripEditDraftMirror(chatId);
+      void tripHistoryApi.discardDraft(chatId).catch((error) => {
+        console.error('放弃未应用行程修改失败:', error);
+      });
+    };
+
+    const discardTripEditDraft = () => {
+      if (isTripEditLoading) return;
+      const chatId = getActiveChatId();
+      const formalDocument = formalDocumentByChatIdRef.current[chatId];
+      if (!formalDocument || !restoreActiveTripDocument(formalDocument as unknown as Record<string, unknown>)) return;
+      tripEditOperationsRef.current = [];
+      setTripEditDraftState(false);
+      setPreviousTripPlan(null);
+      setPreviousTripDocument(null);
+      removeTripEditDraftMirror(chatId);
+      void tripHistoryApi.discardDraft(chatId).catch((error) => {
+        console.error('放弃未应用行程修改失败:', error);
+      });
+    };
+
+    const consumeFormalRevisionStream = async (
+      chatId: string,
+      operationId: string,
+      expectedRevision: number,
+    ): Promise<TravelPlanDocumentV3> => {
+      const deduper = new PlanningEventDeduper();
+      const controller = new AbortController();
+      revisionStreamAbortControllerRef.current?.abort();
+      revisionStreamAbortControllerRef.current = controller;
+      let lastError: Error | null = null;
+
+      try {
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          if (!isMountedRef.current || activeChatIdRef.current !== chatId) {
+            throw new Error('修订已保存，请重新打开该旅程查看当前正式版本。');
+          }
+          try {
+            const response = await tripHistoryApi.streamFormalRevision(
+              chatId,
+              operationId,
+              deduper.cursor(),
+              controller.signal,
+            );
+            const resolvedDocument = await readFormalRevisionStream(response, {
+              operationId,
+              expectedRevision,
+              deduper,
+              isFormalDocument: isTravelPlanDocumentV3,
+              onPlanningEvent: (event) => {
+                recordAgentTimelineEvent(event as unknown as PlanningTimelineEvent, chatId);
+              },
+            });
+            if (resolvedDocument) return resolvedDocument;
+            lastError = new Error('正式版本同步尚未完成，正在重新连接。');
+          } catch (error) {
+            if (controller.signal.aborted) throw new Error('正式版本同步已取消，请刷新后查看当前版本。');
+            lastError = error instanceof Error ? error : new Error('正式版本同步失败，请稍后重试。');
+          }
+          if (attempt < 2) {
+            await new Promise((resolve) => window.setTimeout(resolve, 180 * (attempt + 1)));
+          }
+        }
+        throw lastError || new Error('正式版本同步失败，请刷新后查看当前版本。');
+      } finally {
+        if (revisionStreamAbortControllerRef.current === controller) {
+          revisionStreamAbortControllerRef.current = null;
+        }
+      }
+    };
+
+    const commitFormalRevision = (
+      document: TravelPlanDocumentV3,
+      chatId: string,
+      options: { canRestorePrevious: boolean; message: string },
+    ): boolean => {
+      if (!restoreActiveTripDocument(document as unknown as Record<string, unknown>)) return false;
+      formalDocumentByChatIdRef.current = {
+        ...formalDocumentByChatIdRef.current,
+        [chatId]: document,
+      };
+      tripEditOperationsRef.current = [];
+      setTripEditDraftState(false);
+      setPreviousTripPlan(null);
+      setPreviousTripDocument(null);
+      setCanRestorePreviousFormal(options.canRestorePrevious);
+      removeTripEditDraftMirror(chatId);
+      upsertFormalPlanMessage(document, chatId);
+      setChatMessagesForId(chatId, (previous) => [...previous, {
+        id: uuidv4(),
+        role: 'system',
+        content: options.message,
+        displayContent: options.message,
+        timestamp: new Date(),
+        type: 'system',
+      }]);
+      setPlanningStatus('completed');
+      setShowMap(true);
+      return true;
+    };
+
+    const applyTripEditDraft = async (): Promise<boolean> => {
+      const chatId = getActiveChatId();
+      const draftDocument = activeTripDocument;
+      if (!chatId || isTripEditLoading || !hasTripEditDraft || !isTravelPlanDocumentV3(draftDocument)) return false;
+      if (tripDraftValidation && !tripDraftValidation.can_apply) return false;
+      const draftRevision = Number(draftDocument.revision);
+      if (!Number.isInteger(draftRevision) || draftRevision < 1) return false;
+
+      setIsTripEditLoading(true);
+      let committedDocument: Record<string, unknown> | null = null;
+      let committedRevision = 0;
+      try {
+        const operationId = pendingDraftApplyOperationIdRef.current || uuidv4();
+        pendingDraftApplyOperationIdRef.current = operationId;
+        const result = await tripHistoryApi.applyDraft(chatId, {
+          operation_id: operationId,
+          expected_draft_revision: draftRevision,
+        });
+        committedDocument = result.document;
+        committedRevision = result.revision;
+        const formalDocument = await consumeFormalRevisionStream(chatId, operationId, result.revision);
+        if (!commitFormalRevision(formalDocument, chatId, {
+          canRestorePrevious: true,
+          message: `已通过完整修订流应用全部修改，当前为正式版本 v${result.revision}。`,
+        })) {
+          throw new Error('正式版本同步内容无效，请刷新后查看。');
+        }
+        pendingDraftApplyOperationIdRef.current = null;
+        return true;
+      } catch (_error) {
+        if (
+          committedDocument
+          && isTravelPlanDocumentV3(committedDocument)
+          && isMountedRef.current
+          && activeChatIdRef.current === chatId
+          && commitFormalRevision(committedDocument, chatId, {
+            canRestorePrevious: true,
+            message: `正式版本 v${committedRevision} 已保存，但实时修订流中断；已从正式快照恢复全部视图。`,
+          })
+        ) {
+          pendingDraftApplyOperationIdRef.current = null;
+          return true;
+        }
+        const message = _error instanceof Error && _error.message
+          ? _error.message
+          : '应用修改失败，草稿已保留，请稍后重试。';
+        setChatMessagesForId(chatId, (previous) => [...previous, {
+          id: uuidv4(),
+          role: 'system',
+          content: message,
+          displayContent: message,
+          timestamp: new Date(),
+          type: 'error',
+        }]);
+        return false;
       } finally {
         setIsTripEditLoading(false);
       }
     };
 
-    const undoLastTripEdit = () => {
-      if (!previousTripPlan) return;
-      const restoredPlan = previousTripPlan;
-      setPreviousTripPlan(activeTripPlan);
-      mergeTripPlanPayload(restoredPlan);
+    const restorePreviousFormalSnapshot = async (): Promise<boolean> => {
+      const chatId = getActiveChatId();
+      const currentDocument = activeTripDocument;
+      if (!chatId || isTripEditLoading || hasTripEditDraft || !canRestorePreviousFormal || !isTravelPlanDocumentV3(currentDocument)) return false;
+      const currentRevision = Number(currentDocument.revision);
+      if (!Number.isInteger(currentRevision) || currentRevision < 1) return false;
+
+      setIsTripEditLoading(true);
+      let committedDocument: Record<string, unknown> | null = null;
+      let committedRevision = 0;
+      try {
+        const operationId = pendingFormalRestoreOperationIdRef.current || uuidv4();
+        pendingFormalRestoreOperationIdRef.current = operationId;
+        const result = await tripHistoryApi.restorePrevious(chatId, {
+          operation_id: operationId,
+          expected_current_revision: currentRevision,
+        });
+        committedDocument = result.document;
+        committedRevision = result.revision;
+        const formalDocument = await consumeFormalRevisionStream(chatId, operationId, result.revision);
+        if (!commitFormalRevision(formalDocument, chatId, {
+          canRestorePrevious: false,
+          message: `已通过完整修订流恢复上一正式版本，当前为正式版本 v${result.revision}。`,
+        })) {
+          throw new Error('恢复后的正式版本同步内容无效，请刷新后查看。');
+        }
+        pendingFormalRestoreOperationIdRef.current = null;
+        return true;
+      } catch (_error) {
+        if (
+          committedDocument
+          && isTravelPlanDocumentV3(committedDocument)
+          && isMountedRef.current
+          && activeChatIdRef.current === chatId
+          && commitFormalRevision(committedDocument, chatId, {
+            canRestorePrevious: false,
+            message: `正式版本 v${committedRevision} 已恢复，但实时修订流中断；已从正式快照恢复全部视图。`,
+          })
+        ) {
+          pendingFormalRestoreOperationIdRef.current = null;
+          return true;
+        }
+        const message = _error instanceof Error && _error.message
+          ? _error.message
+          : '恢复上一正式版本失败，请刷新后重试。';
+        setChatMessagesForId(chatId, (previous) => [...previous, {
+          id: uuidv4(),
+          role: 'system',
+          content: message,
+          displayContent: message,
+          timestamp: new Date(),
+          type: 'error',
+        }]);
+        return false;
+      } finally {
+        setIsTripEditLoading(false);
+      }
     };
 
-    // 暴露给父组件的方法
-    useImperativeHandle(ref, () => ({
-      startNewChat: () => {
+    const startNewChat = (prefilledPrompt?: string) => {
         console.log('=== startNewChat 开始 ===');
+        const prompt = safeText(prefilledPrompt).trim();
         const nextSessionId = uuidv4();
+        lastLoadedChatIdRef.current = null;
         currentChatIdRef.current = '';
         sessionIdRef.current = nextSessionId;
         activeChatIdRef.current = nextSessionId;
@@ -1832,58 +2787,91 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         activeRegenerateContextRef.current = regenerateContextsByChatIdRef.current[nextSessionId] || null;
         console.log('清空前的地图位置:', mapLocations.map(loc => loc.name));
         messagesByChatIdRef.current = setChatMessages<Message>(messagesByChatIdRef.current, nextSessionId, []);
+        messagesRef.current = [];
         setMessages([]);
         setMessageFeedback({});
         setAnswerPageByUserMessageId({});
-        setMapSuppressed(false);
-        setShowMap(false);
+        replaceAgentTimelines({});
         lastAutoOpenedMapSignatureRef.current = '';
-        setMapLocations([]); // 清空地图地点
         hasStructuredTripLocationsRef.current = false;
-        setTripWorkspace(createEmptyTripWorkspace());
-        setActiveTripPlan(null);
-        setActiveTripDocument(null);
-        setPreviousTripPlan(null);
+        pendingStructuredReplacementByChatIdRef.current = {};
+        const emptyWorkspace = createEmptyTripWorkspace();
+        activeTripPlanRef.current = null;
+        activeTripDocumentRef.current = null;
+        tripWorkspaceRef.current = emptyWorkspace;
+        tripEditOperationsRef.current = [];
+        setTripEditDraftState(false);
+        setCanRestorePreviousFormal(false);
+        setPreviousTripDocument(null);
+        dispatchTravelPlanner({ type: 'trip/reset' });
+        setTripCreateFormRevision((revision) => revision + 1);
+        setIsExistingTripComposerOpen(false);
+        setPendingDestinationMutation(null);
         console.log('地图位置已清空');
         setSessionId(nextSessionId);
         clearInputText();
         setIsLoading(false);
+        if (prompt) {
+          window.setTimeout(() => {
+            void handleSendMessage(prompt, { skipDestinationMutationGuard: true });
+          }, 0);
+        }
         console.log('=== startNewChat 完成 ===');
-      },
+    };
+
+    // 暴露给父组件的方法
+    useImperativeHandle(ref, () => ({
+      startNewChat,
       loadChat: (messages, restoredPlan = null, restoredWorkspace = null, restoredDocument = null) => {
         console.log('=== loadChat 开始 ===');
         console.log('加载消息数量:', messages.length);
         console.log('清空前的地图位置:', mapLocations.map(loc => loc.name));
         clearInputText();
 
-        // 先清空地图位置，避免显示之前的地点
-        setMapSuppressed(false);
-        setShowMap(false);
         lastAutoOpenedMapSignatureRef.current = '';
-        setMapLocations([]);
         hasStructuredTripLocationsRef.current = false;
         const workspace = restoredWorkspace
           ? restoredWorkspace as unknown as TripWorkspaceState
           : createEmptyTripWorkspace();
         const effectiveRestoredPlan = restoredPlan || restorePlanFromWorkspace(workspace, restoredDocument);
         const restoredLocations = effectiveRestoredPlan ? normalizeTripEventLocations(workspace.locations) : [];
-        setTripWorkspace(effectiveRestoredPlan ? workspace : createEmptyTripWorkspace());
+        const effectiveWorkspace = effectiveRestoredPlan ? workspace : createEmptyTripWorkspace();
+        if (isTravelPlanDocumentV3(restoredDocument)) {
+          formalDocumentByChatIdRef.current = {
+            ...formalDocumentByChatIdRef.current,
+            [getActiveChatId()]: restoredDocument,
+          };
+        }
+        tripEditOperationsRef.current = [];
+        setTripEditDraftState(false);
+        setCanRestorePreviousFormal(false);
+        setPreviousTripDocument(null);
+        activeTripPlanRef.current = effectiveRestoredPlan;
+        activeTripDocumentRef.current = restoredDocument;
+        tripWorkspaceRef.current = effectiveWorkspace;
+        dispatchTravelPlanner({
+          type: 'trip/restore',
+          plan: effectiveRestoredPlan,
+          document: restoredDocument,
+          workspace: effectiveWorkspace,
+          locations: restoredLocations,
+        });
         lastPersistedPlanSignatureRef.current = tripSnapshotSignature(effectiveRestoredPlan, restoredDocument);
-        setActiveTripPlan(effectiveRestoredPlan);
-        setActiveTripDocument(restoredDocument);
-        setPreviousTripPlan(null);
         console.log('地图位置已清空');
 
-        const mappedMessages = withInterruptedResponseIfNeeded(messages.map(msg => normalizeMessage(msg)));
+        const mappedMessages = withRestoredFormalPlan(
+          withInterruptedResponseIfNeeded(messages.map(msg => normalizeMessage(msg))),
+          restoredDocument,
+        );
         const targetChatId = currentChatIdRef.current || sessionIdRef.current;
+        lastLoadedChatIdRef.current = targetChatId;
+        clearPendingStructuredReplacement(targetChatId);
         syncActiveChatFromRuntime(targetChatId, mappedMessages);
         setMessageFeedback({});
         setAnswerPageByUserMessageId({});
+        clearAgentTimeline(targetChatId);
 
-        setMapSuppressed(false);
-        setMapLocations(restoredLocations);
         hasStructuredTripLocationsRef.current = restoredLocations.length > 0;
-        setShowMap(restoredLocations.length > 0);
         sessionIdRef.current = targetChatId;
         setSessionId(targetChatId);
         console.log('=== loadChat 完成 ===');
@@ -1893,6 +2881,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     useEffect(() => {
       isMountedRef.current = true;
       return () => {
+        demoReplayAbortControllerRef.current?.abort();
+        demoReplayAbortControllerRef.current = null;
+        revisionStreamAbortControllerRef.current?.abort();
+        revisionStreamAbortControllerRef.current = null;
         persistInterruptedActiveRequests();
         isMountedRef.current = false;
         activeRequestIdRef.current = null;
@@ -1917,7 +2909,14 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         console.log('useEffect 检测到 loadedMessages 变化，消息数量:', loadedMessages.length);
         clearInputText();
         const targetChatId = currentChatId || sessionIdRef.current;
+        const restoringSameChat = lastLoadedChatIdRef.current === targetChatId;
+        lastLoadedChatIdRef.current = targetChatId;
+        setIsTripEditLoading(tripEditLoadingChatIdRef.current === targetChatId);
+        clearPendingStructuredReplacement(targetChatId);
         activeChatIdRef.current = targetChatId;
+        if (loadedAgentTimeline !== undefined) {
+          restoreAgentTimelineForChat(targetChatId, loadedAgentTimeline);
+        }
         activeRequestIdRef.current = requestIdsByChatIdRef.current[targetChatId] || null;
         activeAbortControllerRef.current = abortControllersByChatIdRef.current[targetChatId] || null;
         activeRegenerateContextRef.current = regenerateContextsByChatIdRef.current[targetChatId] || null;
@@ -1926,14 +2925,16 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           setSessionId(targetChatId);
         }
 
-        // 先清空地图位置，避免显示之前的地点
-        setMapSuppressed(false);
-        setShowMap(false);
         lastAutoOpenedMapSignatureRef.current = '';
-        setMapLocations([]);
+        setCanRestorePreviousFormal(Boolean(loadedHasPreviousFormalSnapshot));
 
-        if (loadedMessages.length > 0) {
-          const mappedMessages = withInterruptedResponseIfNeeded(loadedMessages.map(msg => normalizeMessage(msg)));
+        // 正式快照可独立于聊天消息保存；空消息不代表空行程。
+        if (loadedMessages.length > 0 || loadedTripDocument) {
+          const formalDocument = loadedTripDocument || null;
+          const mappedMessages = withRestoredFormalPlan(
+            withInterruptedResponseIfNeeded(loadedMessages.map(msg => normalizeMessage(msg))),
+            formalDocument,
+          );
           syncActiveChatFromRuntime(targetChatId, mappedMessages);
           setMessageFeedback({});
           setAnswerPageByUserMessageId({});
@@ -1941,20 +2942,59 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           const workspace = loadedTripWorkspace
             ? loadedTripWorkspace as unknown as TripWorkspaceState
             : createEmptyTripWorkspace();
-          const restoredPlan = loadedTripPlan || restorePlanFromWorkspace(workspace, loadedTripDocument || null);
+          if (isTravelPlanDocumentV3(formalDocument)) {
+            formalDocumentByChatIdRef.current = {
+              ...formalDocumentByChatIdRef.current,
+              [targetChatId]: formalDocument,
+            };
+          }
+          // 服务端明确无草稿时不可复活应用/放弃前的本地镜像。
+          // 应用成功后的刷新可能发生在修订流完成、本地清理之前。
+          if (loadedTripDraft === null) removeTripEditDraftMirror(targetChatId);
+          const restoredDraft = restoreTripEditDraft(
+            loadedTripDraft === undefined ? readTripEditDraftMirror(targetChatId) : loadedTripDraft,
+            formalDocument,
+          );
+          const effectiveDocument = restoredDraft?.document || formalDocument;
+          const restoredPlan = restoredDraft?.plan
+            || loadedTripPlan
+            || restorePlanFromWorkspace(workspace, effectiveDocument);
           const restoredLocations = restoredPlan ? normalizeTripEventLocations(workspace.locations) : [];
-          setMapSuppressed(false);
-          setMapLocations(restoredLocations);
           hasStructuredTripLocationsRef.current = restoredLocations.length > 0;
-          setTripWorkspace(restoredPlan ? workspace : createEmptyTripWorkspace());
-          lastPersistedPlanSignatureRef.current = tripSnapshotSignature(restoredPlan, loadedTripDocument || null);
-          setActiveTripPlan(restoredPlan);
-          setActiveTripDocument(loadedTripDocument || null);
-          setPreviousTripPlan(null);
-          setShowMap(restoredLocations.length > 0);
+          const effectiveWorkspace = restoredDraft?.workspace
+            || (restoredPlan ? workspace : createEmptyTripWorkspace());
+          const effectiveLocations = restoredDraft?.workspace.locations as LocationPoint[] | undefined
+            || restoredLocations;
+          tripEditOperationsRef.current = restoredDraft?.operations || [];
+          setTripEditDraftState(Boolean(restoredDraft));
+          setPreviousTripDocument(null);
+          activeTripPlanRef.current = restoredPlan;
+          activeTripDocumentRef.current = effectiveDocument;
+          tripWorkspaceRef.current = effectiveWorkspace;
+          dispatchTravelPlanner({
+            type: 'trip/restore',
+            plan: restoredPlan,
+            document: effectiveDocument,
+            workspace: effectiveWorkspace,
+            locations: effectiveLocations,
+          });
+          // 同旅程详情重新读取仍以服务端文档/草稿为准，但不丢弃尚有效的用户选择。
+          if (restoringSameChat) {
+            const selectableLocations = [...effectiveLocations, ...buildCandidateMapLocations(effectiveDocument)];
+            if (selectableLocations.some((location) => location.id === selectedLocationId)) {
+              setSelectedLocationId(selectedLocationId);
+            }
+            const restoredGroups = buildLocationGroupsForAnswer(
+              'structured_trip_workspace', '结构化行程地点', effectiveWorkspace.locations, '', '',
+            );
+            if (restoredGroups.some((group) => group.groupId === activeMapGroupId)) {
+              setActiveMapGroupId(activeMapGroupId);
+            }
+          }
+          lastPersistedPlanSignatureRef.current = tripSnapshotSignature(restoredPlan, effectiveDocument);
         } else {
-          // 如果是空数组，清空消息和地图
-          console.log('loadedMessages为空数组，清空消息和地图');
+          // 没有消息和正式方案时，才清空消息和地图。
+          console.log('当前历史没有消息或正式方案，清空消息和地图');
           if (currentChatId) {
             messagesByChatIdRef.current = setChatMessages<Message>(messagesByChatIdRef.current, targetChatId, []);
           }
@@ -1963,18 +3003,20 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           setIsLoading(currentChatId ? Boolean(loadingByChatIdRef.current[targetChatId]) : false);
           setMessageFeedback({});
           setAnswerPageByUserMessageId({});
-          setMapSuppressed(false);
-          setShowMap(false);
           lastAutoOpenedMapSignatureRef.current = '';
-          setMapLocations([]);
           hasStructuredTripLocationsRef.current = false;
-          setTripWorkspace(createEmptyTripWorkspace());
-          setActiveTripPlan(null);
-          setActiveTripDocument(null);
-          setPreviousTripPlan(null);
+          const emptyWorkspace = createEmptyTripWorkspace();
+          activeTripPlanRef.current = null;
+          activeTripDocumentRef.current = null;
+          tripWorkspaceRef.current = emptyWorkspace;
+          tripEditOperationsRef.current = [];
+          setTripEditDraftState(false);
+          setCanRestorePreviousFormal(false);
+          setPreviousTripDocument(null);
+          dispatchTravelPlanner({ type: 'trip/reset' });
         }
       }
-    }, [loadedMessages, loadedTripDocument, loadedTripPlan, loadedTripWorkspace]);
+    }, [loadedAgentTimeline, loadedHasPreviousFormalSnapshot, loadedMessages, loadedTripDocument, loadedTripDraft, loadedTripPlan, loadedTripWorkspace]);
 
     // 获取MCP服务器列表
     const fetchMcpServers = async () => {
@@ -2025,31 +3067,49 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       fetchSkills();
     }, []);
 
+    useEffect(() => {
+      let cancelled = false;
+      void apiClient.getDemoCases().then(({ cases }) => {
+        if (!cancelled) setDemoCases(cases.map(toDemoReplayCase));
+      }).catch(() => {
+        if (!cancelled) setDemoCases([]);
+      });
+      return () => { cancelled = true; };
+    }, []);
+
     // 自动滚动到底部
     const scrollToBottom = () => {
       messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     };
 
     useEffect(() => {
+      if (messages.length === 0) {
+        chatScrollRegionRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+        return;
+      }
       scrollToBottom();
     }, [messages]);
 
     // 保存对话到历史记录
     const saveCurrentChat = () => {
       const chatId = getActiveChatId();
+      if (isDemoReplayChat(chatId)) return;
       const cachedMessages = getChatMessages(messagesByChatIdRef.current, chatId);
       const messagesToSave = cachedMessages.length > 0 ? cachedMessages : messagesRef.current;
       if (messagesToSave.length > 0) {
+        const persisted = persistedTravelState(chatId);
         saveChat(chatId, messagesToSave, undefined, {
-          tripPlan: activeTripPlanRef.current,
-          tripDocument: activeTripDocumentRef.current,
-          tripWorkspace: tripWorkspaceRef.current as unknown as Record<string, unknown>,
+          tripPlan: persisted.tripPlan,
+          tripDocument: persisted.tripDocument,
+          tripWorkspace: persisted.tripWorkspace,
+          agentTimeline: getPersistedAgentTimeline(chatId),
         });
       }
     };
 
     // 在每次消息更新后保存对话
     useEffect(() => {
+      if (isDemoReplayChat(getActiveChatId())) return;
       if (skipNextAutoSaveRef.current) {
         skipNextAutoSaveRef.current = false;
         return;
@@ -2068,7 +3128,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       const signature = tripSnapshotSignature(activeTripPlan, activeTripDocument);
       if (!safeText(activeTripPlan.plan_id) || signature === lastPersistedPlanSignatureRef.current) return;
       lastPersistedPlanSignatureRef.current = signature;
+      if (hasTripEditDraftRef.current) return;
       const chatId = getActiveChatId();
+      if (isDemoReplayChat(chatId)) return;
       const currentMessages = getChatMessages(messagesByChatIdRef.current, chatId);
       const isBackgroundUpdate = backgroundDocumentUpdateRef.current;
       backgroundDocumentUpdateRef.current = false;
@@ -2079,6 +3141,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         tripPlan: activeTripPlan,
         tripDocument: activeTripDocument,
         tripWorkspace: tripWorkspace as unknown as Record<string, unknown>,
+        agentTimeline: getPersistedAgentTimeline(chatId),
       });
     }, [activeTripDocument, activeTripPlan, tripWorkspace]);
 
@@ -2133,7 +3196,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       const classifyAssistantMessage = (group: MessageGroup, message: Message) => {
         if (useMultiAgent) {
           // 多智能体协作开启：仅完整回答(final_answer)计入回答版本，其余归入深度思考
-          if (message.type === 'final_answer') {
+          if (message.type === 'final_answer' || message.type === 'formal_plan') {
             appendFinalAnswer(group, message);
           } else {
             group.deepThinkMessages.push(message);
@@ -2143,7 +3206,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
         if (useDeepThink) {
           // 只有深度思考开启：仅最终回答进入主气泡，其余步骤进入思考过程。
-          if (message.type === 'final_answer' || message.type === 'normal' || !message.type) {
+          if (message.type === 'final_answer' || message.type === 'formal_plan' || message.type === 'normal' || !message.type) {
             appendFinalAnswer(group, message);
           } else {
             group.deepThinkMessages.push(message);
@@ -2152,7 +3215,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }
 
         // 都关闭：状态/工具进度仍不作为最终答案版本。
-        if (message.type && message.type !== 'normal' && message.type !== 'final_answer') {
+        if (message.type && message.type !== 'normal' && message.type !== 'final_answer' && message.type !== 'formal_plan') {
           group.deepThinkMessages.push(message);
         } else {
           appendFinalAnswer(group, message);
@@ -2173,6 +3236,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           };
           groupByUserId.set(message.id, currentGroup);
         } else if (message.role === 'assistant') {
+          // 正式快照可没有原始提问；保留真实助手消息，不补造用户消息。
+          if (!currentGroup) {
+            currentGroup = { deepThinkMessages: [] };
+          }
           const linkedUserMessageId = safeText(message.linkedUserMessageId).trim();
           const targetGroup = linkedUserMessageId
             ? groupByUserId.get(linkedUserMessageId) || currentGroup
@@ -2319,6 +3386,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         completed: '规划已完成',
         cancelled: '规划已取消，草稿已保留',
         error: '规划暂时中断，草稿已保留',
+        demo_replaying: '示例回放中，不会发起实时查询',
+        demo_completed: '示例回放完成，可据此创建真实旅程',
       };
       return (
         <div className="planning-progress-panel" role="status" aria-live="polite">
@@ -2357,6 +3426,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
             const linkedUserMessageId = safeText(data.linked_user_message_id).trim();
             const stepType = safeText(data.step_type).trim();
             const isReplacingFinalAnswer = shouldReplaceContent && isFinalAnswerStepType(stepType);
+            const pendingFormalDocument = isFinalAnswerStepType(stepType)
+              ? formalDocumentByChatIdRef.current[targetChatId]
+              : undefined;
             const belongsToSameUserQuestion = (message: Message): boolean => {
               if (!linkedUserMessageId) return false;
               return safeText(message.linkedUserMessageId).trim() === linkedUserMessageId;
@@ -2371,7 +3443,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 const candidateType = safeText(candidate.type).trim();
                 const isReplaceableAnswer = (
                   candidate.role === 'assistant'
-                  && (!candidateType || candidateType === 'normal' || candidateType === 'final_answer')
+                  && (!candidateType || candidateType === 'normal' || candidateType === 'final_answer' || candidateType === 'formal_plan')
                   && (!linkedUserMessageId || !candidateLinkedUserMessageId || candidateLinkedUserMessageId === linkedUserMessageId)
                 );
                 if (isReplaceableAnswer) {
@@ -2395,11 +3467,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
               updated[existingIndex] = {
                 ...existingMessage,
+                type: existingMessage.formalDocument || pendingFormalDocument ? 'formal_plan' : existingMessage.type,
                 content: updatedContent,
                 displayContent: updatedDisplayContent,
+                formalDocument: existingMessage.formalDocument || pendingFormalDocument,
                 timestamp: now,
                 endTime: now,
-                duration: existingMessage.startTime ? now.getTime() - existingMessage.startTime.getTime() : 0,
+                duration: existingMessage.formalDocument ? existingMessage.duration : existingMessage.startTime ? now.getTime() - existingMessage.startTime.getTime() : 0,
                 linkedUserMessageId: existingMessage.linkedUserMessageId || linkedUserMessageId || undefined,
               };
 
@@ -2430,8 +3504,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 content: stripLeadingArtifactZero(realContent),
                 displayContent: stripLeadingArtifactZero(effectiveShowContent),
                 timestamp: now,
-                type: data.step_type,
+                type: pendingFormalDocument ? 'formal_plan' : data.step_type,
                 agentType: getAgentType(data.agent_type || data.role || 'assistant'),
+                formalDocument: pendingFormalDocument,
                 startTime: now,
                 endTime: now,
                 duration: 0,
@@ -2466,6 +3541,203 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       }
     };
 
+    const applyDemoReplayEvent = (data: any, targetChatId: string) => {
+      switch (data.type) {
+        case 'run_started':
+        case 'agent_stage_started':
+        case 'agent_stage_updated':
+        case 'agent_stage_retrying':
+        case 'agent_stage_completed':
+        case 'provider_queue_waiting':
+        case 'run_soft_timeout':
+        case 'trip_plan_completed':
+          recordAgentTimelineEvent(data, targetChatId);
+          break;
+        case 'chat_chunk':
+          handleMessageChunk(data, targetChatId);
+          break;
+        case 'trip_sources':
+        case 'trip_day_upsert':
+        case 'trip_locations':
+        case 'trip_budget':
+        case 'trip_validation':
+        case 'trip_plan_repair':
+        case 'trip_plan_delta':
+        case 'trip_plan':
+          handleTripStructuredEvent(data, targetChatId);
+          break;
+        default:
+          break;
+      }
+    };
+
+    const continueDemoReplay = async (
+      demoCase: DemoReplayCase,
+      targetChatId: string,
+      afterSequence: number,
+      speed: 1 | 2,
+      finalOnly = false,
+    ) => {
+      const token = ++demoReplayTokenRef.current;
+      demoReplayAbortControllerRef.current?.abort();
+      const controller = new AbortController();
+      demoReplayAbortControllerRef.current = controller;
+      setDemoReplay((current) => current && current.case.id === demoCase.id
+        ? { ...current, phase: 'replaying', speed, error: undefined }
+        : current);
+      setPlanningStatus('demo_replaying');
+      setChatLoadingForId(targetChatId, true);
+
+      try {
+        const response = await apiClient.replayDemoCase(
+          demoCase.id,
+          afterSequence,
+          speed,
+          finalOnly,
+          controller.signal,
+        );
+        if (!response.ok || !response.body) throw new Error('示例回放连接失败');
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let cursor = afterSequence;
+        let receivedTerminal = false;
+        let replayFormalDocument: TravelPlanDocumentV3 | null = null;
+
+        const processLine = (line: string) => {
+          if (!line.startsWith('data: ')) return;
+          const data = JSON.parse(line.slice(6));
+          const sequence = Number(data.sequence) || 0;
+          if (sequence <= cursor || demoReplayTokenRef.current !== token) return;
+          cursor = sequence;
+          if (data.type === 'trip_plan' && isTravelPlanDocumentV3(data.document)) {
+            replayFormalDocument = data.document;
+          }
+          applyDemoReplayEvent(data, targetChatId);
+          if (data.type === 'chat_complete') receivedTerminal = true;
+          setDemoReplay((current) => current && current.case.id === demoCase.id
+            ? { ...current, currentEvent: sequence }
+            : current);
+        };
+
+        while (demoReplayTokenRef.current === token) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+          lines.forEach(processLine);
+        }
+        if (buffer.trim()) buffer.split('\n').forEach(processLine);
+        if (demoReplayTokenRef.current !== token) return;
+        setChatLoadingForId(targetChatId, false);
+        if (receivedTerminal || finalOnly) {
+          if (replayFormalDocument) {
+            upsertFormalPlanMessage(replayFormalDocument, targetChatId);
+            restoreActiveTripDocument(replayFormalDocument as unknown as Record<string, unknown>);
+          }
+          setPlanningStatus('demo_completed');
+          setDemoReplay((current) => current && current.case.id === demoCase.id
+            ? { ...current, phase: 'completed', currentEvent: current.totalEvents }
+            : current);
+        } else {
+          throw new Error('示例回放未收到完成事件');
+        }
+      } catch (error) {
+        if ((error as Error).name === 'AbortError' || demoReplayTokenRef.current !== token) return;
+        setChatLoadingForId(targetChatId, false);
+        setPlanningStatus('error');
+        setDemoReplay((current) => current && current.case.id === demoCase.id
+          ? { ...current, phase: 'error', error: '示例回放中断，请重新播放。' }
+          : current);
+      }
+    };
+
+    const startDemoReplay = (caseId: string) => {
+      const demoCase = demoCases.find((item) => item.id === caseId && item.recordingStatus === 'ready');
+      if (!demoCase || isLoading) return;
+      demoReplayAbortControllerRef.current?.abort();
+      demoReplayChatIdsRef.current.delete(getActiveChatId());
+      startNewChat();
+      const targetChatId = getActiveChatId();
+      demoReplayChatIdsRef.current.add(targetChatId);
+      const now = new Date();
+      const intro: Message = {
+        id: `demo-intro:${demoCase.id}:${uuidv4()}`,
+        role: 'system',
+        content: `正在回放“${demoCase.title}”。${demoCase.notice || '案例录制时的信息，仅用于演示。'}`,
+        displayContent: `正在回放“${demoCase.title}”。${demoCase.notice || '案例录制时的信息，仅用于演示。'}`,
+        timestamp: now,
+        type: 'tool_progress',
+        startTime: now,
+        endTime: now,
+        duration: 0,
+      };
+      const replayRequest: Message = {
+        id: `demo-request:${demoCase.id}:${uuidv4()}`,
+        role: 'user',
+        content: `回放示例：${demoCase.title}`,
+        displayContent: `回放示例：${demoCase.title}`,
+        timestamp: now,
+        type: 'normal',
+        startTime: now,
+        endTime: now,
+        duration: 0,
+      };
+      // 对话渲染器以用户消息划分轮次；回放同样保留一个只读请求锚点，
+      // 使录制包中的正式方案能作为该轮结果展示，而不只恢复右侧工作台。
+      setChatMessagesForId(targetChatId, [intro, replayRequest], { persist: false });
+      replaceAgentTimelines({ [targetChatId]: createAgentRunTimeline(`demo:${demoCase.id}`) });
+      setDemoReplay({
+        case: demoCase,
+        phase: 'replaying',
+        speed: 1,
+        currentEvent: 0,
+        totalEvents: demoCase.eventCount || 0,
+      });
+      void continueDemoReplay(demoCase, targetChatId, 0, 1);
+    };
+
+    const pauseOrResumeDemoReplay = () => {
+      if (!demoReplay) return;
+      const targetChatId = getActiveChatId();
+      if (demoReplay.phase === 'replaying') {
+        demoReplayAbortControllerRef.current?.abort();
+        demoReplayTokenRef.current += 1;
+        setChatLoadingForId(targetChatId, false);
+        setDemoReplay((current) => current ? { ...current, phase: 'paused' } : current);
+        return;
+      }
+      if (demoReplay.phase === 'paused') {
+        void continueDemoReplay(demoReplay.case, targetChatId, demoReplay.currentEvent, demoReplay.speed);
+      }
+    };
+
+    const changeDemoReplaySpeed = (speed: 1 | 2) => {
+      if (!demoReplay || demoReplay.phase === 'completed' || demoReplay.phase === 'error') return;
+      demoReplayAbortControllerRef.current?.abort();
+      demoReplayTokenRef.current += 1;
+      setDemoReplay((current) => current ? { ...current, speed, phase: 'paused' } : current);
+      window.setTimeout(() => {
+        void continueDemoReplay(demoReplay.case, getActiveChatId(), demoReplay.currentEvent, speed);
+      }, 0);
+    };
+
+    const skipDemoReplayToResult = () => {
+      if (!demoReplay) return;
+      void continueDemoReplay(demoReplay.case, getActiveChatId(), 0, demoReplay.speed, true);
+    };
+
+    const createTripFromDemoTemplate = () => {
+      if (!demoReplay?.case.template) return;
+      demoReplayAbortControllerRef.current?.abort();
+      demoReplayTokenRef.current += 1;
+      demoReplayChatIdsRef.current.delete(getActiveChatId());
+      setDemoReplay(null);
+      setTripCreateTemplate(demoReplay.case.template);
+      startNewChat();
+    };
+
     // 发送消息
     const handleSendMessage = async (
       overrideInput?: string,
@@ -2475,6 +3747,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         clarificationAnsweredCount?: number;
         clarificationQuestionId?: string;
         appendUserMessage?: boolean;
+        structuredTripRequest?: TripCreateRequest;
+        skipDestinationMutationGuard?: boolean;
       }
     ) => {
       const shouldAppendUserMessage = options?.appendUserMessage !== false;
@@ -2483,9 +3757,63 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       if (shouldAppendUserMessage && !currentInput) return;
       if (!shouldAppendUserMessage && !options?.requestMessagesOverride?.length) return;
 
-      const requestId = uuidv4();
-      setPlanningStatus('planning');
+      if (
+        shouldAppendUserMessage
+        && !options?.skipDestinationMutationGuard
+        && hasFormalTrip
+        && isExistingTripComposerOpen
+      ) {
+        const mutation = detectDestinationMutation(formalTripDestination, currentInput);
+        if (mutation) {
+          setPendingDestinationMutation(mutation);
+          return;
+        }
+      }
+
       const requestChatId = getActiveChatId();
+      const preservedPlanningStatus = (): PlanningStatus => {
+        if (!activeTripPlanRef.current) return 'idle';
+        return 'completed';
+      };
+      try {
+        const { active_run: activeRun } = await apiClient.getActivePlanningRun();
+        if (activeRun) {
+          const activeRunMessage = activeRun.trip_id === requestChatId
+            ? '当前旅程已在另一个标签页规划中。请等待其完成，或在原标签页停止后再试。'
+            : '另一标签页正在规划旅程。当前设备一次只能运行一项规划，请等待其完成，或在原标签页停止后再试。';
+          setPlanningStatus(preservedPlanningStatus());
+          setChatMessagesForId(requestChatId, (previous) => {
+            if (previous.at(-1)?.content === activeRunMessage) return previous;
+            return [...previous, {
+              id: uuidv4(),
+              role: 'assistant',
+              content: activeRunMessage,
+              displayContent: activeRunMessage,
+              timestamp: new Date(),
+              type: 'final_answer',
+            }];
+          });
+          return;
+        }
+      } catch (error) {
+        // 预检不可用时继续请求；后端事务锁仍是最终权威。
+        console.warn('活动规划预检失败，将交由后端运行锁判定:', error);
+      }
+
+      const requestId = uuidv4();
+      const previousFormalDocument = formalDocumentByChatIdRef.current[requestChatId];
+      const previousFormalRevision = previousFormalDocument?.revision || 0;
+      const { [requestChatId]: _removedFormalDocument, ...remainingFormalDocuments } = formalDocumentByChatIdRef.current;
+      formalDocumentByChatIdRef.current = remainingFormalDocuments;
+      setPlanningStatus('planning');
+      replaceAgentTimelines({
+        ...agentTimelinesByChatIdRef.current,
+        [requestChatId]: createAgentRunTimeline(requestId),
+      });
+      pendingStructuredReplacementByChatIdRef.current = {
+        ...pendingStructuredReplacementByChatIdRef.current,
+        [requestChatId]: true,
+      };
       activeChatIdRef.current = requestChatId;
       requestIdsByChatIdRef.current = {
         ...requestIdsByChatIdRef.current,
@@ -2538,12 +3866,72 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       if (shouldAppendUserMessage) {
         setPendingClarification(null);
       }
-      hasStructuredTripLocationsRef.current = false;
-      setTripWorkspace(createEmptyTripWorkspace());
-      setActiveTripPlan(null);
-      setActiveTripDocument(null);
-      setPreviousTripPlan(null);
       // 保留当前地图，等新回复里出现有效地点后再替换，避免闪烁和上下文丢失。
+
+      const isCurrentRequest = () => (
+        isMountedRef.current
+        && requestIdsByChatIdRef.current[requestChatId] === requestId
+        && !abortController.signal.aborted
+      );
+
+      const restoreCompletedBackgroundPlan = async (): Promise<boolean> => {
+        let activeRun;
+        try {
+          activeRun = (await apiClient.getActivePlanningRun()).active_run;
+        } catch (_error) {
+          return false;
+        }
+        if (activeRun && activeRun.run_id !== requestId) return false;
+
+        const deadline = Date.now() + 10 * 60 * 1000;
+        while (activeRun?.run_id === requestId && Date.now() < deadline && isCurrentRequest()) {
+          await new Promise((resolve) => window.setTimeout(resolve, 1000));
+          if (!isCurrentRequest()) return false;
+          try {
+            activeRun = (await apiClient.getActivePlanningRun()).active_run;
+          } catch (_error) {
+            continue;
+          }
+        }
+        if (activeRun?.run_id === requestId || !isCurrentRequest()) return false;
+
+        // 运行记录先完成、正式快照随后提交时，短暂等待持久化可见。
+        for (let attempt = 0; attempt < 10 && isCurrentRequest(); attempt += 1) {
+          const detail = await getChat(requestChatId);
+          const document = detail?.tripDocument;
+          if (
+            detail
+            && isTravelPlanDocumentV3(document)
+            && document.revision > previousFormalRevision
+          ) {
+            restoreActiveTripDocument(document as unknown as Record<string, unknown>);
+            formalDocumentByChatIdRef.current = {
+              ...formalDocumentByChatIdRef.current,
+              [requestChatId]: document,
+            };
+            const restoredMessages = withRestoredFormalPlan(
+              detail.messages.map((message) => normalizeMessage(message)),
+              document,
+            );
+            syncActiveChatFromRuntime(requestChatId, restoredMessages);
+            if (detail.agentTimeline) {
+              restoreAgentTimelineForChat(requestChatId, detail.agentTimeline);
+            }
+            setCanRestorePreviousFormal(Boolean(detail.hasPreviousFormalSnapshot));
+            clearPendingStructuredReplacement(requestChatId);
+            hasStructuredTripLocationsRef.current = tripWorkspaceRef.current.locations.length > 0;
+            lastPersistedPlanSignatureRef.current = tripSnapshotSignature(
+              activeTripPlanRef.current,
+              document as unknown as Record<string, unknown>,
+            );
+            setChatLoadingForId(requestChatId, false);
+            setPlanningStatus('completed');
+            return true;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 500));
+        }
+        return false;
+      };
 
       try {
         // 构建请求数据
@@ -2567,7 +3955,20 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           allow_web_search: settings.allowWebSearch,
           clarification_answers: options?.clarificationAnswers || {},
           clarification_question_id: options?.clarificationQuestionId,
-          selected_knowledge_context: selectedKnowledgeContext
+          selected_knowledge_context: selectedKnowledgeContext,
+          input_source: options?.structuredTripRequest ? 'structured_form' : 'natural_language',
+          structured_trip_request: options?.structuredTripRequest ? {
+            origin: options.structuredTripRequest.origin,
+            destination: options.structuredTripRequest.destination,
+            start_date: options.structuredTripRequest.startDate,
+            end_date: options.structuredTripRequest.endDate,
+            adults: options.structuredTripRequest.adults,
+            children: options.structuredTripRequest.children,
+            seniors: options.structuredTripRequest.seniors,
+            budget: options.structuredTripRequest.budget,
+            party_type: options.structuredTripRequest.partyType,
+            preferences: options.structuredTripRequest.preferences,
+          } : undefined,
         };
 
         console.log('发送请求参数:', {
@@ -2588,13 +3989,17 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
         if (!response.ok) {
           let userMessage = '';
+          let errorCode = '';
           try {
             const body = await response.json();
             userMessage = safeText(body?.detail?.message || body?.message).trim();
+            errorCode = safeText(body?.detail?.code || body?.code).trim();
           } catch (_error) {
             userMessage = '';
           }
-          const requestError = new Error(`HTTP ${response.status}`) as Error & { userMessage?: string };
+          const requestError = new Error(`HTTP ${response.status}`) as PlanningRequestError;
+          requestError.code = errorCode;
+          requestError.status = response.status;
           requestError.userMessage = userMessage;
           throw requestError;
         }
@@ -2612,11 +4017,6 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         const eventDeduper = new PlanningEventDeduper();
         const decoder = new TextDecoder();
 
-        const isCurrentRequest = () => (
-          isMountedRef.current &&
-          requestIdsByChatIdRef.current[requestChatId] === requestId
-        );
-
         const processDataLine = (line: string) => {
           if (!line.startsWith('data: ')) return;
           try {
@@ -2626,6 +4026,17 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
             console.log('收到流式数据:', data);
 
             switch (data.type) {
+              case 'run_started':
+              case 'agent_stage_started':
+              case 'agent_stage_updated':
+              case 'agent_stage_retrying':
+              case 'agent_stage_completed':
+              case 'provider_queue_waiting':
+              case 'run_soft_timeout':
+                if (isCurrentRequest()) {
+                  recordAgentTimelineEvent(data, requestChatId);
+                }
+                break;
               case 'chat_chunk':
                 if (isCurrentRequest()) {
                   handleMessageChunk(data, requestChatId);
@@ -2633,6 +4044,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 break;
               case 'clarification_required': {
                 if (isCurrentRequest()) {
+                  clearPendingStructuredReplacement(requestChatId);
+                  clearAgentTimeline(requestChatId);
                   receivedClarification = true;
                   const nextQuestion = Array.isArray(data.questions)
                     ? data.questions[0] as ClarificationQuestion | undefined
@@ -2673,6 +4086,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 break;
               case 'chat_complete':
                 if (isCurrentRequest()) {
+                  clearPendingStructuredReplacement(requestChatId);
                   receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
                   setPlanningStatus(statusAfterCompletion(data.finish_reason));
@@ -2684,12 +4098,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 break;
               case 'trip_plan_completed':
                 if (isCurrentRequest()) {
+                  recordAgentTimelineEvent(data, requestChatId);
                   receivedTerminalEvent = true;
                   setPlanningStatus('completed');
                 }
                 break;
               case 'run_cancelled':
                 if (isCurrentRequest()) {
+                  recordAgentTimelineEvent(data, requestChatId);
+                  clearPendingStructuredReplacement(requestChatId);
                   receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
                   setPlanningStatus('cancelled');
@@ -2697,6 +4114,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 break;
               case 'error':
                 if (isCurrentRequest()) {
+                  recordAgentTimelineEvent(data, requestChatId);
+                  clearPendingStructuredReplacement(requestChatId);
                   receivedTerminalEvent = true;
                   setChatLoadingForId(requestChatId, false);
                   setPlanningStatus('error');
@@ -2773,13 +4192,21 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }
 
         if (isCurrentRequest()) {
-          setChatLoadingForId(requestChatId, false);
+          clearPendingStructuredReplacement(requestChatId);
           if (!receivedTerminalEvent) {
+            const recovered = await restoreCompletedBackgroundPlan();
+            if (!recovered && isCurrentRequest()) {
+              setChatLoadingForId(requestChatId, false);
               setPlanningStatus(statusAfterStreamClosed(hasStructuredTripLocationsRef.current));
+              setChatMessagesForId(requestChatId, (previous) => withInterruptedResponseIfNeeded(previous));
+            }
+          } else {
+            setChatLoadingForId(requestChatId, false);
           }
         }
 
       } catch (error) {
+        clearPendingStructuredReplacement(requestChatId);
         if ((error as Error).name === 'AbortError') {
           console.log('请求已中止（切换会话或组件卸载）');
           if (requestIdsByChatIdRef.current[requestChatId] === requestId && isMountedRef.current) {
@@ -2787,6 +4214,30 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           }
           return;
         }
+        const planningError = error as PlanningRequestError;
+        if (planningError.code === 'ACTIVE_PLANNING_RUN' || planningError.status === 409) {
+          const activeRunMessage = planningError.code === 'ACTIVE_PLANNING_RUN'
+            ? (safeText(planningError.userMessage).trim()
+              || '另一标签页正在规划旅程。当前设备一次只能运行一项规划，请等待其完成，或在原标签页停止后再试。')
+            : (safeText(planningError.userMessage).trim() || '当前请求与另一项操作冲突，请稍后重试。');
+          if (requestIdsByChatIdRef.current[requestChatId] === requestId && isMountedRef.current) {
+            setChatLoadingForId(requestChatId, false);
+            setPlanningStatus(preservedPlanningStatus());
+            setChatMessagesForId(requestChatId, [...baseMessages, {
+              id: uuidv4(),
+              role: 'assistant',
+              content: activeRunMessage,
+              displayContent: activeRunMessage,
+              timestamp: new Date(),
+              type: 'final_answer',
+            }]);
+            if (shouldAppendUserMessage && currentInput) {
+              setInputText(currentInput, true);
+            }
+          }
+          return;
+        }
+        if (await restoreCompletedBackgroundPlan()) return;
         console.error('发送消息失败:', error);
         if (requestIdsByChatIdRef.current[requestChatId] === requestId && isMountedRef.current) {
           setChatLoadingForId(requestChatId, false);
@@ -2822,7 +4273,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
     const isAssistantAnswerMessage = (message: Message): boolean => {
       if (message.role !== 'assistant') return false;
-      return !message.type || message.type === 'final_answer' || message.type === 'normal';
+      return !message.type || message.type === 'final_answer' || message.type === 'formal_plan' || message.type === 'normal';
     };
 
     const handleStopResponse = () => {
@@ -2853,6 +4304,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
       const activeController = abortControllersByChatIdRef.current[activeChatId];
       const activeRunId = requestIdsByChatIdRef.current[activeChatId];
+      clearPendingStructuredReplacement(activeChatId);
       if (activeRunId) {
         void apiClient.cancelPlanningRun(activeRunId).catch((error) => {
           console.warn('停止规划请求未确认:', error);
@@ -2873,7 +4325,10 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       activeRegenerateContextRef.current = null;
       setChatLoadingForId(activeChatId, false);
       setPlanningStatus('cancelled');
-      setChatMessagesForId(activeChatId, (prev) => withInterruptedResponseIfNeeded(prev));
+      setChatMessagesForId(activeChatId, (prev) => withInterruptedResponseIfNeeded(
+        prev,
+        '规划已停止。已保留此前的正式行程和未应用草稿；可编辑输入框中的原请求后重新发送。',
+      ));
       if (retryPrompt) {
         setInputText(retryPrompt, true);
       }
@@ -2912,7 +4367,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
     const isFinalAnswerStepType = (stepType: string): boolean => {
       const normalized = safeText(stepType).trim().toLowerCase();
-      return normalized === '' || normalized === 'normal' || normalized === 'final_answer';
+      return normalized === '' || normalized === 'normal' || normalized === 'final_answer' || normalized === 'formal_plan';
     };
 
     const findNearestUserMessage = (assistantMessageId: string): Message | null => {
@@ -3526,6 +4981,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       const isUser = message.role === 'user';
       const isError = message.type === 'error';
       const isAssistantAnswer = isAssistantAnswerMessage(message);
+      const isFormalPlan = Boolean(message.formalDocument);
       const feedback = messageFeedback[message.id];
       const regeneratePrompt = isAssistantAnswer ? getRegeneratePrompt(message.id) : '';
       const copyableAnswer = formatMainChatContent(safeDisplayContent).trim();
@@ -3558,11 +5014,19 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               </div>
             )}
 
+            {message.supersededByRevision && (
+              <Tag color="default" style={{ marginBottom: '6px' }}>
+                已被正式版本 v{message.supersededByRevision} 替代
+              </Tag>
+            )}
+
             {/* 消息气泡 */}
             <div
-              className={`markdown-content ${isUser ? 'user-message' : ''}`}
+              className={`markdown-content ${isUser ? 'user-message' : ''} ${isFormalPlan ? 'formal-plan-bubble' : ''}`}
               style={{
-                background: isUser
+                background: isFormalPlan
+                  ? 'var(--travel-surface)'
+                  : isUser
                   ? 'var(--travel-gradient-primary)'
                   : isError
                     ? '#fef2f2'
@@ -3572,13 +5036,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   : isError
                     ? '#dc2626'
                     : '#1f2937',
-                padding: '12px 16px',  // 增加内边距
+                padding: isFormalPlan ? '0' : '12px 16px',
                 borderRadius: isUser
                   ? '18px 18px 6px 18px'
-                  : '18px 18px 18px 6px',
+                  : isFormalPlan ? '16px' : '18px 18px 18px 6px',
                 boxShadow: isUser
                   ? '0 10px 18px rgba(46, 95, 138, 0.18)'
-                  : '0 4px 8px rgba(67, 76, 118, 0.06)',
+                  : isFormalPlan ? '0 8px 20px rgba(67, 76, 118, 0.08)' : '0 4px 8px rgba(67, 76, 118, 0.06)',
                 border: isUser
                   ? 'none'
                   : '1px solid color-mix(in oklch, var(--travel-border-soft) 72%, transparent)',
@@ -3605,7 +5069,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 </div>
               )}
 
-              <ReactMarkdown
+              {isFormalPlan && message.formalDocument ? (
+                <TravelPlanMessage
+                  tripId={getActiveChatId()}
+                  planId={message.formalDocument.plan_id}
+                  revision={message.formalDocument.revision}
+                  document={message.formalDocument}
+                  completed
+                />
+              ) : <ReactMarkdown
                 remarkPlugins={[remarkGfm]}  // 添加GitHub风味Markdown支持
                 components={{
                   code({ className, children }) {
@@ -3661,15 +5133,15 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   blockquote({ children }) {
                     return (
                       <blockquote style={{
-                        borderLeft: `4px solid ${isUser ? 'rgba(255,255,255,0.3)' : '#e2e8f0'}`,
+                        border: `1px solid ${isUser ? 'rgba(255,255,255,0.24)' : 'var(--travel-border-soft)'}`,
                         margin: '12px 0',
                         fontStyle: 'italic',
                         opacity: 0.9,
                         background: isUser
                           ? 'rgba(255, 255, 255, 0.1)'
                           : '#f8fafc',
-                        borderRadius: '6px',
-                        padding: '12px 12px 12px 16px'
+                        borderRadius: '10px',
+                        padding: '12px'
                       }}>
                         {children}
                       </blockquote>
@@ -3765,11 +5237,11 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 }}
               >
                 {formatMainChatContent(safeDisplayContent)}
-              </ReactMarkdown>
+              </ReactMarkdown>}
             </div>
 
             {/* 时间戳与消息操作 */}
-            <div style={{
+            <div className="chat-scroll-content" style={{
               display: 'flex',
               justifyContent: isAssistantAnswer ? 'space-between' : (isUser ? 'flex-end' : 'flex-start'),
               alignItems: 'center',
@@ -3983,13 +5455,14 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         }
         seenSignatures.add(signature);
 
-        const baseGroupId = `group_${index + 1}_${group.userMessage.id}`;
-        const userPrompt = safeText(group.userMessage.displayContent) || safeText(group.userMessage.content);
+        const userMessageId = group.userMessage?.id || '';
+        const baseGroupId = `group_${index + 1}_${userMessageId || finalAnswers[0]?.id}`;
+        const userPrompt = safeText(group.userMessage?.displayContent) || safeText(group.userMessage?.content);
         groups.push(...buildLocationGroupsForAnswer(
           baseGroupId,
           `第${index + 1}次提问`,
           latestLocations,
-          group.userMessage.id,
+          userMessageId,
           userPrompt
         ));
       });
@@ -4028,15 +5501,22 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       [mapSuppressed, tripWorkspace.locations]
     );
 
+    const candidateMapLocations = useMemo(
+      () => (mapSuppressed ? [] : buildCandidateMapLocations(activeTripDocument)),
+      [activeTripDocument, mapSuppressed],
+    );
+
     useEffect(() => {
-      if (selectedLocationId && !effectiveMapLocations.some((location) => location.id === selectedLocationId)) {
+      const selectableLocations = [...effectiveMapLocations, ...candidateMapLocations];
+      if (selectedLocationId && !selectableLocations.some((location) => location.id === selectedLocationId)) {
         setSelectedLocationId('');
       }
-    }, [effectiveMapLocations, selectedLocationId]);
+    }, [candidateMapLocations, effectiveMapLocations, selectedLocationId]);
 
     const mapDataSignature = useMemo(
-      () => effectiveMapLocations.map((loc) => `${loc.id}:${loc.name}:${loc.lat}:${loc.lng}`).join('|'),
-      [effectiveMapLocations]
+      () => [...effectiveMapLocations, ...candidateMapLocations]
+        .map((loc) => `${loc.id}:${loc.name}:${loc.lat}:${loc.lng}:${loc.anchor_kind || ''}:${loc.anchor_label || ''}`).join('|'),
+      [candidateMapLocations, effectiveMapLocations]
     );
 
     const hasTripWorkspaceData = useMemo(
@@ -4090,73 +5570,49 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       });
     };
 
-    const renderedMessageGroups = useMemo(
-      () => messageGroups.map((group, groupIndex) => (
-        <div key={`group-${groupIndex}`} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* 渲染用户消息 */}
-          {renderMessage(group.userMessage)}
+    const openExistingTripComposer = () => {
+      setIsExistingTripComposerOpen(true);
+      window.requestAnimationFrame(() => getNativeInputElement()?.focus());
+    };
 
-          {/* 渲染深度思考气泡框 */}
-          {renderDeepThinkBubble(group.deepThinkMessages)}
+    const returnToExistingTripComposer = () => {
+      setPendingDestinationMutation(null);
+      window.requestAnimationFrame(() => getNativeInputElement()?.focus());
+    };
 
-          {/* 渲染最终答案 */}
-          {(() => {
-            const finalAnswers = getGroupFinalAnswers(group);
-            if (finalAnswers.length === 0) return null;
+    const createTripForDestinationMutation = () => {
+      const prompt = readInputText().trim();
+      setPendingDestinationMutation(null);
+      if (onRequestNewTrip) {
+        onRequestNewTrip(prompt);
+        return;
+      }
+      startNewChat(prompt);
+    };
 
-            const userMessageId = group.userMessage.id;
-            const isLatestGroup = groupIndex === messageGroups.length - 1;
-            const maxIndex = finalAnswers.length - 1;
-            const requestedIndex = answerPageByUserMessageId[userMessageId];
-            const activeIndex = typeof requestedIndex === 'number'
-              ? Math.max(0, Math.min(maxIndex, requestedIndex))
-              : maxIndex;
+    const activeAgentTimeline = agentTimelinesByChatId[getActiveChatId()] || null;
+    const isDemoReplayActive = Boolean(demoReplay);
+    const activeFormalDocument = selectActiveFormalDocument(
+      getActiveChatId(),
+      formalDocumentByChatIdRef.current,
+      messages,
+    );
 
-            return (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {renderMessage(finalAnswers[activeIndex], { enableActions: isLatestGroup })}
-
-                {finalAnswers.length > 1 && (
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'flex-start',
-                    alignItems: 'center',
-                    gap: '8px',
-                    marginLeft: '44px'
-                  }}>
-                    <Button
-                      size="small"
-                      onClick={() => setAnswerPageByUserMessageId((prev) => ({
-                        ...prev,
-                        [userMessageId]: Math.max(0, activeIndex - 1),
-                      }))}
-                      disabled={activeIndex <= 0}
-                    >
-                      上一版
-                    </Button>
-
-                    <Text style={{ fontSize: '12px', color: '#6b7280' }}>
-                      回答版本 {activeIndex + 1}/{finalAnswers.length}
-                    </Text>
-
-                    <Button
-                      size="small"
-                      onClick={() => setAnswerPageByUserMessageId((prev) => ({
-                        ...prev,
-                        [userMessageId]: Math.min(maxIndex, activeIndex + 1),
-                      }))}
-                      disabled={activeIndex >= maxIndex}
-                    >
-                      下一版
-                    </Button>
-                  </div>
-                )}
-              </div>
-            );
-          })()}
-        </div>
-      )),
-      [messageGroups, copiedCode, messageFeedback, isLoading, answerPageByUserMessageId, settings, profile]
+    const renderedMessageGroups = (
+      <ConversationMessageList
+        messageGroups={messageGroups}
+        activeAgentTimeline={activeAgentTimeline}
+        historicalAgentTimelineUnavailable={Boolean(activeTripPlan && !activeAgentTimeline && planningStatus !== 'planning')}
+        planningStatus={planningStatus}
+        answerPageByUserMessageId={answerPageByUserMessageId}
+        renderMessage={renderMessage}
+        renderLegacyPlanningProgress={renderDeepThinkBubble}
+        getFinalAnswers={getGroupFinalAnswers}
+        onAnswerPageChange={(userMessageId, pageIndex) => setAnswerPageByUserMessageId((previous) => ({
+          ...previous,
+          [userMessageId]: pageIndex,
+        }))}
+      />
     );
 
     return (
@@ -4164,7 +5620,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
         ref={chatMapLayoutRef}
         className={`chat-map-layout ${showMap ? 'chat-map-layout-open' : ''} mobile-view-${mobilePrimaryView}`}
         style={{
-          height: '100vh',
+          height: '100dvh',
           display: 'flex',
           flexDirection: 'row',
           overflow: 'hidden',
@@ -4172,7 +5628,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           position: 'relative'
         }}
       >
-        <div className="mobile-primary-view-switcher" aria-label="切换主要视图">
+        <nav className="mobile-primary-view-switcher" aria-label="主要视图">
           <Segmented
             block
             value={mobilePrimaryView}
@@ -4187,18 +5643,17 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               if (nextView !== 'chat') setShowMap(true);
             }}
           />
-        </div>
+        </nav>
         {/* 左侧聊天区域 */}
-        <div className="chat-panel" style={{
-          flex: showMap ? `0 0 ${chatPanelWidthPercent}%` : 1,
+        <div className={`chat-panel${messages.length === 0 ? ' chat-panel--start' : ''}`} style={{
+          flex: showMap ? `0 0 ${chatPanelWidthPercent}%` : '1 1 auto',
           minWidth: 0,
           display: 'flex',
           flexDirection: 'column',
           overflow: 'hidden',
-          borderRight: showMap ? '1px solid var(--travel-border)' : 'none'
         }}>
           {/* 消息列表 - 豆包风格 */}
-          <div className="chat-scroll-region" style={{
+          <div ref={chatScrollRegionRef} className="chat-scroll-region" style={{
             flex: 1,
             overflow: 'auto',
             display: 'flex',
@@ -4211,172 +5666,33 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               padding: '16px 0'
             }}>
               {messages.length === 0 ? (
-                <div style={{
-                  display: 'flex',
-                  flexDirection: 'column',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  textAlign: 'center',
-                  color: '#6b7280',
-                  padding: '60px 20px',
-                  minHeight: '400px'
-                }}>
-                  <div style={{
-                    width: '64px',
-                    height: '64px',
-                    borderRadius: '16px',
-                    background: 'var(--travel-selected)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    marginBottom: '20px',
-                    boxShadow: 'none'
-                  }}>
-                    <EnvironmentOutlined style={{ fontSize: '28px', color: 'var(--travel-primary-dark)' }} />
-                  </div>
-
-                  <div style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--travel-ink)' }}>
-                    开始一段轻松的旅行规划
-                  </div>
-                  <div style={{ fontSize: '14px', lineHeight: '1.5', marginBottom: '24px', maxWidth: '320px' }}>
-                    告诉我目的地、天数、预算或旅行偏好，我会边聊边整理路线、景点和地图位置。
-                  </div>
-
-                  {/* 功能特色 */}
-                  <div style={{
-                    display: 'flex',
-                    gap: '12px',
-                    flexWrap: 'wrap',
-                    justifyContent: 'center',
-                    marginBottom: '32px'
-                  }}>
-                    <div style={{
-                      padding: '12px 16px',
-                      background: 'linear-gradient(135deg, var(--travel-surface), color-mix(in oklch, var(--travel-surface-muted) 34%, white 66%))',
-                      borderRadius: '14px',
-                      border: '1px solid var(--travel-border-soft)',
-                      boxShadow: 'var(--travel-card-shadow)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <ThunderboltOutlined style={{ fontSize: '16px', color: '#f59e0b' }} />
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151' }}>
-                        深度规划
-                      </span>
-                    </div>
-
-                    <div style={{
-                      padding: '12px 16px',
-                      background: 'linear-gradient(135deg, var(--travel-surface), color-mix(in oklch, var(--travel-surface-muted) 34%, white 66%))',
-                      borderRadius: '14px',
-                      border: '1px solid var(--travel-border-soft)',
-                      boxShadow: 'var(--travel-card-shadow)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px'
-                    }}>
-                      <BranchesOutlined style={{ fontSize: '16px', color: '#10b981' }} />
-                      <span style={{ fontSize: '13px', fontWeight: 500, color: '#374151' }}>
-                        智能体协作
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* 使用示例 */}
-                  <div style={{
-                    width: '100%',
-                    maxWidth: '600px'
-                  }}>
-                    <div style={{
-                      fontSize: '16px',
-                      fontWeight: 600,
-                      color: '#1f2937',
-                      marginBottom: '16px'
-                    }}>
-                      试试这些示例
-                    </div>
-
-                    <div style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-                      gap: '12px'
-                    }}>
-                      {[
-                        {
-                          title: "行程规划",
-                          example: "帮我规划一次北京3天2夜的文化之旅",
-                          icon: "🗺️"
-                        },
-                        {
-                          title: "酒店预订",
-                          example: "推荐上海外滩附近性价比高的酒店",
-                          icon: "🏨"
-                        },
-                        {
-                          title: "美食攻略",
-                          example: "制定成都美食探索指南和必吃清单",
-                          icon: "🍜"
-                        },
-                        {
-                          title: "交通查询",
-                          example: "查询从广州到桂林的最佳交通方案",
-                          icon: "🚄"
-                        }
-                      ].map((item, index) => (
-                        <div
-                          key={index}
-                          style={{
-                            padding: '16px',
-                            background: 'radial-gradient(circle at 92% 14%, color-mix(in oklch, var(--travel-accent) 13%, transparent), transparent 30%), var(--travel-surface)',
-                            borderRadius: '16px',
-                            border: '1px solid var(--travel-border-soft)',
-                            boxShadow: 'var(--travel-card-shadow)',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s ease',
-                            textAlign: 'left'
-                          }}
-                          onClick={() => setInputText(item.example, true)}
-                          onMouseEnter={(e) => {
-                            e.currentTarget.style.borderColor = 'color-mix(in oklch, var(--travel-primary-soft) 64%, var(--travel-border) 36%)';
-                            e.currentTarget.style.boxShadow = '0 10px 16px rgba(28, 52, 78, 0.10)';
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                          }}
-                          onMouseLeave={(e) => {
-                            e.currentTarget.style.borderColor = 'var(--travel-border-soft)';
-                            e.currentTarget.style.boxShadow = 'var(--travel-card-shadow)';
-                            e.currentTarget.style.transform = 'translateY(0)';
-                          }}
-                        >
-                          <div style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '8px',
-                            marginBottom: '8px'
-                          }}>
-                            <span style={{ fontSize: '18px' }}>{item.icon}</span>
-                            <span style={{
-                              fontSize: '14px',
-                              fontWeight: 600,
-                              color: '#1f2937'
-                            }}>
-                              {item.title}
-                            </span>
-                          </div>
-                          <div style={{
-                            fontSize: '13px',
-                            color: '#6b7280',
-                            lineHeight: '1.4'
-                          }}>
-                            {item.example}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
+                <TripCreateForm
+                  key={tripCreateFormRevision}
+                  disabled={isLoading}
+                  initialTemplate={tripCreateTemplate || undefined}
+                  onCreate={(request, prompt) => {
+                    setTripCreateTemplate(null);
+                    return handleSendMessage(prompt, { structuredTripRequest: request });
+                  }}
+                />
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {demoReplay && (
+                    <DemoReplayControls
+                      title={demoReplay.case.title}
+                      notice={demoReplay.case.notice || '案例录制时的信息，仅用于演示。'}
+                      phase={demoReplay.phase}
+                      speed={demoReplay.speed}
+                      currentEvent={demoReplay.currentEvent}
+                      totalEvents={demoReplay.totalEvents}
+                      error={demoReplay.error}
+                      onPauseResume={pauseOrResumeDemoReplay}
+                      onSpeedChange={changeDemoReplaySpeed}
+                      onSkipToResult={skipDemoReplayToResult}
+                      onRestart={() => startDemoReplay(demoReplay.case.id)}
+                      onCreateFromTemplate={createTripFromDemoTemplate}
+                    />
+                  )}
                   {renderedMessageGroups}
                 </div>
               )}
@@ -4400,16 +5716,43 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           </div>
 
           {/* 豆包风格的输入区域 */}
-          <div style={{
+          <div className="chat-composer-dock" style={{
             padding: '16px 24px 20px',
             background: 'transparent',
             flexShrink: 0
           }}>
             {/* 输入框容器 - 豆包风格多行设计 */}
-            <div style={{
+            <div className="chat-composer-shell" style={{
               maxWidth: '768px',
               margin: '0 auto'
             }}>
+              {shouldCollapseComposer ? (
+                <div
+                  role="status"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    padding: '12px 16px',
+                    border: '1px solid var(--travel-border-soft)',
+                    borderRadius: '12px',
+                    background: 'color-mix(in oklch, var(--travel-bg-soft) 68%, white 32%)',
+                  }}
+                >
+                  <div style={{ minWidth: 0, display: 'grid', gap: '2px' }}>
+                    <Text strong style={{ color: 'var(--travel-primary-dark)' }}>正式方案已保存</Text>
+                    <Text type="secondary" style={{ fontSize: '12px' }}>
+                      当前目的地：{formalTripDestination}。需要调整日程、预算或偏好时，可继续此行程。
+                    </Text>
+                  </div>
+                  <Button type="primary" onClick={openExistingTripComposer}>
+                    继续调整
+                  </Button>
+                </div>
+              ) : (
+                <>
+              {messages.length === 0 && demoCases.length > 0 && <DemoCaseGallery cases={demoCases} onReplay={startDemoReplay} />}
               {selectedKnowledgeContext.length > 0 && (
                 <div className="selected-knowledge-context-bar">
                   <div>
@@ -4434,14 +5777,45 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         profile as unknown as Record<string, unknown>,
                       )}
                     onSubmit={(answer) => submitClarificationAnswer(activePendingClarification, answer)}
-                    onSkip={() => submitClarificationAnswer(activePendingClarification, {
-                      [activePendingClarification.question.field]: CLARIFICATION_SKIP_VALUE,
-                    })}
+                    onSkip={activePendingClarification.question.allow_skip === false
+                      ? undefined
+                      : () => submitClarificationAnswer(activePendingClarification, {
+                        [activePendingClarification.question.field]: CLARIFICATION_SKIP_VALUE,
+                      })}
                   />
                 </div>
               )}
+              {pendingDestinationMutation && (
+                <div
+                  role="alert"
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '16px',
+                    marginBottom: '10px',
+                    padding: '12px 14px',
+                    border: '1px solid color-mix(in oklch, #d97706 34%, var(--travel-border-soft) 66%)',
+                    borderRadius: '12px',
+                    background: 'color-mix(in oklch, #fef3c7 70%, var(--travel-bg) 30%)',
+                  }}
+                >
+                  <div style={{ minWidth: 0, display: 'grid', gap: '2px' }}>
+                    <Text strong>检测到新的目的地</Text>
+                    <Text style={{ fontSize: '12px', color: '#854d0e' }}>
+                      当前旅程前往{pendingDestinationMutation.currentDestination}，你的输入前往{pendingDestinationMutation.nextDestination}。建议创建新旅程，避免覆盖现有正式方案。
+                    </Text>
+                  </div>
+                  <div style={{ display: 'flex', flexShrink: 0, gap: '8px' }}>
+                    <Button size="small" onClick={returnToExistingTripComposer}>修改输入</Button>
+                    <Button size="small" type="primary" onClick={createTripForDestinationMutation}>
+                      创建新旅程
+                    </Button>
+                  </div>
+                </div>
+              )}
               <div
-                className="chat-input-container"
+                className={`chat-input-container${messages.length === 0 ? ' chat-input-container--start' : ''}`}
                 style={{
                   position: 'relative',
                   borderRadius: '18px',
@@ -4455,7 +5829,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               >
                 {/* 顶部功能开关行 */}
                 {/* 控制选项区域 - 只保留地图按钮 */}
-                <div style={{
+                <div className="chat-input-tools" style={{
                   display: 'flex',
                   justifyContent: 'flex-end',
                   alignItems: 'center',
@@ -4519,7 +5893,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         onOpenChange={setMcpModalVisible}
                         placement="bottomLeft"
                         getPopupContainer={(trigger) => trigger.parentElement || document.body}
-                        dropdownRender={() => (
+                        popupRender={() => (
                           <div
                             style={{
                               background: '#ffffff',
@@ -4745,7 +6119,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                       onOpenChange={handleSkillDropdownOpenChange}
                       placement="topRight"
                       getPopupContainer={() => document.body}
-                      dropdownRender={() => (
+                      popupRender={() => (
                         <div
                           style={{
                             background: '#ffffff',
@@ -4932,11 +6306,18 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                       <span>{useDeepThink ? '深度研究' : '快速对话'}</span>
                     </button>
                     <TripProductTools
+                      tripId={getActiveChatId()}
                       plan={activeTripPlan}
                       document={activeTripDocument}
+                      formalDocument={activeFormalDocument as unknown as Record<string, unknown> | null}
                       workspace={tripWorkspace}
+                      hasDraft={hasTripEditDraft}
+                      canApplyDraft={!isTripEditLoading && tripDraftValidation?.can_apply !== false}
+                      onApplyDraft={async () => {
+                        if (!await applyTripEditDraft()) return null;
+                        return formalDocumentByChatIdRef.current[getActiveChatId()] as unknown as Record<string, unknown> || null;
+                      }}
                       onUseTemplate={(prompt) => void handleSendMessage(prompt)}
-                      onImportDocument={handleImportedTripDocument}
                       onDocumentChange={setActiveTripDocument}
                     />
                     {effectiveMapLocations.length > 0 && (
@@ -4959,7 +6340,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                 </div>
 
                 {/* 输入框和发送按钮区域 */}
-                <div style={{
+                <div className="chat-input-field-row" style={{
                   display: 'flex',
                   alignItems: 'flex-end',
                   padding: '8px 16px 12px 16px',
@@ -4979,9 +6360,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         isComposingRef.current = false;
                         syncInputState(e.currentTarget.value);
                       }}
-                      placeholder={activePendingClarification ? '请先回答或跳过上方问题' : '发消息...'}
+                      placeholder={activePendingClarification
+                        ? (activePendingClarification.question.allow_skip === false
+                          ? '请先回答上方问题'
+                          : '请先回答或跳过上方问题')
+                        : (messages.length === 0 ? '直接描述目的地和天数…' : '发消息...')}
                       autoSize={{ minRows: 2, maxRows: 6 }}
-                      bordered={false}
+                      variant="borderless"
                       onPressEnter={(e) => {
                         const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
                         if (!e.shiftKey && !nativeEvent.isComposing && !isComposingRef.current) {
@@ -5056,127 +6441,104 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   />
                 </div>
               </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* 输入框区域 - 已有的输入框代码应该在这里 */}
         </div>
 
-        <Button
-          type="primary"
-          shape="circle"
-          icon={<EnvironmentOutlined />}
-          aria-label={showMap ? '关闭旅行工作台' : '打开旅行工作台'}
-          title={showMap ? '关闭旅行工作台' : '打开旅行工作台'}
-        className={`map-toggle-orb ${showMap ? 'map-toggle-orb-open' : ''}`}
-        style={showMap
-          ? { left: `calc(${chatPanelWidthPercent}% - 46px)`, right: 'auto' }
-          : { right: '22px', left: 'auto' }}
-          onClick={() => {
-            const nextShowMap = !showMap;
-            setShowMap(nextShowMap);
-            if (nextShowMap && effectiveMapLocations.length > 0) {
-              setMapSuppressed(false);
-              setMapLocations([...effectiveMapLocations]);
-            }
-          }}
-        />
-
-        {showMap && (
-          <div
-            className="chat-map-resizer"
-            onMouseDown={startChatMapResize}
-            title="拖动调整聊天与地图宽度"
-            style={{
-              width: '8px',
-              flex: '0 0 8px',
-              cursor: 'col-resize',
-              background: 'var(--travel-surface-muted)',
-              borderLeft: '1px solid var(--travel-border)',
-              borderRight: '1px solid var(--travel-border)',
-              zIndex: 6
+        {!showMap && (
+          <Button
+            type="primary"
+            shape="circle"
+            icon={<EnvironmentOutlined />}
+            aria-label="打开旅行工作台"
+            title="打开旅行工作台"
+            className="map-toggle-orb map-toggle-orb-closed"
+            onClick={() => {
+              setShowMap(true);
+              if (effectiveMapLocations.length > 0) {
+                setMapSuppressed(false);
+                setMapLocations([...effectiveMapLocations]);
+              }
             }}
           />
         )}
 
-        {/* 右侧旅行工作台区域 */}
         {showMap && (
-          <div className="trip-side-panel" ref={tripSidePanelRef}>
+          <div className="chat-map-boundary">
             <div
-              className={hasTripWorkspaceData ? 'trip-map-panel trip-map-panel-with-workspace' : 'trip-map-panel'}
-              style={hasTripWorkspaceData
-                ? { flex: `0 0 calc(${sidePanelMapPercent}% - 4px)` }
-                : { flex: '1 1 100%' }}
-            >
-              <MapComponent
-                width="100%"
-                height="100%"
-                locations={effectiveMapLocations}
-                dayRoutes={dayRoutes}
-                activeGroupId={activeMapGroupId}
-                selectedLocationId={selectedLocationId}
-                locationGroups={mapLocationGroupsForRender.map((group) => ({
-                  id: group.groupId,
-                  title: group.title,
-                  locations: group.locations,
-                }))}
-                onSelectLocation={(locationId) => {
-                  setSelectedLocationId(locationId);
-                }}
-              />
-            </div>
-            {!hasTripWorkspaceData && (
-              <div className="trip-mobile-empty" role="status">
-                <CalendarOutlined />
-                <span>行程生成后会在这里按日期整理</span>
-              </div>
-            )}
-            {hasTripWorkspaceData && (
-              <>
-                <div
-                  className="trip-side-horizontal-resizer"
-                  onMouseDown={startSidePanelResize}
-                  role="separator"
-                  aria-orientation="horizontal"
-                  aria-label="调整地图与行程工作台高度"
-                  title="拖动调整地图与行程工作台高度"
-                />
-                <div
-                  className="trip-workspace-shell"
-                  style={{ flex: `0 0 calc(${100 - sidePanelMapPercent}% - 4px)` }}
-                >
-                  <TripWorkspace
-                    data={tripWorkspace}
-                    document={activeTripDocument}
-                    locationGroups={workspaceLocationGroups.map((group) => ({
-                      groupId: group.groupId,
-                      title: group.title,
-                      locations: group.locations,
-                      sourceKind: group.groupId.startsWith('structured_trip_workspace')
-                        ? 'current_plan'
-                        : 'historical_answer',
-                    }))}
-                    activeGroupId={activeMapGroupId}
-                    selectedLocationId={selectedLocationId}
-                    onSelectGroup={setActiveMapGroupId}
-                    onSelectLocation={setSelectedLocationId}
-                    onEditOperation={activeTripPlan ? applyTripEditOperation : undefined}
-                    onUndoEdit={undoLastTripEdit}
-                    canUndoEdit={Boolean(previousTripPlan)}
-                    editLoading={isTripEditLoading}
-                    onFocusMap={() => {
-                      setShowMap(true);
-                      if (isNarrowLayout) setMobilePrimaryView('map');
-                    }}
-                    onQuickAction={(prompt) => {
-                      if (isNarrowLayout) setMobilePrimaryView('chat');
-                      void handleSendMessage(prompt);
-                    }}
-                  />
-                </div>
-              </>
-            )}
+              className="chat-map-resizer"
+              onMouseDown={startChatMapResize}
+              onKeyDown={resizeChatMapByKeyboard}
+              role="separator"
+              aria-label="调整对话与旅行工作台宽度"
+              aria-orientation="vertical"
+              aria-valuemin={35}
+              aria-valuemax={75}
+              aria-valuenow={Math.round(chatPanelWidthPercent)}
+              tabIndex={0}
+              title="拖动或使用方向键调整宽度"
+            />
+            <Button
+              type="primary"
+              icon={<EnvironmentOutlined />}
+              aria-label="关闭旅行工作台"
+              title="关闭旅行工作台"
+              className="map-toggle-orb map-toggle-orb-open"
+              onMouseDown={(event) => event.stopPropagation()}
+              onClick={() => setShowMap(false)}
+            />
           </div>
+        )}
+
+        {showMap && (
+          <TravelPlannerWorkbench
+            sidePanelRef={tripSidePanelRef}
+            hasTripWorkspaceData={hasTripWorkspaceData}
+            sidePanelMapPercent={sidePanelMapPercent}
+            effectiveMapLocations={effectiveMapLocations}
+            candidateMapLocations={candidateMapLocations}
+            dayRoutes={dayRoutes}
+            activeMapGroupId={activeMapGroupId}
+            selectedLocationId={selectedLocationId}
+            mapLocationGroups={mapLocationGroupsForRender}
+            workspaceLocationGroups={workspaceLocationGroups}
+            tripWorkspace={tripWorkspace}
+            activeTripDocument={activeTripDocument}
+            hasActiveTripPlan={Boolean(activeTripPlan) && !isDemoReplayActive}
+            mobileSimpleEditing={isNarrowLayout}
+            canUndoEdit={Boolean(previousTripPlan && previousTripDocument) && !isDemoReplayActive}
+            hasDraft={hasTripEditDraft && !isDemoReplayActive}
+            draftValidation={tripDraftValidation}
+            editLoading={isTripEditLoading}
+            onStartResize={startSidePanelResize}
+            onSelectGroup={setActiveMapGroupId}
+            onSelectLocation={setSelectedLocationId}
+            onEditOperation={applyTripEditOperation}
+            onGetActivityDeleteImpact={getActivityDeleteImpact}
+            onGetDayRouteOptimizationPreview={getDayRouteOptimizationPreview}
+            onUndoEdit={undoLastTripEdit}
+            onDiscardDraft={discardTripEditDraft}
+            onApplyDraft={applyTripEditDraft}
+            canRestorePreviousFormal={canRestorePreviousFormal}
+            onRestorePreviousFormal={restorePreviousFormalSnapshot}
+            onFocusMap={() => {
+              setShowMap(true);
+              if (isNarrowLayout) setMobilePrimaryView('map');
+            }}
+            onFocusWorkspace={() => {
+              setShowMap(true);
+              if (isNarrowLayout) setMobilePrimaryView('trip');
+            }}
+            onQuickAction={(prompt) => {
+              if (isDemoReplayActive) return;
+              if (isNarrowLayout) setMobilePrimaryView('chat');
+              void handleSendMessage(prompt);
+            }}
+          />
         )}
       </div>
     );
