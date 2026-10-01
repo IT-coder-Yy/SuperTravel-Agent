@@ -49,7 +49,7 @@ class TaskSummaryAgent(AgentBase):
     - 禁止输出任何本地绝对路径（如 `/home/...`、`C:\\...`）
     - 不要在最终回复中展示工具参数、调用中间态或调试信息
 6. **重要**：如果回答涉及旅行行程、地点推荐、路线规划等包含具体地理位置的内容：
-   - 必须使用可用地图工具获取坐标，优先调用 `map_geocode`；需要路线耗时/距离时调用 `map_directions` 或 `map_distance_matrix`。
+   - 必须使用可用地图工具获取坐标；国内目的地优先调用高德 `maps_geo` / `maps_text_search`，不可用时回退 `map_geocode` / `map_search_places`。需要路线耗时或距离时，调用当前可用的 `maps_direction_*`、`maps_distance`、`map_directions` 或 `map_distance_matrix`。
    - 正文必须使用合法 Markdown：用 `##`/`###` 标题、列表或完整 GFM 表格；不要输出 `|----|` 这类没有表头的伪表格；每个标题和表格前后都要留空行。
    - 按天输出行程时，每一天使用独立小节，写清“路线顺序”和“交通方式/耗时依据”。
    - 必须在回答末尾附加一个独立 JSON 代码块，供前端地图读取；该 JSON 不要混入正文说明，格式如下：

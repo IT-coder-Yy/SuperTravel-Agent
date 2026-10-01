@@ -237,18 +237,19 @@ class AgentBase(ABC):
     def print_token_stats(self):
         """打印当前agent的token使用统计"""
         stats = self.get_token_stats()
-        print(f"\n🤖 {stats['agent_name']} Token使用统计:")
-        print(f"  📞 调用次数: {stats['total_calls']}")
-        print(f"  📥 输入tokens: {stats['total_input_tokens']}")
-        print(f"  📤 输出tokens: {stats['total_output_tokens']}")
-        print(f"  🏃 缓存tokens: {stats['total_cached_tokens']}")
-        print(f"  🧠 推理tokens: {stats['total_reasoning_tokens']}")
-        print(f"  🔢 总计tokens: {stats['total_input_tokens'] + stats['total_output_tokens']}")
+        logger.info(
+            f"{stats['agent_name']}: Token统计 - 调用{stats['total_calls']}次, "
+            f"输入{stats['total_input_tokens']}, 输出{stats['total_output_tokens']}, "
+            f"缓存{stats['total_cached_tokens']}, 推理{stats['total_reasoning_tokens']}"
+        )
         
         if stats['step_details']:
-            print(f"  📋 详细步骤:")
             for detail in stats['step_details']:
-                print(f"    • {detail['step']}: 输入{detail['input_tokens']}, 输出{detail['output_tokens']}, 总计{detail['total_tokens']} tokens, 耗时{detail['execution_time']}s")
+                logger.debug(
+                    f"{stats['agent_name']}: {detail['step']} - 输入{detail['input_tokens']}, "
+                    f"输出{detail['output_tokens']}, 总计{detail['total_tokens']} tokens, "
+                    f"耗时{detail['execution_time']}s"
+                )
 
     def _call_llm_streaming(self, messages: List[Dict[str, Any]]):
         """
@@ -688,30 +689,12 @@ class AgentBase(ABC):
         
         logger.debug(f"{self.__class__.__name__}: 系统消息生成完成，总长度: {len(system_content)}")
         
-        # 4. 打印完整的系统提示信息（新增）
-        print("\n" + "="*100)
-        print(f"🤖 {self.__class__.__name__} - 系统提示消息")
-        print("="*100)
-        print(f"📋 Agent类型: {self.__class__.__name__}")
-        print(f"🆔 会话ID: {session_id if session_id else system_context.get('session_id', 'None') if system_context else 'None'}")
-        
-        if system_context:
-            print(f"🔧 System Context字段: {list(system_context.keys())}")
-            print(f"📊 System Context详情:")
-            for key, value in system_context.items():
-                if isinstance(value, str) and len(value) > 100:
-                    print(f"   • {key}: {value[:100]}... (长度: {len(value)})")
-                else:
-                    print(f"   • {key}: {value}")
-        else:
-            print("🔧 System Context: None")
-        
-        print(f"📏 完整系统消息长度: {len(system_content)} 字符")
-        print("📝 完整系统消息内容:")
-        print("-" * 50)
-        print(system_content)
-        print("-" * 50)
-        print("="*100 + "\n")
+        context_fields = list(system_context.keys()) if system_context else []
+        effective_session_id = session_id or (system_context or {}).get('session_id')
+        logger.debug(
+            f"{self.__class__.__name__}: 系统消息准备完成 - 会话ID={effective_session_id or 'None'}, "
+            f"上下文字段={context_fields}, 长度={len(system_content)}"
+        )
         
         return {
             'role': 'system',

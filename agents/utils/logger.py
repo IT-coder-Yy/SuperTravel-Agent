@@ -54,7 +54,7 @@ class Logger:
         
         Logger._initialized = True
     
-    def _log(self, level, message):
+    def _log(self, level, message, *args, **kwargs):
         # Get caller frame info to include filename and line number
         # 使用inspect.stack获取调用栈，跳过前两层（_log方法和debug/info等方法）
         stack = inspect.stack()
@@ -66,24 +66,31 @@ class Logger:
             filename = 'unknown.py'
             lineno = 0
         
-        # Get the level method and call it with the message
+        # Mirror ``logging.Logger`` instead of accepting only an already
+        # formatted string.  Agent/model SDKs use lazy ``%s`` formatting and
+        # pass ``exc_info``/``stack_info``; rejecting those arguments can turn a
+        # recoverable provider error into a failed planning run.
         log_method = getattr(self.logger, level)
-        log_method(f"{message}", extra={'caller_filename': filename, 'caller_lineno': lineno})
+        supplied_extra = kwargs.pop('extra', None)
+        extra = dict(supplied_extra) if isinstance(supplied_extra, dict) else {}
+        extra.setdefault('caller_filename', filename)
+        extra.setdefault('caller_lineno', lineno)
+        log_method(message, *args, extra=extra, **kwargs)
     
-    def debug(self, message):
-        self._log('debug', message)
+    def debug(self, message, *args, **kwargs):
+        self._log('debug', message, *args, **kwargs)
     
-    def info(self, message):
-        self._log('info', message)
+    def info(self, message, *args, **kwargs):
+        self._log('info', message, *args, **kwargs)
     
-    def warning(self, message):
-        self._log('warning', message)
+    def warning(self, message, *args, **kwargs):
+        self._log('warning', message, *args, **kwargs)
     
-    def error(self, message):
-        self._log('error', message)
+    def error(self, message, *args, **kwargs):
+        self._log('error', message, *args, **kwargs)
     
-    def critical(self, message):
-        self._log('critical', message)
+    def critical(self, message, *args, **kwargs):
+        self._log('critical', message, *args, **kwargs)
 
 # Create a global logger instance for easy import
 logger = Logger()

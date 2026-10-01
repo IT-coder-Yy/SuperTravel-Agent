@@ -57,7 +57,8 @@ class DirectExecutorAgent(AgentBase):
 3. 可能的工具最多返回7个。
 4. 如果需求涉及12306、火车票、高铁、动车、车次、余票、票价，必须包含实时票务工具（get-tickets、get-interline-tickets、query_12306_tickets_by_query、query_12306_realtime_tickets）中的至少一个。
 5. 车票场景要遵守硬规则：先查直达，再查中转；即使有直达也要保留中转备选。
-6. 如果涉及酒店推荐、旅游攻略，务必选择地图(map_search_places)或网页搜索(search_web_page, xhs_search_and_summarize)等工具，严禁拒绝服务或宣称“只做交通查询”。
+6. 如果涉及酒店推荐、旅游攻略，国内地点优先选择高德地图(maps_text_search)，不可用时选择百度地图(map_search_places)；网页资料优先选择 Tavily(tavily_search)，不可用时选择 search_web_page 或 xhs_search_and_summarize。只能返回当前可用的工具，严禁拒绝服务或宣称“只做交通查询”。
+7. 图片必须优先匹配具体地点和活动场景：先用已核验 POI 自带图片，再用地点名称严格匹配的图片检索结果；不得为了补图使用与地点不明确相关的通用图片。
 """
 
     # 最大循环次数常量

@@ -46,7 +46,8 @@ the expected output is:{next_expected_output}
 9. 涉及火车票/高铁/动车/车次/余票/票价查询时，必须优先使用实时工具结果（get-tickets / get-interline-tickets / query_12306_realtime_tickets / query_12306_tickets_by_query），禁止凭记忆估算价格。
 10. 火车票硬规则：必须先查询直达票，再查询中转票；即使有直达，也要提供中转备选方案。
 11. 当系统消息中已经给出“系统实时票务硬规则结果”时，必须以该结构化结果为准，优先输出表格并标注数据来源为12306实时查询。
-12. 如果涉及酒店推荐、旅游攻略，务必选择地图(map_search_places)或网页搜索(search_web_page, xhs_search_and_summarize)等工具，严禁拒绝服务或宣称“只做交通查询”。
+12. 如果涉及酒店推荐、旅游攻略，国内地点优先使用高德地图(maps_text_search)，不可用时回退百度地图(map_search_places)；网页资料优先使用 Tavily(tavily_search)，不可用时回退 search_web_page 或 xhs_search_and_summarize。只能调用当前真实可用的工具，严禁拒绝服务或宣称“只做交通查询”。
+13. 图片必须优先匹配具体地点和活动场景：先用已核验 POI 自带图片，再用地点名称严格匹配的图片检索结果；不得为了补图使用与地点不明确相关的通用图片。
 """
 
     # 系统提示模板常量

@@ -50,7 +50,8 @@ class PlanningAgent(AgentBase):
 7. description中不要包含工具的真实名称
 8. required_tools只能填写“可用工具”中真实存在的名称，不得编造工具名。
 9. 每一步只选择完成当前子任务所需的1到3个工具；没有合适工具时返回空列表。
-10. 如果遇到酒店推荐、旅游攻略等需求，可以利用地图(map_search_places)或网页搜索(search_web_page, xhs_search_and_summarize)等工具，绝不要说自己无法访问酒店平台或只能查询交通信息。
+10. 如果遇到酒店推荐、旅游攻略等需求，国内地点优先使用高德地图(maps_text_search)，不可用时回退百度地图(map_search_places)；网页资料优先使用 Tavily(tavily_search)，不可用时回退 search_web_page 或 xhs_search_and_summarize。只能选择“可用工具”中实际存在的工具，绝不要说自己只能查询交通信息。
+11. 图片必须优先匹配具体地点和活动场景：先用已核验 POI 自带图片，再用地点名称严格匹配的图片检索结果；不得为了补图使用与地点不明确相关的通用图片。
 
 ## 输出格式
 ```
