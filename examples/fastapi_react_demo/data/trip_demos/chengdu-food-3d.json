@@ -1,0 +1,4994 @@
+{
+  "kind": "supertravelagent_demo_case",
+  "package_version": 1,
+  "case": {
+    "id": "chengdu-food-3d",
+    "title": "成都美食慢游三日",
+    "summary": "围绕街区、美食与休闲体验组织每日动线。",
+    "days": 3,
+    "traveler_label": "朋友同行",
+    "origin": "重庆",
+    "destination": "成都",
+    "preferences": [
+      "当地美食、轻松慢游",
+      "当地美食",
+      "轻松慢游"
+    ],
+    "recording_status": "ready"
+  },
+  "recording": {
+    "source": "real_sse",
+    "accepted": true,
+    "accepted_on": "2026-07-29",
+    "run_count": 1,
+    "event_count": 39,
+    "notice": "案例录制时的信息，仅用于演示。"
+  },
+  "events": [
+    {
+      "event_id": "demo:chengdu-food-3d:event:0001",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "开始规划",
+        "status": "planning"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 1,
+      "type": "run_started"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0002",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "需求分析 Agent",
+        "data_sources": [
+          "用户输入",
+          "用户画像"
+        ],
+        "duration_ms": null,
+        "stage": "requirements_analysis",
+        "status": "running",
+        "summary": null,
+        "task": "整理日期、人数、预算与偏好"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 2,
+      "type": "agent_stage_started"
+    },
+    {
+      "message_id": "demo:chengdu-food-3d:message:0003",
+      "request_id": "demo:chengdu-food-3d:run",
+      "sequence": 3,
+      "stage": "initializing",
+      "type": "chat_start",
+      "event_id": "demo:chengdu-food-3d:event:0003",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:chengdu-food-3d:message:0004",
+      "message_id": "demo:chengdu-food-3d:message:0004",
+      "request_id": "demo:chengdu-food-3d:run",
+      "role": "assistant",
+      "sequence": 4,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "understanding",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:chengdu-food-3d:event:0004",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0005",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "需求分析 Agent",
+        "data_sources": [
+          "用户输入",
+          "用户画像"
+        ],
+        "duration_ms": 47,
+        "stage": "requirements_analysis",
+        "status": "completed",
+        "summary": "已整理行程约束",
+        "task": "整理日期、人数、预算与偏好"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 5,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0006",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "资料研究 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "网页/攻略",
+          "本地知识库"
+        ],
+        "duration_ms": null,
+        "stage": "research",
+        "status": "running",
+        "summary": null,
+        "task": "并行研究交通、住宿、美食与目的地资料"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 6,
+      "type": "agent_stage_started"
+    },
+    {
+      "intent": {
+        "adult_count": 2,
+        "avoid": [],
+        "budget_per_person": null,
+        "budget_total": 6000.0,
+        "child_count": 0,
+        "confidence": 1.0,
+        "date_range": "2026-07-29 至 2026-07-31",
+        "days": 3,
+        "destination": "成都",
+        "dietary_preferences": [],
+        "hotel_preference": null,
+        "interests": [
+          "当地美食",
+          "轻松慢游"
+        ],
+        "must_visit": [],
+        "origin": "重庆",
+        "output_preference": null,
+        "pace": "relaxed",
+        "people_count": 2,
+        "people_type": "朋友",
+        "senior_count": 0,
+        "transport_preference": null,
+        "travel_style": "当地美食、轻松慢游"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "sequence": 7,
+      "stage": "understanding",
+      "type": "trip_intent",
+      "event_id": "demo:chengdu-food-3d:event:0007",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:chengdu-food-3d:message:0008",
+      "message_id": "demo:chengdu-food-3d:message:0008",
+      "request_id": "demo:chengdu-food-3d:run",
+      "role": "assistant",
+      "sequence": 8,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "understanding",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:chengdu-food-3d:event:0008",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0009",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 9,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0010",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 10,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0011",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 11,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0012",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_search_places",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 12,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0013",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_search_places",
+        "priority": "scheduled_dining",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 13,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0014",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 14,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0015",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 15,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0016",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 16,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0017",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 17,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0018",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 18,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0019",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_place_details",
+        "priority": "supplemental",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 19,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0020",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "资料研究 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "网页/攻略",
+          "本地知识库"
+        ],
+        "duration_ms": 45671,
+        "stage": "research",
+        "status": "completed",
+        "summary": "交通、住宿、美食与目的地资料已汇总",
+        "task": "并行研究交通、住宿、美食与目的地资料"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 20,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0021",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "路线 Agent",
+        "data_sources": [
+          "研究结果",
+          "地图"
+        ],
+        "duration_ms": null,
+        "stage": "route_planning",
+        "status": "running",
+        "summary": null,
+        "task": "编排每日活动、餐饮、预算与路线"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 21,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0022",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "路线 Agent",
+        "data_sources": [
+          "研究结果",
+          "地图"
+        ],
+        "duration_ms": 16,
+        "stage": "route_planning",
+        "status": "completed",
+        "summary": "日程、餐饮、预算与路线编排完成",
+        "task": "编排每日活动、餐饮、预算与路线"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 22,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0023",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "实时核验 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "百度地图"
+        ],
+        "duration_ms": null,
+        "stage": "realtime_verification",
+        "status": "running",
+        "summary": null,
+        "task": "核验正式地点、路线与强实时事实"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 23,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0024",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "实时核验 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "百度地图"
+        ],
+        "duration_ms": 16,
+        "stage": "realtime_verification",
+        "status": "degraded",
+        "summary": "正式地点、路线和强实时事实核验完成",
+        "task": "核验正式地点、路线与强实时事实"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 24,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0025",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "质量 Agent",
+        "data_sources": [
+          "V3 Schema",
+          "来源冲突规则"
+        ],
+        "duration_ms": null,
+        "stage": "validation_completed",
+        "status": "running",
+        "summary": null,
+        "task": "执行完整 V3 Schema 与业务校验"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 25,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0026",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "质量 Agent",
+        "data_sources": [
+          "V3 Schema",
+          "来源冲突规则"
+        ],
+        "duration_ms": 31,
+        "stage": "validation_completed",
+        "status": "degraded",
+        "summary": "完整 V3 Schema 与业务规则校验通过",
+        "task": "执行完整 V3 Schema 与业务校验"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 26,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0027",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "title": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+          "intent": {
+            "origin": "重庆",
+            "destination": "成都",
+            "date_mode": "fixed",
+            "start_date": "2026-07-29",
+            "end_date": "2026-07-31",
+            "days": 3,
+            "travelers": {
+              "adults": 2,
+              "children": 0,
+              "seniors": 0
+            },
+            "budget": {
+              "amount": 6000.0,
+              "currency": "CNY",
+              "cny_reference_amount": null,
+              "exchange_rate_as_of": null,
+              "source_status": "user_confirmation_required"
+            },
+            "preferences": [
+              "当地美食、轻松慢游",
+              "当地美食",
+              "轻松慢游"
+            ],
+            "dietary_preferences": [],
+            "pace": "relaxed"
+          },
+          "destination_overview": {
+            "name_zh": "成都",
+            "name_en": null,
+            "country_code": "CN",
+            "country_name": "中国",
+            "timezone": "Asia/Shanghai",
+            "currency": "CNY",
+            "summary": "成都旅游攻略建议安排2到3天弹性行程。可优先围绕城区地标、历史文化街区、自然景观和地方美食组织路线：第一天看城区核心景点、博物馆或老街，第二天串联近郊山水、古镇或主题景区，第三天用于慢游、美食和周边补充。旺季提前核对门票、开放时间和交通接驳。",
+            "themes": [
+              "当地美食",
+              "轻松慢游"
+            ],
+            "cover_image": null,
+            "evidence_refs": [
+              "src_d5643870109b3eed"
+            ]
+          }
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "destination_overview"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 27,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0028",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "outbound_transport": {
+            "direction": "outbound",
+            "scope": "domestic",
+            "status": "ready",
+            "status_reason": null,
+        "selected_option_id": null,
+            "options": [
+              {
+                "option_id": "transport_4e13227a8d1333c6",
+                "mode": "train",
+                "service_number": "Z587",
+                "departure_place": "重庆北",
+                "arrival_place": "成都西",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-29 15:54",
+                  "utc": "2026-07-29T07:54:00Z",
+                  "local_iso": "2026-07-29T15:54:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T15:54:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-29 18:42",
+                  "utc": "2026-07-29T10:42:00Z",
+                  "local_iso": "2026-07-29T18:42:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T18:42:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 168,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_01f913952819db71"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_bfa5fe3e7ef75826",
+                "mode": "train",
+                "service_number": "D631",
+                "departure_place": "重庆北",
+                "arrival_place": "成都东",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-29 13:51",
+                  "utc": "2026-07-29T05:51:00Z",
+                  "local_iso": "2026-07-29T13:51:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T13:51:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-29 16:19",
+                  "utc": "2026-07-29T08:19:00Z",
+                  "local_iso": "2026-07-29T16:19:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T16:19:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 148,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "一等座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "二等座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_01f913952819db71"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_6de147b963932ecb",
+                "mode": "train",
+                "service_number": "D367",
+                "departure_place": "重庆北",
+                "arrival_place": "成都东",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-29 14:46",
+                  "utc": "2026-07-29T06:46:00Z",
+                  "local_iso": "2026-07-29T14:46:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T14:46:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-29 16:54",
+                  "utc": "2026-07-29T08:54:00Z",
+                  "local_iso": "2026-07-29T16:54:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T16:54:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 128,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "一等座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "二等座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_01f913952819db71"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              }
+            ],
+            "official_query_url": null
+          },
+          "return_transport": {
+            "direction": "return",
+            "scope": "domestic",
+            "status": "ready",
+            "status_reason": null,
+            "selected_option_id": null,
+            "options": [
+              {
+                "option_id": "transport_ae224f3a9a409598",
+                "mode": "train",
+                "service_number": "D3058",
+                "departure_place": "成都东",
+                "arrival_place": "重庆北",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 06:10",
+                  "utc": "2026-07-30T22:10:00Z",
+                  "local_iso": "2026-07-31T06:10:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T06:10:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 08:34",
+                  "utc": "2026-07-31T00:34:00Z",
+                  "local_iso": "2026-07-31T08:34:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T08:34:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 144,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "二等座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "一等座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_d0a185eeea7574a1"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_a1b98b850f71adcb",
+                "mode": "train",
+                "service_number": "D620",
+                "departure_place": "成都东",
+                "arrival_place": "重庆北",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 07:00",
+                  "utc": "2026-07-30T23:00:00Z",
+                  "local_iso": "2026-07-31T07:00:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T07:00:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 08:55",
+                  "utc": "2026-07-31T00:55:00Z",
+                  "local_iso": "2026-07-31T08:55:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T08:55:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 115,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "二等座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "一等座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_d0a185eeea7574a1"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_aed0b53c85dbe271",
+                "mode": "train",
+                "service_number": "D638",
+                "departure_place": "成都东",
+                "arrival_place": "重庆北",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 07:05",
+                  "utc": "2026-07-30T23:05:00Z",
+                  "local_iso": "2026-07-31T07:05:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T07:05:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 09:16",
+                  "utc": "2026-07-31T01:16:00Z",
+                  "local_iso": "2026-07-31T09:16:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T09:16:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 131,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "一等座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "二等座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_d0a185eeea7574a1"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              }
+            ],
+            "official_query_url": null
+          }
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "outbound_transport"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 28,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0029",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "status": "user_confirmation_required",
+          "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+          "planning_lodging_id": "3b6871f9a85f660dad045785",
+          "options": [
+            {
+              "lodging_id": "3b6871f9a85f660dad045785",
+              "name": "成都龙之梦大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "嘉陵江路8号-A",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_7845e6baf140668a",
+                "src_0e583c9c3db2aaf7",
+                "src_0d13c0ac16bff304",
+                "src_c01c04925d451729"
+              ]
+            },
+            {
+              "lodging_id": "593850fbdb2a7444df1e5226",
+              "name": "成都首座万丽酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "593850fbdb2a7444df1e5226",
+                "name": "成都首座万丽酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.618437,
+                  "longitude": 104.072782,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "人民南路四段48号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "人民南路四段48号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_839eca40d0fbfa70",
+                "src_0e583c9c3db2aaf7",
+                "src_0d13c0ac16bff304",
+                "src_c01c04925d451729"
+              ]
+            },
+            {
+              "lodging_id": "7aea43b758d8ece17d29bdab",
+              "name": "成都城市名人酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "7aea43b758d8ece17d29bdab",
+                "name": "成都城市名人酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.660113,
+                  "longitude": 104.071856,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "四川省成都市青羊区人民南路一段122-124号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "四川省成都市青羊区人民南路一段122-124号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_d61e7d0f55bb0528",
+                "src_0e583c9c3db2aaf7",
+                "src_0d13c0ac16bff304",
+                "src_c01c04925d451729"
+              ]
+            }
+          ]
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "lodging_plan"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 29,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0030",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "days": [
+            {
+              "day": 1,
+              "date": "2026-07-29",
+              "timezone": "Asia/Shanghai",
+              "theme": "第1天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_1",
+                  "kind": "attraction",
+                  "title": "盘飧市(春熙路店)",
+                  "day": 1,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "083a55faa6ad9860246e9816",
+                    "name": "盘飧市(春熙路店)",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "成都市锦江区总府路15号王府井百货(总府店)F1",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.66563,
+                      "longitude": 104.086118,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "成都市锦江区总府路15号王府井百货(总府店)F1",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_4fd5f44bbf1f9cf0"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_8045bbaea85f56d8",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_2",
+                  "kind": "attraction",
+                  "title": "冯校长老火锅(太古里店)",
+                  "day": 1,
+                  "order": 2,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "e7b19458944c9d0640ab9a18",
+                    "name": "冯校长老火锅(太古里店)",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "东大街下东大街段37号盈嘉商务公寓1楼43号商铺",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.657581,
+                      "longitude": 104.086718,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "东大街下东大街段37号盈嘉商务公寓1楼43号商铺",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_0feb9d8976c60bc5"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_01f559f8028f329c",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_3",
+                  "kind": "food",
+                  "title": "周师饭店",
+                  "day": 1,
+                  "order": 3,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "1458c19daa9891c349fd3f3e",
+                    "name": "周师饭店",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "鹃城村6组九号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.825605,
+                      "longitude": 103.896946,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "鹃城村6组九号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_bf034a085835baad"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_b168a7ad81c3270f",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_4f49d68482e431d4",
+                  "kind": "lodging_departure",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_67f7d9d7c4218f67",
+                  "kind": "lodging_return",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-07-30",
+              "timezone": "Asia/Shanghai",
+              "theme": "第2天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_cee86eb15a1f16a2",
+                  "kind": "attraction",
+                  "title": "金沙遗址博物馆",
+                  "day": 2,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_cee86eb15a1f16a2",
+                    "name": "金沙遗址博物馆",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "金沙遗址博物馆是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "金沙遗址博物馆是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_4c8ddb8bbd0d0395",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_4",
+                  "kind": "food",
+                  "title": "蜀宴赋·成都",
+                  "day": 2,
+                  "order": 2,
+                  "start_at": "11:30",
+                  "end_at": "13:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "lunch",
+                  "place": {
+                    "poi_id": "cba4ca59e621e0f2774ff1b2",
+                    "name": "蜀宴赋·成都",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "跳蹬河街道东郊记忆路东郊记忆南大门27号楼1层（客服服务时间9-22点）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.673495,
+                      "longitude": 104.12958,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "跳蹬河街道东郊记忆路东郊记忆南大门27号楼1层（客服服务时间9-22点）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_2d860e268dcbc9d0"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_07cd8c4776572b7d",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_b1393210cd218396",
+                  "kind": "attraction",
+                  "title": "宽窄巷子",
+                  "day": 2,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_b1393210cd218396",
+                    "name": "宽窄巷子",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "宽窄巷子是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "宽窄巷子是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_1cae8db538b52ed5",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_5",
+                  "kind": "food",
+                  "title": "小龙坎火锅(春熙太古里店)",
+                  "day": 2,
+                  "order": 4,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "1b11011fe05f8f21b05c6acb",
+                    "name": "小龙坎火锅(春熙太古里店)",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "东大街下东大街段36号郁金香花园广场2F（近太古里）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.65694,
+                      "longitude": 104.08683,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "东大街下东大街段36号郁金香花园广场2F（近太古里）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_d5643870109b3eed"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_adb44b208bdc397c",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_08f351cd84d194c9",
+                  "kind": "lodging_departure",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_5d2ca06b98c676e4",
+                  "kind": "lodging_return",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-07-31",
+              "timezone": "Asia/Shanghai",
+              "theme": "第3天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_6",
+                  "kind": "food",
+                  "title": "红星饭店(总店)",
+                  "day": 3,
+                  "order": 1,
+                  "start_at": "07:00",
+                  "end_at": "08:30",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "breakfast",
+                  "place": {
+                    "poi_id": "46e86fddb6911676d13ce34c",
+                    "name": "红星饭店(总店)",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "郫筒街道中心村5组71号(老成灌路红星上场口)",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.841735,
+                      "longitude": 103.865744,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "郫筒街道中心村5组71号(老成灌路红星上场口)",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_6c4c0c7e93f6a69c"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_4b10b57d32551d24",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_1129ea596041b6ab",
+                  "kind": "lodging_departure",
+                  "day": 3,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                }
+              ]
+            }
+          ]
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "itinerary"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 30,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0031",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "budget": {
+            "total_budget": {
+              "amount": 6000.0,
+              "currency": "CNY",
+              "cny_reference_amount": null,
+              "exchange_rate_as_of": null,
+              "source_status": "user_confirmation_required"
+            },
+            "estimated_total": null,
+            "categories": [],
+            "unknown_cost_count": 1,
+            "over_budget": false,
+            "overrun_amount": null,
+            "traveler_costs": [
+              {
+                "traveler_type": "adult",
+                "count": 2,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              },
+              {
+                "traveler_type": "child",
+                "count": 0,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              },
+              {
+                "traveler_type": "senior",
+                "count": 0,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              }
+            ],
+            "warnings": [
+              "示例不包含实时价格，实际费用请重新确认。"
+            ]
+          },
+          "candidate_pool": [],
+          "action_items": [],
+          "notes": [
+            {
+              "note_id": "note_8045bbaea85f56d8",
+              "scope": "activity",
+              "target_id": "travel_place_1",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_01f559f8028f329c",
+              "scope": "activity",
+              "target_id": "travel_place_2",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_b168a7ad81c3270f",
+              "scope": "activity",
+              "target_id": "travel_place_3",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_4c8ddb8bbd0d0395",
+              "scope": "activity",
+              "target_id": "catalog_cee86eb15a1f16a2",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_07cd8c4776572b7d",
+              "scope": "activity",
+              "target_id": "travel_place_4",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_1cae8db538b52ed5",
+              "scope": "activity",
+              "target_id": "catalog_b1393210cd218396",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_adb44b208bdc397c",
+              "scope": "activity",
+              "target_id": "travel_place_5",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_4b10b57d32551d24",
+              "scope": "activity",
+              "target_id": "travel_place_6",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            }
+          ]
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "budget_and_reminders"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 31,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0032",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "status": "user_confirmation_required",
+          "status_reason": "真实路线待计算",
+          "formal_location_ids": [
+            "travel_place_1",
+            "travel_place_2",
+            "travel_place_3",
+            "catalog_cee86eb15a1f16a2",
+            "travel_place_4",
+            "catalog_b1393210cd218396",
+            "travel_place_5",
+            "travel_place_6",
+            "anchor_4f49d68482e431d4",
+            "anchor_67f7d9d7c4218f67",
+            "anchor_08f351cd84d194c9",
+            "anchor_5d2ca06b98c676e4",
+            "anchor_1129ea596041b6ab"
+          ],
+          "day_routes": [],
+          "candidates_visible_by_default": false
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "map_guidance"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 32,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0033",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "markdown_filename": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+          "pdf_filename": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+          "markdown_enabled": true,
+          "pdf_enabled": true
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "delivery"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 33,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0034",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "sources": [
+            {
+              "source_id": "src_4fd5f44bbf1f9cf0",
+              "title": "【成都自由行攻略】成都推荐打卡的景点、交通、美食和酒店等 ...",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_0feb9d8976c60bc5",
+              "title": "地理位置超好的高CP值成都住宿",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_bf034a085835baad",
+              "title": "成都旅游春熙路必住酒店：超全避坑攻略与景点推荐",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_2d860e268dcbc9d0",
+              "title": "成都自由行旅游攻略2026:景点推荐",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_d5643870109b3eed",
+              "title": "本地旅行知识库",
+              "source_name": "travel_knowledge_base",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "classic_coverage"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_6c4c0c7e93f6a69c",
+              "title": "地图地点核验",
+              "source_name": "map_search_places",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "coordinates",
+                "address",
+                "category",
+                "route"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_54b8dff805de62bd",
+              "title": "行程顺序与费用估算",
+              "source_name": "行程可行性校验",
+              "status": "user_confirmation_required",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "route",
+                "budget"
+              ],
+              "related_place_ids": [
+                "盘飧市(春熙路店)",
+                "冯校长老火锅(太古里店)",
+                "周师饭店",
+                "金沙遗址博物馆",
+                "宽窄巷子",
+                "蜀宴赋·成都",
+                "小龙坎火锅(春熙太古里店)",
+                "红星饭店(总店)"
+              ]
+            },
+            {
+              "source_id": "src_89fbf9484532331f",
+              "title": "成都目的地封面",
+              "source_name": "Unsplash",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "destination_overview.cover_image"
+              ],
+              "related_place_ids": [
+                "成都"
+              ]
+            },
+            {
+              "source_id": "src_7845e6baf140668a",
+              "title": "成都龙之梦大酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "成都龙之梦大酒店"
+              ]
+            },
+            {
+              "source_id": "src_839eca40d0fbfa70",
+              "title": "成都首座万丽酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "成都首座万丽酒店"
+              ]
+            },
+            {
+              "source_id": "src_d61e7d0f55bb0528",
+              "title": "成都城市名人酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "成都城市名人酒店"
+              ]
+            },
+            {
+              "source_id": "src_0e583c9c3db2aaf7",
+              "title": "成都的廉价促销民宿",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_0d13c0ac16bff304",
+              "title": "成都住宿推薦：精選10間高性價比酒店（每晚低至HK$248 ）",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_c01c04925d451729",
+              "title": "中国成都10大推荐低价酒店",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_01f913952819db71",
+              "title": "铁路票务平台查询结果",
+              "source_name": "铁路票务平台",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "outbound_transport",
+                "price",
+                "availability"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_d0a185eeea7574a1",
+              "title": "铁路票务平台查询结果",
+              "source_name": "铁路票务平台",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "return_transport",
+                "price",
+                "availability"
+              ],
+              "related_place_ids": []
+            }
+          ]
+        },
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "section": "sources"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 34,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:chengdu-food-3d:event:0035",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "checksum": "03d176dcc96e2b41ff5f66437360a0a9fe719c4d2152a94821fbc479318108f3",
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "status": "completed_degraded"
+      },
+      "request_id": "demo:chengdu-food-3d:run",
+      "run_id": "demo:chengdu-food-3d:run",
+      "sequence": 35,
+      "type": "trip_plan_completed"
+    },
+    {
+      "document": {
+        "schema_version": "3.0",
+        "plan_id": "demo-chengdu-food-3d",
+        "revision": 1,
+        "status": "degraded",
+        "title": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+        "generated_at": "2000-01-01T00:00:00Z",
+        "locale": "zh-CN",
+        "intent": {
+          "origin": "重庆",
+          "destination": "成都",
+          "date_mode": "fixed",
+          "start_date": "2026-07-29",
+          "end_date": "2026-07-31",
+          "days": 3,
+          "travelers": {
+            "adults": 2,
+            "children": 0,
+            "seniors": 0
+          },
+          "budget": {
+            "amount": 6000.0,
+            "currency": "CNY",
+            "cny_reference_amount": null,
+            "exchange_rate_as_of": null,
+            "source_status": "user_confirmation_required"
+          },
+          "preferences": [
+            "当地美食、轻松慢游",
+            "当地美食",
+            "轻松慢游"
+          ],
+          "dietary_preferences": [],
+          "pace": "relaxed"
+        },
+        "destination_overview": {
+          "name_zh": "成都",
+          "name_en": null,
+          "country_code": "CN",
+          "country_name": "中国",
+          "timezone": "Asia/Shanghai",
+          "currency": "CNY",
+          "summary": "成都旅游攻略建议安排2到3天弹性行程。可优先围绕城区地标、历史文化街区、自然景观和地方美食组织路线：第一天看城区核心景点、博物馆或老街，第二天串联近郊山水、古镇或主题景区，第三天用于慢游、美食和周边补充。旺季提前核对门票、开放时间和交通接驳。",
+          "themes": [
+            "当地美食",
+            "轻松慢游"
+          ],
+          "cover_image": null,
+          "evidence_refs": [
+            "src_d5643870109b3eed"
+          ]
+        },
+        "outbound_transport": {
+          "direction": "outbound",
+          "scope": "domestic",
+          "status": "ready",
+          "status_reason": null,
+          "selected_option_id": null,
+          "options": [
+            {
+              "option_id": "transport_4e13227a8d1333c6",
+              "mode": "train",
+              "service_number": "Z587",
+              "departure_place": "重庆北",
+              "arrival_place": "成都西",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-29 15:54",
+                "utc": "2026-07-29T07:54:00Z",
+                "local_iso": "2026-07-29T15:54:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T15:54:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-29 18:42",
+                "utc": "2026-07-29T10:42:00Z",
+                "local_iso": "2026-07-29T18:42:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T18:42:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 168,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_01f913952819db71"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_bfa5fe3e7ef75826",
+              "mode": "train",
+              "service_number": "D631",
+              "departure_place": "重庆北",
+              "arrival_place": "成都东",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-29 13:51",
+                "utc": "2026-07-29T05:51:00Z",
+                "local_iso": "2026-07-29T13:51:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T13:51:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-29 16:19",
+                "utc": "2026-07-29T08:19:00Z",
+                "local_iso": "2026-07-29T16:19:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T16:19:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 148,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "一等座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "二等座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_01f913952819db71"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_6de147b963932ecb",
+              "mode": "train",
+              "service_number": "D367",
+              "departure_place": "重庆北",
+              "arrival_place": "成都东",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-29 14:46",
+                "utc": "2026-07-29T06:46:00Z",
+                "local_iso": "2026-07-29T14:46:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T14:46:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-29 16:54",
+                "utc": "2026-07-29T08:54:00Z",
+                "local_iso": "2026-07-29T16:54:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T16:54:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 128,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "一等座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "二等座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_01f913952819db71"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            }
+          ],
+          "official_query_url": null
+        },
+        "lodging_plan": {
+          "status": "user_confirmation_required",
+          "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+          "planning_lodging_id": "3b6871f9a85f660dad045785",
+          "options": [
+            {
+              "lodging_id": "3b6871f9a85f660dad045785",
+              "name": "成都龙之梦大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "嘉陵江路8号-A",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_7845e6baf140668a",
+                "src_0e583c9c3db2aaf7",
+                "src_0d13c0ac16bff304",
+                "src_c01c04925d451729"
+              ]
+            },
+            {
+              "lodging_id": "593850fbdb2a7444df1e5226",
+              "name": "成都首座万丽酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "593850fbdb2a7444df1e5226",
+                "name": "成都首座万丽酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.618437,
+                  "longitude": 104.072782,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "人民南路四段48号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "人民南路四段48号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_839eca40d0fbfa70",
+                "src_0e583c9c3db2aaf7",
+                "src_0d13c0ac16bff304",
+                "src_c01c04925d451729"
+              ]
+            },
+            {
+              "lodging_id": "7aea43b758d8ece17d29bdab",
+              "name": "成都城市名人酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "7aea43b758d8ece17d29bdab",
+                "name": "成都城市名人酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.660113,
+                  "longitude": 104.071856,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "四川省成都市青羊区人民南路一段122-124号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "四川省成都市青羊区人民南路一段122-124号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_d61e7d0f55bb0528",
+                "src_0e583c9c3db2aaf7",
+                "src_0d13c0ac16bff304",
+                "src_c01c04925d451729"
+              ]
+            }
+          ]
+        },
+        "itinerary": {
+          "days": [
+            {
+              "day": 1,
+              "date": "2026-07-29",
+              "timezone": "Asia/Shanghai",
+              "theme": "第1天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_1",
+                  "kind": "attraction",
+                  "title": "盘飧市(春熙路店)",
+                  "day": 1,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "083a55faa6ad9860246e9816",
+                    "name": "盘飧市(春熙路店)",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "成都市锦江区总府路15号王府井百货(总府店)F1",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.66563,
+                      "longitude": 104.086118,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "成都市锦江区总府路15号王府井百货(总府店)F1",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_4fd5f44bbf1f9cf0"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_8045bbaea85f56d8",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_2",
+                  "kind": "attraction",
+                  "title": "冯校长老火锅(太古里店)",
+                  "day": 1,
+                  "order": 2,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "e7b19458944c9d0640ab9a18",
+                    "name": "冯校长老火锅(太古里店)",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "东大街下东大街段37号盈嘉商务公寓1楼43号商铺",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.657581,
+                      "longitude": 104.086718,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "东大街下东大街段37号盈嘉商务公寓1楼43号商铺",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_0feb9d8976c60bc5"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_01f559f8028f329c",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_3",
+                  "kind": "food",
+                  "title": "周师饭店",
+                  "day": 1,
+                  "order": 3,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "1458c19daa9891c349fd3f3e",
+                    "name": "周师饭店",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "鹃城村6组九号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.825605,
+                      "longitude": 103.896946,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "鹃城村6组九号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_bf034a085835baad"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_b168a7ad81c3270f",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_4f49d68482e431d4",
+                  "kind": "lodging_departure",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_67f7d9d7c4218f67",
+                  "kind": "lodging_return",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-07-30",
+              "timezone": "Asia/Shanghai",
+              "theme": "第2天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_cee86eb15a1f16a2",
+                  "kind": "attraction",
+                  "title": "金沙遗址博物馆",
+                  "day": 2,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_cee86eb15a1f16a2",
+                    "name": "金沙遗址博物馆",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "金沙遗址博物馆是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "金沙遗址博物馆是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_4c8ddb8bbd0d0395",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_4",
+                  "kind": "food",
+                  "title": "蜀宴赋·成都",
+                  "day": 2,
+                  "order": 2,
+                  "start_at": "11:30",
+                  "end_at": "13:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "lunch",
+                  "place": {
+                    "poi_id": "cba4ca59e621e0f2774ff1b2",
+                    "name": "蜀宴赋·成都",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "跳蹬河街道东郊记忆路东郊记忆南大门27号楼1层（客服服务时间9-22点）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.673495,
+                      "longitude": 104.12958,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "跳蹬河街道东郊记忆路东郊记忆南大门27号楼1层（客服服务时间9-22点）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_2d860e268dcbc9d0"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_07cd8c4776572b7d",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_b1393210cd218396",
+                  "kind": "attraction",
+                  "title": "宽窄巷子",
+                  "day": 2,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_b1393210cd218396",
+                    "name": "宽窄巷子",
+                    "category": "attraction",
+                    "city": "成都",
+                    "address": "宽窄巷子是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "宽窄巷子是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_1cae8db538b52ed5",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_5",
+                  "kind": "food",
+                  "title": "小龙坎火锅(春熙太古里店)",
+                  "day": 2,
+                  "order": 4,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "1b11011fe05f8f21b05c6acb",
+                    "name": "小龙坎火锅(春熙太古里店)",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "东大街下东大街段36号郁金香花园广场2F（近太古里）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.65694,
+                      "longitude": 104.08683,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "东大街下东大街段36号郁金香花园广场2F（近太古里）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_d5643870109b3eed"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_adb44b208bdc397c",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_08f351cd84d194c9",
+                  "kind": "lodging_departure",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_5d2ca06b98c676e4",
+                  "kind": "lodging_return",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-07-31",
+              "timezone": "Asia/Shanghai",
+              "theme": "第3天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_6",
+                  "kind": "food",
+                  "title": "红星饭店(总店)",
+                  "day": 3,
+                  "order": 1,
+                  "start_at": "07:00",
+                  "end_at": "08:30",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "breakfast",
+                  "place": {
+                    "poi_id": "46e86fddb6911676d13ce34c",
+                    "name": "红星饭店(总店)",
+                    "category": "food",
+                    "city": "成都",
+                    "address": "郫筒街道中心村5组71号(老成灌路红星上场口)",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.841735,
+                      "longitude": 103.865744,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "郫筒街道中心村5组71号(老成灌路红星上场口)",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_6c4c0c7e93f6a69c"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_4b10b57d32551d24",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_1129ea596041b6ab",
+                  "kind": "lodging_departure",
+                  "day": 3,
+                  "place": {
+                    "poi_id": "3b6871f9a85f660dad045785",
+                    "name": "成都龙之梦大酒店",
+                    "category": "hotel",
+                    "city": "成都",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.635965,
+                      "longitude": 104.151071,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "嘉陵江路8号-A",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                }
+              ]
+            }
+          ]
+        },
+        "candidate_pool": [],
+        "action_items": [],
+        "notes": [
+          {
+            "note_id": "note_8045bbaea85f56d8",
+            "scope": "activity",
+            "target_id": "travel_place_1",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_01f559f8028f329c",
+            "scope": "activity",
+            "target_id": "travel_place_2",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_b168a7ad81c3270f",
+            "scope": "activity",
+            "target_id": "travel_place_3",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_4c8ddb8bbd0d0395",
+            "scope": "activity",
+            "target_id": "catalog_cee86eb15a1f16a2",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_07cd8c4776572b7d",
+            "scope": "activity",
+            "target_id": "travel_place_4",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_1cae8db538b52ed5",
+            "scope": "activity",
+            "target_id": "catalog_b1393210cd218396",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_adb44b208bdc397c",
+            "scope": "activity",
+            "target_id": "travel_place_5",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_4b10b57d32551d24",
+            "scope": "activity",
+            "target_id": "travel_place_6",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          }
+        ],
+        "budget": {
+          "total_budget": {
+            "amount": 6000.0,
+            "currency": "CNY",
+            "cny_reference_amount": null,
+            "exchange_rate_as_of": null,
+            "source_status": "user_confirmation_required"
+          },
+          "estimated_total": null,
+          "categories": [],
+          "unknown_cost_count": 1,
+          "over_budget": false,
+          "overrun_amount": null,
+          "traveler_costs": [
+            {
+              "traveler_type": "adult",
+              "count": 2,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            },
+            {
+              "traveler_type": "child",
+              "count": 0,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            },
+            {
+              "traveler_type": "senior",
+              "count": 0,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            }
+          ],
+          "warnings": [
+            "示例不包含实时价格，实际费用请重新确认。"
+          ]
+        },
+        "return_transport": {
+          "direction": "return",
+          "scope": "domestic",
+          "status": "ready",
+          "status_reason": null,
+            "selected_option_id": null,
+          "options": [
+            {
+              "option_id": "transport_ae224f3a9a409598",
+              "mode": "train",
+              "service_number": "D3058",
+              "departure_place": "成都东",
+              "arrival_place": "重庆北",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 06:10",
+                "utc": "2026-07-30T22:10:00Z",
+                "local_iso": "2026-07-31T06:10:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T06:10:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 08:34",
+                "utc": "2026-07-31T00:34:00Z",
+                "local_iso": "2026-07-31T08:34:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T08:34:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 144,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "二等座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "一等座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_d0a185eeea7574a1"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_a1b98b850f71adcb",
+              "mode": "train",
+              "service_number": "D620",
+              "departure_place": "成都东",
+              "arrival_place": "重庆北",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 07:00",
+                "utc": "2026-07-30T23:00:00Z",
+                "local_iso": "2026-07-31T07:00:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T07:00:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 08:55",
+                "utc": "2026-07-31T00:55:00Z",
+                "local_iso": "2026-07-31T08:55:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T08:55:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 115,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "二等座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "一等座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_d0a185eeea7574a1"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_aed0b53c85dbe271",
+              "mode": "train",
+              "service_number": "D638",
+              "departure_place": "成都东",
+              "arrival_place": "重庆北",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 07:05",
+                "utc": "2026-07-30T23:05:00Z",
+                "local_iso": "2026-07-31T07:05:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T07:05:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 09:16",
+                "utc": "2026-07-31T01:16:00Z",
+                "local_iso": "2026-07-31T09:16:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T09:16:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 131,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "一等座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "二等座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_d0a185eeea7574a1"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            }
+          ],
+          "official_query_url": null
+        },
+        "map_guidance": {
+          "status": "user_confirmation_required",
+          "status_reason": "真实路线待计算",
+          "formal_location_ids": [
+            "travel_place_1",
+            "travel_place_2",
+            "travel_place_3",
+            "catalog_cee86eb15a1f16a2",
+            "travel_place_4",
+            "catalog_b1393210cd218396",
+            "travel_place_5",
+            "travel_place_6",
+            "anchor_4f49d68482e431d4",
+            "anchor_67f7d9d7c4218f67",
+            "anchor_08f351cd84d194c9",
+            "anchor_5d2ca06b98c676e4",
+            "anchor_1129ea596041b6ab"
+          ],
+          "day_routes": [],
+          "candidates_visible_by_default": false
+        },
+        "sources": [
+          {
+            "source_id": "src_4fd5f44bbf1f9cf0",
+            "title": "【成都自由行攻略】成都推荐打卡的景点、交通、美食和酒店等 ...",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_0feb9d8976c60bc5",
+            "title": "地理位置超好的高CP值成都住宿",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_bf034a085835baad",
+            "title": "成都旅游春熙路必住酒店：超全避坑攻略与景点推荐",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_2d860e268dcbc9d0",
+            "title": "成都自由行旅游攻略2026:景点推荐",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_d5643870109b3eed",
+            "title": "本地旅行知识库",
+            "source_name": "travel_knowledge_base",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "classic_coverage"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_6c4c0c7e93f6a69c",
+            "title": "地图地点核验",
+            "source_name": "map_search_places",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "coordinates",
+              "address",
+              "category",
+              "route"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_54b8dff805de62bd",
+            "title": "行程顺序与费用估算",
+            "source_name": "行程可行性校验",
+            "status": "user_confirmation_required",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "route",
+              "budget"
+            ],
+            "related_place_ids": [
+              "盘飧市(春熙路店)",
+              "冯校长老火锅(太古里店)",
+              "周师饭店",
+              "金沙遗址博物馆",
+              "宽窄巷子",
+              "蜀宴赋·成都",
+              "小龙坎火锅(春熙太古里店)",
+              "红星饭店(总店)"
+            ]
+          },
+          {
+            "source_id": "src_89fbf9484532331f",
+            "title": "成都目的地封面",
+            "source_name": "Unsplash",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "destination_overview.cover_image"
+            ],
+            "related_place_ids": [
+              "成都"
+            ]
+          },
+          {
+            "source_id": "src_7845e6baf140668a",
+            "title": "成都龙之梦大酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "成都龙之梦大酒店"
+            ]
+          },
+          {
+            "source_id": "src_839eca40d0fbfa70",
+            "title": "成都首座万丽酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "成都首座万丽酒店"
+            ]
+          },
+          {
+            "source_id": "src_d61e7d0f55bb0528",
+            "title": "成都城市名人酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "成都城市名人酒店"
+            ]
+          },
+          {
+            "source_id": "src_0e583c9c3db2aaf7",
+            "title": "成都的廉价促销民宿",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_0d13c0ac16bff304",
+            "title": "成都住宿推薦：精選10間高性價比酒店（每晚低至HK$248 ）",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_c01c04925d451729",
+            "title": "中国成都10大推荐低价酒店",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_01f913952819db71",
+            "title": "铁路票务平台查询结果",
+            "source_name": "铁路票务平台",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "outbound_transport",
+              "price",
+              "availability"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_d0a185eeea7574a1",
+            "title": "铁路票务平台查询结果",
+            "source_name": "铁路票务平台",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "return_transport",
+              "price",
+              "availability"
+            ],
+            "related_place_ids": []
+          }
+        ],
+        "delivery": {
+          "markdown_filename": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+          "pdf_filename": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+          "markdown_enabled": true,
+          "pdf_enabled": true
+        },
+        "validation": {
+          "valid": true,
+          "degraded": true,
+          "issues": [
+            {
+              "code": "CANDIDATE_POOL_VERIFICATION_INSUFFICIENT",
+              "message": "部分候选地点缺少稳定 POI 或坐标，未进入可排程候选池",
+              "severity": "warning",
+              "target_id": null
+            },
+            {
+              "code": "MISSING_COORDINATES",
+              "message": "2个地点缺少地图坐标：金沙遗址博物馆, 宽窄巷子。",
+              "severity": "warning",
+              "target_id": null
+            },
+            {
+              "code": "MISSING_HOTEL_AREA",
+              "message": "多日行程缺少住宿区域或酒店建议。",
+              "severity": "info",
+              "target_id": null
+            }
+          ]
+        }
+      },
+      "plan": {},
+      "request_id": "demo:chengdu-food-3d:run",
+      "sequence": 36,
+      "type": "trip_plan",
+      "version": 1,
+      "event_id": "demo:chengdu-food-3d:event:0036",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:chengdu-food-3d:message:0037",
+      "message_id": "demo:chengdu-food-3d:message:0037",
+      "request_id": "demo:chengdu-food-3d:run",
+      "role": "assistant",
+      "sequence": 37,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "researching",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:chengdu-food-3d:event:0037",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:chengdu-food-3d:message:0038",
+      "message_id": "demo:chengdu-food-3d:message:0038",
+      "replace": true,
+      "request_id": "demo:chengdu-food-3d:run",
+      "role": "assistant",
+      "sequence": 38,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "finalizing",
+      "step_type": "final_answer",
+      "type": "chat_chunk",
+      "event_id": "demo:chengdu-food-3d:event:0038",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "finish_reason": "completed",
+      "message_id": "demo:chengdu-food-3d:message:0039",
+      "request_id": "demo:chengdu-food-3d:run",
+      "sequence": 39,
+      "type": "chat_complete",
+      "event_id": "demo:chengdu-food-3d:event:0039",
+      "run_id": "demo:chengdu-food-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    }
+  ],
+  "document": {
+    "schema_version": "3.0",
+    "plan_id": "demo-chengdu-food-3d",
+    "revision": 1,
+    "status": "degraded",
+    "title": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+    "generated_at": "2000-01-01T00:00:00Z",
+    "locale": "zh-CN",
+    "intent": {
+      "origin": "重庆",
+      "destination": "成都",
+      "date_mode": "fixed",
+      "start_date": "2026-07-29",
+      "end_date": "2026-07-31",
+      "days": 3,
+      "travelers": {
+        "adults": 2,
+        "children": 0,
+        "seniors": 0
+      },
+      "budget": {
+        "amount": 6000.0,
+        "currency": "CNY",
+        "cny_reference_amount": null,
+        "exchange_rate_as_of": null,
+        "source_status": "user_confirmation_required"
+      },
+      "preferences": [
+        "当地美食、轻松慢游",
+        "当地美食",
+        "轻松慢游"
+      ],
+      "dietary_preferences": [],
+      "pace": "relaxed"
+    },
+    "destination_overview": {
+      "name_zh": "成都",
+      "name_en": null,
+      "country_code": "CN",
+      "country_name": "中国",
+      "timezone": "Asia/Shanghai",
+      "currency": "CNY",
+      "summary": "成都旅游攻略建议安排2到3天弹性行程。可优先围绕城区地标、历史文化街区、自然景观和地方美食组织路线：第一天看城区核心景点、博物馆或老街，第二天串联近郊山水、古镇或主题景区，第三天用于慢游、美食和周边补充。旺季提前核对门票、开放时间和交通接驳。",
+      "themes": [
+        "当地美食",
+        "轻松慢游"
+      ],
+      "cover_image": null,
+      "evidence_refs": [
+        "src_d5643870109b3eed"
+      ]
+    },
+    "outbound_transport": {
+      "direction": "outbound",
+      "scope": "domestic",
+      "status": "ready",
+      "status_reason": null,
+        "selected_option_id": null,
+      "options": [
+        {
+          "option_id": "transport_4e13227a8d1333c6",
+          "mode": "train",
+          "service_number": "Z587",
+          "departure_place": "重庆北",
+          "arrival_place": "成都西",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-29 15:54",
+            "utc": "2026-07-29T07:54:00Z",
+            "local_iso": "2026-07-29T15:54:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T15:54:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-29 18:42",
+            "utc": "2026-07-29T10:42:00Z",
+            "local_iso": "2026-07-29T18:42:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T18:42:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 168,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_01f913952819db71"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_bfa5fe3e7ef75826",
+          "mode": "train",
+          "service_number": "D631",
+          "departure_place": "重庆北",
+          "arrival_place": "成都东",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-29 13:51",
+            "utc": "2026-07-29T05:51:00Z",
+            "local_iso": "2026-07-29T13:51:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T13:51:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-29 16:19",
+            "utc": "2026-07-29T08:19:00Z",
+            "local_iso": "2026-07-29T16:19:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T16:19:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 148,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "一等座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "二等座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_01f913952819db71"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_6de147b963932ecb",
+          "mode": "train",
+          "service_number": "D367",
+          "departure_place": "重庆北",
+          "arrival_place": "成都东",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-29 14:46",
+            "utc": "2026-07-29T06:46:00Z",
+            "local_iso": "2026-07-29T14:46:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T14:46:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-29 16:54",
+            "utc": "2026-07-29T08:54:00Z",
+            "local_iso": "2026-07-29T16:54:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T16:54:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 128,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "一等座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "二等座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_01f913952819db71"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "official_query_url": null
+    },
+    "lodging_plan": {
+      "status": "user_confirmation_required",
+      "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+      "planning_lodging_id": "3b6871f9a85f660dad045785",
+      "options": [
+        {
+          "lodging_id": "3b6871f9a85f660dad045785",
+          "name": "成都龙之梦大酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "3b6871f9a85f660dad045785",
+            "name": "成都龙之梦大酒店",
+            "category": "hotel",
+            "city": "成都",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 30.635965,
+              "longitude": 104.151071,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "嘉陵江路8号-A",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "嘉陵江路8号-A",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_7845e6baf140668a",
+            "src_0e583c9c3db2aaf7",
+            "src_0d13c0ac16bff304",
+            "src_c01c04925d451729"
+          ]
+        },
+        {
+          "lodging_id": "593850fbdb2a7444df1e5226",
+          "name": "成都首座万丽酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "593850fbdb2a7444df1e5226",
+            "name": "成都首座万丽酒店",
+            "category": "hotel",
+            "city": "成都",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 30.618437,
+              "longitude": 104.072782,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "人民南路四段48号",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "人民南路四段48号",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_839eca40d0fbfa70",
+            "src_0e583c9c3db2aaf7",
+            "src_0d13c0ac16bff304",
+            "src_c01c04925d451729"
+          ]
+        },
+        {
+          "lodging_id": "7aea43b758d8ece17d29bdab",
+          "name": "成都城市名人酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "7aea43b758d8ece17d29bdab",
+            "name": "成都城市名人酒店",
+            "category": "hotel",
+            "city": "成都",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 30.660113,
+              "longitude": 104.071856,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "四川省成都市青羊区人民南路一段122-124号",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "四川省成都市青羊区人民南路一段122-124号",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_d61e7d0f55bb0528",
+            "src_0e583c9c3db2aaf7",
+            "src_0d13c0ac16bff304",
+            "src_c01c04925d451729"
+          ]
+        }
+      ]
+    },
+    "itinerary": {
+      "days": [
+        {
+          "day": 1,
+          "date": "2026-07-29",
+          "timezone": "Asia/Shanghai",
+          "theme": "第1天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "travel_place_1",
+              "kind": "attraction",
+              "title": "盘飧市(春熙路店)",
+              "day": 1,
+              "order": 1,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "083a55faa6ad9860246e9816",
+                "name": "盘飧市(春熙路店)",
+                "category": "attraction",
+                "city": "成都",
+                "address": "成都市锦江区总府路15号王府井百货(总府店)F1",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.66563,
+                  "longitude": 104.086118,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "成都市锦江区总府路15号王府井百货(总府店)F1",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_4fd5f44bbf1f9cf0"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_8045bbaea85f56d8",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_2",
+              "kind": "attraction",
+              "title": "冯校长老火锅(太古里店)",
+              "day": 1,
+              "order": 2,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "e7b19458944c9d0640ab9a18",
+                "name": "冯校长老火锅(太古里店)",
+                "category": "attraction",
+                "city": "成都",
+                "address": "东大街下东大街段37号盈嘉商务公寓1楼43号商铺",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.657581,
+                  "longitude": 104.086718,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "东大街下东大街段37号盈嘉商务公寓1楼43号商铺",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_0feb9d8976c60bc5"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_01f559f8028f329c",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_3",
+              "kind": "food",
+              "title": "周师饭店",
+              "day": 1,
+              "order": 3,
+              "start_at": "17:30",
+              "end_at": "19:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "dinner",
+              "place": {
+                "poi_id": "1458c19daa9891c349fd3f3e",
+                "name": "周师饭店",
+                "category": "food",
+                "city": "成都",
+                "address": "鹃城村6组九号",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.825605,
+                  "longitude": 103.896946,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "鹃城村6组九号",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_bf034a085835baad"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_b168a7ad81c3270f",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_4f49d68482e431d4",
+              "kind": "lodging_departure",
+              "day": 1,
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            },
+            {
+              "anchor_id": "anchor_67f7d9d7c4218f67",
+              "kind": "lodging_return",
+              "day": 1,
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "返回规划住宿点"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-07-30",
+          "timezone": "Asia/Shanghai",
+          "theme": "第2天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "catalog_cee86eb15a1f16a2",
+              "kind": "attraction",
+              "title": "金沙遗址博物馆",
+              "day": 2,
+              "order": 1,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_cee86eb15a1f16a2",
+                "name": "金沙遗址博物馆",
+                "category": "attraction",
+                "city": "成都",
+                "address": "金沙遗址博物馆是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "金沙遗址博物馆是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_4c8ddb8bbd0d0395",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_4",
+              "kind": "food",
+              "title": "蜀宴赋·成都",
+              "day": 2,
+              "order": 2,
+              "start_at": "11:30",
+              "end_at": "13:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "lunch",
+              "place": {
+                "poi_id": "cba4ca59e621e0f2774ff1b2",
+                "name": "蜀宴赋·成都",
+                "category": "food",
+                "city": "成都",
+                "address": "跳蹬河街道东郊记忆路东郊记忆南大门27号楼1层（客服服务时间9-22点）",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.673495,
+                  "longitude": 104.12958,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "跳蹬河街道东郊记忆路东郊记忆南大门27号楼1层（客服服务时间9-22点）",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_2d860e268dcbc9d0"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_07cd8c4776572b7d",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_b1393210cd218396",
+              "kind": "attraction",
+              "title": "宽窄巷子",
+              "day": 2,
+              "order": 3,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_b1393210cd218396",
+                "name": "宽窄巷子",
+                "category": "attraction",
+                "city": "成都",
+                "address": "宽窄巷子是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "宽窄巷子是成都的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_1cae8db538b52ed5",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_5",
+              "kind": "food",
+              "title": "小龙坎火锅(春熙太古里店)",
+              "day": 2,
+              "order": 4,
+              "start_at": "17:30",
+              "end_at": "19:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "dinner",
+              "place": {
+                "poi_id": "1b11011fe05f8f21b05c6acb",
+                "name": "小龙坎火锅(春熙太古里店)",
+                "category": "food",
+                "city": "成都",
+                "address": "东大街下东大街段36号郁金香花园广场2F（近太古里）",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.65694,
+                  "longitude": 104.08683,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "东大街下东大街段36号郁金香花园广场2F（近太古里）",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_d5643870109b3eed"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_adb44b208bdc397c",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_08f351cd84d194c9",
+              "kind": "lodging_departure",
+              "day": 2,
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            },
+            {
+              "anchor_id": "anchor_5d2ca06b98c676e4",
+              "kind": "lodging_return",
+              "day": 2,
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "返回规划住宿点"
+            }
+          ]
+        },
+        {
+          "day": 3,
+          "date": "2026-07-31",
+          "timezone": "Asia/Shanghai",
+          "theme": "第3天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "travel_place_6",
+              "kind": "food",
+              "title": "红星饭店(总店)",
+              "day": 3,
+              "order": 1,
+              "start_at": "07:00",
+              "end_at": "08:30",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "breakfast",
+              "place": {
+                "poi_id": "46e86fddb6911676d13ce34c",
+                "name": "红星饭店(总店)",
+                "category": "food",
+                "city": "成都",
+                "address": "郫筒街道中心村5组71号(老成灌路红星上场口)",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.841735,
+                  "longitude": 103.865744,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "郫筒街道中心村5组71号(老成灌路红星上场口)",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_6c4c0c7e93f6a69c"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_4b10b57d32551d24",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_1129ea596041b6ab",
+              "kind": "lodging_departure",
+              "day": 3,
+              "place": {
+                "poi_id": "3b6871f9a85f660dad045785",
+                "name": "成都龙之梦大酒店",
+                "category": "hotel",
+                "city": "成都",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.635965,
+                  "longitude": 104.151071,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "嘉陵江路8号-A",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            }
+          ]
+        }
+      ]
+    },
+    "candidate_pool": [],
+    "action_items": [],
+    "notes": [
+      {
+        "note_id": "note_8045bbaea85f56d8",
+        "scope": "activity",
+        "target_id": "travel_place_1",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_01f559f8028f329c",
+        "scope": "activity",
+        "target_id": "travel_place_2",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_b168a7ad81c3270f",
+        "scope": "activity",
+        "target_id": "travel_place_3",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_4c8ddb8bbd0d0395",
+        "scope": "activity",
+        "target_id": "catalog_cee86eb15a1f16a2",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_07cd8c4776572b7d",
+        "scope": "activity",
+        "target_id": "travel_place_4",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_1cae8db538b52ed5",
+        "scope": "activity",
+        "target_id": "catalog_b1393210cd218396",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_adb44b208bdc397c",
+        "scope": "activity",
+        "target_id": "travel_place_5",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_4b10b57d32551d24",
+        "scope": "activity",
+        "target_id": "travel_place_6",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      }
+    ],
+    "budget": {
+      "total_budget": {
+        "amount": 6000.0,
+        "currency": "CNY",
+        "cny_reference_amount": null,
+        "exchange_rate_as_of": null,
+        "source_status": "user_confirmation_required"
+      },
+      "estimated_total": null,
+      "categories": [],
+      "unknown_cost_count": 1,
+      "over_budget": false,
+      "overrun_amount": null,
+      "traveler_costs": [
+        {
+          "traveler_type": "adult",
+          "count": 2,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        },
+        {
+          "traveler_type": "child",
+          "count": 0,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        },
+        {
+          "traveler_type": "senior",
+          "count": 0,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        }
+      ],
+      "warnings": [
+        "示例不包含实时价格，实际费用请重新确认。"
+      ]
+    },
+    "return_transport": {
+      "direction": "return",
+      "scope": "domestic",
+      "status": "ready",
+      "status_reason": null,
+            "selected_option_id": null,
+      "options": [
+        {
+          "option_id": "transport_ae224f3a9a409598",
+          "mode": "train",
+          "service_number": "D3058",
+          "departure_place": "成都东",
+          "arrival_place": "重庆北",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 06:10",
+            "utc": "2026-07-30T22:10:00Z",
+            "local_iso": "2026-07-31T06:10:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T06:10:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 08:34",
+            "utc": "2026-07-31T00:34:00Z",
+            "local_iso": "2026-07-31T08:34:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T08:34:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 144,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "二等座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "一等座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_d0a185eeea7574a1"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_a1b98b850f71adcb",
+          "mode": "train",
+          "service_number": "D620",
+          "departure_place": "成都东",
+          "arrival_place": "重庆北",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 07:00",
+            "utc": "2026-07-30T23:00:00Z",
+            "local_iso": "2026-07-31T07:00:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T07:00:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 08:55",
+            "utc": "2026-07-31T00:55:00Z",
+            "local_iso": "2026-07-31T08:55:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T08:55:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 115,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "二等座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "一等座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_d0a185eeea7574a1"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_aed0b53c85dbe271",
+          "mode": "train",
+          "service_number": "D638",
+          "departure_place": "成都东",
+          "arrival_place": "重庆北",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 07:05",
+            "utc": "2026-07-30T23:05:00Z",
+            "local_iso": "2026-07-31T07:05:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T07:05:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 09:16",
+            "utc": "2026-07-31T01:16:00Z",
+            "local_iso": "2026-07-31T09:16:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T09:16:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 131,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "一等座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "二等座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_d0a185eeea7574a1"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "official_query_url": null
+    },
+    "map_guidance": {
+      "status": "user_confirmation_required",
+      "status_reason": "真实路线待计算",
+      "formal_location_ids": [
+        "travel_place_1",
+        "travel_place_2",
+        "travel_place_3",
+        "catalog_cee86eb15a1f16a2",
+        "travel_place_4",
+        "catalog_b1393210cd218396",
+        "travel_place_5",
+        "travel_place_6",
+        "anchor_4f49d68482e431d4",
+        "anchor_67f7d9d7c4218f67",
+        "anchor_08f351cd84d194c9",
+        "anchor_5d2ca06b98c676e4",
+        "anchor_1129ea596041b6ab"
+      ],
+      "day_routes": [],
+      "candidates_visible_by_default": false
+    },
+    "sources": [
+      {
+        "source_id": "src_4fd5f44bbf1f9cf0",
+        "title": "【成都自由行攻略】成都推荐打卡的景点、交通、美食和酒店等 ...",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_0feb9d8976c60bc5",
+        "title": "地理位置超好的高CP值成都住宿",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_bf034a085835baad",
+        "title": "成都旅游春熙路必住酒店：超全避坑攻略与景点推荐",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_2d860e268dcbc9d0",
+        "title": "成都自由行旅游攻略2026:景点推荐",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_d5643870109b3eed",
+        "title": "本地旅行知识库",
+        "source_name": "travel_knowledge_base",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "classic_coverage"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_6c4c0c7e93f6a69c",
+        "title": "地图地点核验",
+        "source_name": "map_search_places",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "coordinates",
+          "address",
+          "category",
+          "route"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_54b8dff805de62bd",
+        "title": "行程顺序与费用估算",
+        "source_name": "行程可行性校验",
+        "status": "user_confirmation_required",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "route",
+          "budget"
+        ],
+        "related_place_ids": [
+          "盘飧市(春熙路店)",
+          "冯校长老火锅(太古里店)",
+          "周师饭店",
+          "金沙遗址博物馆",
+          "宽窄巷子",
+          "蜀宴赋·成都",
+          "小龙坎火锅(春熙太古里店)",
+          "红星饭店(总店)"
+        ]
+      },
+      {
+        "source_id": "src_89fbf9484532331f",
+        "title": "成都目的地封面",
+        "source_name": "Unsplash",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "destination_overview.cover_image"
+        ],
+        "related_place_ids": [
+          "成都"
+        ]
+      },
+      {
+        "source_id": "src_7845e6baf140668a",
+        "title": "成都龙之梦大酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "成都龙之梦大酒店"
+        ]
+      },
+      {
+        "source_id": "src_839eca40d0fbfa70",
+        "title": "成都首座万丽酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "成都首座万丽酒店"
+        ]
+      },
+      {
+        "source_id": "src_d61e7d0f55bb0528",
+        "title": "成都城市名人酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "成都城市名人酒店"
+        ]
+      },
+      {
+        "source_id": "src_0e583c9c3db2aaf7",
+        "title": "成都的廉价促销民宿",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_0d13c0ac16bff304",
+        "title": "成都住宿推薦：精選10間高性價比酒店（每晚低至HK$248 ）",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_c01c04925d451729",
+        "title": "中国成都10大推荐低价酒店",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_01f913952819db71",
+        "title": "铁路票务平台查询结果",
+        "source_name": "铁路票务平台",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "outbound_transport",
+          "price",
+          "availability"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_d0a185eeea7574a1",
+        "title": "铁路票务平台查询结果",
+        "source_name": "铁路票务平台",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "return_transport",
+          "price",
+          "availability"
+        ],
+        "related_place_ids": []
+      }
+    ],
+    "delivery": {
+      "markdown_filename": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+      "pdf_filename": "请帮我规划一趟从重庆出发、前往成都的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：朋友。总预算6000元，旅行偏好：当地美食、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+      "markdown_enabled": true,
+      "pdf_enabled": true
+    },
+    "validation": {
+      "valid": true,
+      "degraded": true,
+      "issues": [
+        {
+          "code": "CANDIDATE_POOL_VERIFICATION_INSUFFICIENT",
+          "message": "部分候选地点缺少稳定 POI 或坐标，未进入可排程候选池",
+          "severity": "warning",
+          "target_id": null
+        },
+        {
+          "code": "MISSING_COORDINATES",
+          "message": "2个地点缺少地图坐标：金沙遗址博物馆, 宽窄巷子。",
+          "severity": "warning",
+          "target_id": null
+        },
+        {
+          "code": "MISSING_HOTEL_AREA",
+          "message": "多日行程缺少住宿区域或酒店建议。",
+          "severity": "info",
+          "target_id": null
+        }
+      ]
+    }
+  },
+  "map_data": {
+    "status": "user_confirmation_required",
+    "status_reason": "真实路线待计算",
+    "formal_location_ids": [
+      "travel_place_1",
+      "travel_place_2",
+      "travel_place_3",
+      "catalog_cee86eb15a1f16a2",
+      "travel_place_4",
+      "catalog_b1393210cd218396",
+      "travel_place_5",
+      "travel_place_6",
+      "anchor_4f49d68482e431d4",
+      "anchor_67f7d9d7c4218f67",
+      "anchor_08f351cd84d194c9",
+      "anchor_5d2ca06b98c676e4",
+      "anchor_1129ea596041b6ab"
+    ],
+    "day_routes": [],
+    "candidates_visible_by_default": false
+  }
+}

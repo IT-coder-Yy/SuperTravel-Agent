@@ -1,0 +1,5090 @@
+{
+  "kind": "supertravelagent_demo_case",
+  "package_version": 1,
+  "case": {
+    "id": "beijing-family-3d",
+    "title": "北京亲子文化三日",
+    "summary": "兼顾历史场馆、亲子节奏与市内交通。",
+    "days": 3,
+    "traveler_label": "家庭",
+    "origin": "天津",
+    "destination": "北京",
+    "preferences": [
+      "人文历史、亲子体验",
+      "人文历史",
+      "亲子体验"
+    ],
+    "recording_status": "ready"
+  },
+  "recording": {
+    "source": "real_sse",
+    "accepted": true,
+    "accepted_on": "2026-07-29",
+    "run_count": 1,
+    "event_count": 40,
+    "notice": "案例录制时的信息，仅用于演示。"
+  },
+  "events": [
+    {
+      "event_id": "demo:beijing-family-3d:event:0001",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "开始规划",
+        "status": "planning"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 1,
+      "type": "run_started"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0002",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "需求分析 Agent",
+        "data_sources": [
+          "用户输入",
+          "用户画像"
+        ],
+        "duration_ms": null,
+        "stage": "requirements_analysis",
+        "status": "running",
+        "summary": null,
+        "task": "整理日期、人数、预算与偏好"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 2,
+      "type": "agent_stage_started"
+    },
+    {
+      "message_id": "demo:beijing-family-3d:message:0003",
+      "request_id": "demo:beijing-family-3d:run",
+      "sequence": 3,
+      "stage": "initializing",
+      "type": "chat_start",
+      "event_id": "demo:beijing-family-3d:event:0003",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:beijing-family-3d:message:0004",
+      "message_id": "demo:beijing-family-3d:message:0004",
+      "request_id": "demo:beijing-family-3d:run",
+      "role": "assistant",
+      "sequence": 4,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "understanding",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:beijing-family-3d:event:0004",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0005",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "需求分析 Agent",
+        "data_sources": [
+          "用户输入",
+          "用户画像"
+        ],
+        "duration_ms": 62,
+        "stage": "requirements_analysis",
+        "status": "completed",
+        "summary": "已整理行程约束",
+        "task": "整理日期、人数、预算与偏好"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 5,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0006",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "资料研究 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "网页/攻略",
+          "本地知识库"
+        ],
+        "duration_ms": null,
+        "stage": "research",
+        "status": "running",
+        "summary": null,
+        "task": "并行研究交通、住宿、美食与目的地资料"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 6,
+      "type": "agent_stage_started"
+    },
+    {
+      "intent": {
+        "adult_count": 2,
+        "avoid": [],
+        "budget_per_person": null,
+        "budget_total": 6000.0,
+        "child_count": 0,
+        "confidence": 1.0,
+        "date_range": "2026-07-29 至 2026-07-31",
+        "days": 3,
+        "destination": "北京",
+        "dietary_preferences": [],
+        "hotel_preference": null,
+        "interests": [
+          "人文历史",
+          "亲子体验"
+        ],
+        "must_visit": [],
+        "origin": "天津",
+        "output_preference": null,
+        "pace": "balanced",
+        "people_count": 2,
+        "people_type": "家庭",
+        "senior_count": 0,
+        "transport_preference": null,
+        "travel_style": "人文历史、亲子体验"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "sequence": 7,
+      "stage": "understanding",
+      "type": "trip_intent",
+      "event_id": "demo:beijing-family-3d:event:0007",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:beijing-family-3d:message:0008",
+      "message_id": "demo:beijing-family-3d:message:0008",
+      "request_id": "demo:beijing-family-3d:run",
+      "role": "assistant",
+      "sequence": 8,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "understanding",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:beijing-family-3d:event:0008",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0009",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 9,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0010",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 10,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0011",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 11,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0012",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_search_places",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 12,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0013",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_search_places",
+        "priority": "scheduled_dining",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 13,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0014",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 14,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0015",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 15,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0016",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 16,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0017",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 17,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0018",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 18,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0019",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_place_details",
+        "priority": "supplemental",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 19,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0020",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_place_details",
+        "priority": "supplemental",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 20,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0021",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "资料研究 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "网页/攻略",
+          "本地知识库"
+        ],
+        "duration_ms": 69329,
+        "stage": "research",
+        "status": "completed",
+        "summary": "交通、住宿、美食与目的地资料已汇总",
+        "task": "并行研究交通、住宿、美食与目的地资料"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 21,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0022",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "路线 Agent",
+        "data_sources": [
+          "研究结果",
+          "地图"
+        ],
+        "duration_ms": null,
+        "stage": "route_planning",
+        "status": "running",
+        "summary": null,
+        "task": "编排每日活动、餐饮、预算与路线"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 22,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0023",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "路线 Agent",
+        "data_sources": [
+          "研究结果",
+          "地图"
+        ],
+        "duration_ms": 15,
+        "stage": "route_planning",
+        "status": "completed",
+        "summary": "日程、餐饮、预算与路线编排完成",
+        "task": "编排每日活动、餐饮、预算与路线"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 23,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0024",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "实时核验 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "百度地图"
+        ],
+        "duration_ms": null,
+        "stage": "realtime_verification",
+        "status": "running",
+        "summary": null,
+        "task": "核验正式地点、路线与强实时事实"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 24,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0025",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "实时核验 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "百度地图"
+        ],
+        "duration_ms": 16,
+        "stage": "realtime_verification",
+        "status": "degraded",
+        "summary": "正式地点、路线和强实时事实核验完成",
+        "task": "核验正式地点、路线与强实时事实"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 25,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0026",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "质量 Agent",
+        "data_sources": [
+          "V3 Schema",
+          "来源冲突规则"
+        ],
+        "duration_ms": null,
+        "stage": "validation_completed",
+        "status": "running",
+        "summary": null,
+        "task": "执行完整 V3 Schema 与业务校验"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 26,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0027",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "质量 Agent",
+        "data_sources": [
+          "V3 Schema",
+          "来源冲突规则"
+        ],
+        "duration_ms": 15,
+        "stage": "validation_completed",
+        "status": "degraded",
+        "summary": "完整 V3 Schema 与业务规则校验通过",
+        "task": "执行完整 V3 Schema 与业务校验"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 27,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0028",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "title": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+          "intent": {
+            "origin": "天津",
+            "destination": "北京",
+            "date_mode": "fixed",
+            "start_date": "2026-07-29",
+            "end_date": "2026-07-31",
+            "days": 3,
+            "travelers": {
+              "adults": 2,
+              "children": 0,
+              "seniors": 0
+            },
+            "budget": {
+              "amount": 6000.0,
+              "currency": "CNY",
+              "cny_reference_amount": null,
+              "exchange_rate_as_of": null,
+              "source_status": "user_confirmation_required"
+            },
+            "preferences": [
+              "人文历史、亲子体验",
+              "人文历史",
+              "亲子体验"
+            ],
+            "dietary_preferences": [],
+            "pace": "balanced"
+          },
+          "destination_overview": {
+            "name_zh": "北京",
+            "name_en": null,
+            "country_code": "CN",
+            "country_name": "中国",
+            "timezone": "Asia/Shanghai",
+            "currency": "CNY",
+            "summary": "... 旅行小提醒19:20 北京自由行預算花費參考#北京自由行#北京懶人包#北京攻略＃北京怎麼玩#北京旅遊#北京景點＃北京酒店推薦#北京自由行酒店#北京行程 ...。",
+            "themes": [
+              "人文历史",
+              "亲子体验"
+            ],
+            "cover_image": null,
+            "evidence_refs": []
+          }
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "destination_overview"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 28,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0029",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "outbound_transport": {
+            "direction": "outbound",
+            "scope": "domestic",
+            "status": "ready",
+            "status_reason": null,
+        "selected_option_id": null,
+            "options": [
+              {
+                "option_id": "transport_66b1da6a06c129ba",
+                "mode": "train",
+                "service_number": "T58",
+                "departure_place": "天津",
+                "arrival_place": "北京丰台",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-29 14:04",
+                  "utc": "2026-07-29T06:04:00Z",
+                  "local_iso": "2026-07-29T14:04:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T14:04:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-29 15:16",
+                  "utc": "2026-07-29T07:16:00Z",
+                  "local_iso": "2026-07-29T15:16:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T15:16:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 72,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_132e98e31335166e"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_0b9ffe9c0b3fb748",
+                "mode": "train",
+                "service_number": "K1786",
+                "departure_place": "天津西",
+                "arrival_place": "北京丰台",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-29 13:48",
+                  "utc": "2026-07-29T05:48:00Z",
+                  "local_iso": "2026-07-29T13:48:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T13:48:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-29 15:10",
+                  "utc": "2026-07-29T07:10:00Z",
+                  "local_iso": "2026-07-29T15:10:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T15:10:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 82,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "available",
+                    "remaining_text": "17",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_132e98e31335166e"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_0dada64f465c2095",
+                "mode": "train",
+                "service_number": "K1786",
+                "departure_place": "杨柳青",
+                "arrival_place": "北京丰台",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-29 13:27",
+                  "utc": "2026-07-29T05:27:00Z",
+                  "local_iso": "2026-07-29T13:27:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T13:27:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-29 15:10",
+                  "utc": "2026-07-29T07:10:00Z",
+                  "local_iso": "2026-07-29T15:10:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-29T15:10:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 103,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "available",
+                    "remaining_text": "7",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_132e98e31335166e"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              }
+            ],
+            "official_query_url": null
+          },
+          "return_transport": {
+            "direction": "return",
+            "scope": "domestic",
+            "status": "ready",
+            "status_reason": null,
+            "selected_option_id": null,
+            "options": [
+              {
+                "option_id": "transport_2da055e338adb02d",
+                "mode": "train",
+                "service_number": "T57",
+                "departure_place": "北京丰台",
+                "arrival_place": "天津",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 11:33",
+                  "utc": "2026-07-31T03:33:00Z",
+                  "local_iso": "2026-07-31T11:33:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T11:33:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 12:58",
+                  "utc": "2026-07-31T04:58:00Z",
+                  "local_iso": "2026-07-31T12:58:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T12:58:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 85,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "available",
+                    "remaining_text": "9",
+                    "price": null
+                  },
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "limited",
+                    "remaining_text": "5",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_39a1541049b25f66"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_bda0745027ee8be2",
+                "mode": "train",
+                "service_number": "K887",
+                "departure_place": "北京丰台",
+                "arrival_place": "天津",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 09:32",
+                  "utc": "2026-07-31T01:32:00Z",
+                  "local_iso": "2026-07-31T09:32:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T09:32:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 11:00",
+                  "utc": "2026-07-31T03:00:00Z",
+                  "local_iso": "2026-07-31T11:00:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T11:00:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 88,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "limited",
+                    "remaining_text": "1",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "unavailable",
+                    "remaining_text": "无",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_39a1541049b25f66"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_3124acc73911655a",
+                "mode": "train",
+                "service_number": "K7731",
+                "departure_place": "北京丰台",
+                "arrival_place": "天津",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 00:22",
+                  "utc": "2026-07-30T16:22:00Z",
+                  "local_iso": "2026-07-31T00:22:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T00:22:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 02:05",
+                  "utc": "2026-07-30T18:05:00Z",
+                  "local_iso": "2026-07-31T02:05:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T02:05:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 103,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "limited",
+                    "remaining_text": "2",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_39a1541049b25f66"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              }
+            ],
+            "official_query_url": null
+          }
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "outbound_transport"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 29,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0030",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "status": "user_confirmation_required",
+          "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+          "planning_lodging_id": "cde9e2c7aa52b6ade81e9706",
+          "options": [
+            {
+              "lodging_id": "cde9e2c7aa52b6ade81e9706",
+              "name": "北京富力万丽酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "北京市朝阳区东三环中路61号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_ae5d07848541c1eb",
+                "src_1005b00a17558ddb",
+                "src_11ddba8afa55ff1b",
+                "src_64df7fa27a18cce9"
+              ]
+            },
+            {
+              "lodging_id": "c879fa0194805253c909f001",
+              "name": "北京北辰洲际酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "c879fa0194805253c909f001",
+                "name": "北京北辰洲际酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 40.004719,
+                  "longitude": 116.394515,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区北辰西路8号院4号楼",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "北京市朝阳区北辰西路8号院4号楼",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_e722e4ce669db8dd",
+                "src_1005b00a17558ddb",
+                "src_11ddba8afa55ff1b",
+                "src_64df7fa27a18cce9"
+              ]
+            },
+            {
+              "lodging_id": "669775d035a11b42fd0eb03d",
+              "name": "北京东方君悦大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "669775d035a11b42fd0eb03d",
+                "name": "北京东方君悦大酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.916164,
+                  "longitude": 116.420937,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "东长安街1号东方君悦大酒店1层",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "东长安街1号东方君悦大酒店1层",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_a91a2c6e488fd698",
+                "src_1005b00a17558ddb",
+                "src_11ddba8afa55ff1b",
+                "src_64df7fa27a18cce9"
+              ]
+            }
+          ]
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "lodging_plan"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 30,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0031",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "days": [
+            {
+              "day": 1,
+              "date": "2026-07-29",
+              "timezone": "Asia/Shanghai",
+              "theme": "第1天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_2",
+                  "kind": "attraction",
+                  "title": "花家怡园(四合院总店)",
+                  "day": 1,
+                  "order": 1,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "5e53af1aab3ec7464051c0a7",
+                    "name": "花家怡园(四合院总店)",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "东直门内大街235号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.947391,
+                      "longitude": 116.425534,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "东直门内大街235号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_09b330afdbac3e4f"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_348c7c510e60d387",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_1",
+                  "kind": "attraction",
+                  "title": "牛街清真满恒記(平安里西大街店)",
+                  "day": 1,
+                  "order": 2,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "aa40108b9f99270cc5effb45",
+                    "name": "牛街清真满恒記(平安里西大街店)",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "平安里西大街与赵登禹路交叉口西南角",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.937806,
+                      "longitude": 116.374046,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "平安里西大街与赵登禹路交叉口西南角",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_99952f37637a123d"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_1d190a1f998a80d2",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_3",
+                  "kind": "food",
+                  "title": "阳坊胜利涮羊肉(阳坊总店)",
+                  "day": 1,
+                  "order": 3,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "f4a33da9b053fa103010af18",
+                    "name": "阳坊胜利涮羊肉(阳坊总店)",
+                    "category": "food",
+                    "city": "北京",
+                    "address": "温南路10号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 40.143731,
+                      "longitude": 116.146989,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "温南路10号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_c8ffac55c8f33911"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_796bf9ae00ad221a",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_2cf338e9ba2ddb05",
+                  "kind": "lodging_departure",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_57704ce5bbee8402",
+                  "kind": "lodging_return",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-07-30",
+              "timezone": "Asia/Shanghai",
+              "theme": "第2天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_386a7c42f006429f",
+                  "kind": "attraction",
+                  "title": "颐和园",
+                  "day": 2,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_386a7c42f006429f",
+                    "name": "颐和园",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "颐和园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "颐和园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_e0c80d4edc8aa9be",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_4",
+                  "kind": "food",
+                  "title": "祥云轩(教子胡同店)",
+                  "day": 2,
+                  "order": 2,
+                  "start_at": "11:30",
+                  "end_at": "13:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "lunch",
+                  "place": {
+                    "poi_id": "7881ec3a1cc09b3d07026f0b",
+                    "name": "祥云轩(教子胡同店)",
+                    "category": "food",
+                    "city": "北京",
+                    "address": "教子胡同法源寺西里5号楼",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.890424,
+                      "longitude": 116.374011,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "教子胡同法源寺西里5号楼",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_1830e78cf12e9075"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_29937784bfcc7cbd",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_165c285cf04c58d2",
+                  "kind": "attraction",
+                  "title": "圆明园遗址公园",
+                  "day": 2,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_165c285cf04c58d2",
+                    "name": "圆明园遗址公园",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "圆明园遗址公园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "圆明园遗址公园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_cbf81c6dc85e4498",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_5",
+                  "kind": "food",
+                  "title": "新和小馆(北新桥店)",
+                  "day": 2,
+                  "order": 4,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "8a5175844c44ee31abf0cdfd",
+                    "name": "新和小馆(北新桥店)",
+                    "category": "food",
+                    "city": "北京",
+                    "address": "雍和宫大街155号（北新桥地铁站A口步行240米）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.949529,
+                      "longitude": 116.423008,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "雍和宫大街155号（北新桥地铁站A口步行240米）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_4dc2d429ece2d3ba"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_04ad779e2030a893",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_a9d586545f47ea14",
+                  "kind": "lodging_departure",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_0d6795735545e721",
+                  "kind": "lodging_return",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-07-31",
+              "timezone": "Asia/Shanghai",
+              "theme": "第3天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_a413ce40ec5819fd",
+                  "kind": "attraction",
+                  "title": "中国国家博物馆",
+                  "day": 3,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_a413ce40ec5819fd",
+                    "name": "中国国家博物馆",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "中国国家博物馆是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "中国国家博物馆是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_89a23b714399a3da",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_acf6edbeb22a57ef",
+                  "kind": "attraction",
+                  "title": "798艺术区",
+                  "day": 3,
+                  "order": 2,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_acf6edbeb22a57ef",
+                    "name": "798艺术区",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "798艺术区是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "798艺术区是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_fad12cd006664c44",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_7abf5ce50f256967",
+                  "kind": "lodging_departure",
+                  "day": 3,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                }
+              ]
+            }
+          ]
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "itinerary"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 31,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0032",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "budget": {
+            "total_budget": {
+              "amount": 6000.0,
+              "currency": "CNY",
+              "cny_reference_amount": null,
+              "exchange_rate_as_of": null,
+              "source_status": "user_confirmation_required"
+            },
+            "estimated_total": null,
+            "categories": [],
+            "unknown_cost_count": 1,
+            "over_budget": false,
+            "overrun_amount": null,
+            "traveler_costs": [
+              {
+                "traveler_type": "adult",
+                "count": 2,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              },
+              {
+                "traveler_type": "child",
+                "count": 0,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              },
+              {
+                "traveler_type": "senior",
+                "count": 0,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              }
+            ],
+            "warnings": [
+              "示例不包含实时价格，实际费用请重新确认。"
+            ]
+          },
+          "candidate_pool": [],
+          "action_items": [
+            {
+              "action_id": "action_9d01d6b6d9c008fb",
+              "kind": "checklist",
+              "scope": "trip",
+              "target_id": null,
+              "text": "出发前请查询目的地最新天气，并按降雨、气温和季节调整穿着与行程。",
+              "status": "pending",
+              "due_at": null,
+              "timezone": null,
+              "source_ref": null
+            }
+          ],
+          "notes": [
+            {
+              "note_id": "note_348c7c510e60d387",
+              "scope": "activity",
+              "target_id": "travel_place_2",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_1d190a1f998a80d2",
+              "scope": "activity",
+              "target_id": "travel_place_1",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_796bf9ae00ad221a",
+              "scope": "activity",
+              "target_id": "travel_place_3",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_e0c80d4edc8aa9be",
+              "scope": "activity",
+              "target_id": "catalog_386a7c42f006429f",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_29937784bfcc7cbd",
+              "scope": "activity",
+              "target_id": "travel_place_4",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_cbf81c6dc85e4498",
+              "scope": "activity",
+              "target_id": "catalog_165c285cf04c58d2",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_04ad779e2030a893",
+              "scope": "activity",
+              "target_id": "travel_place_5",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_89a23b714399a3da",
+              "scope": "activity",
+              "target_id": "catalog_a413ce40ec5819fd",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_fad12cd006664c44",
+              "scope": "activity",
+              "target_id": "catalog_acf6edbeb22a57ef",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            }
+          ]
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "budget_and_reminders"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 32,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0033",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "status": "user_confirmation_required",
+          "status_reason": "真实路线待计算",
+          "formal_location_ids": [
+            "travel_place_2",
+            "travel_place_1",
+            "travel_place_3",
+            "catalog_386a7c42f006429f",
+            "travel_place_4",
+            "catalog_165c285cf04c58d2",
+            "travel_place_5",
+            "catalog_a413ce40ec5819fd",
+            "catalog_acf6edbeb22a57ef",
+            "anchor_2cf338e9ba2ddb05",
+            "anchor_57704ce5bbee8402",
+            "anchor_a9d586545f47ea14",
+            "anchor_0d6795735545e721",
+            "anchor_7abf5ce50f256967"
+          ],
+          "day_routes": [],
+          "candidates_visible_by_default": false
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "map_guidance"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 33,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0034",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "markdown_filename": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+          "pdf_filename": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+          "markdown_enabled": true,
+          "pdf_enabled": true
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "delivery"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 34,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0035",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "sources": [
+            {
+              "source_id": "src_99952f37637a123d",
+              "title": "北京自由行怎麼玩？｜最完整攻略懶人包！機票、景點地圖 ...",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "牛街清真满恒記(平安里西大街店)",
+                "花家怡园(四合院总店)",
+                "阳坊胜利涮羊肉(阳坊总店)",
+                "颐和园",
+                "圆明园遗址公园",
+                "祥云轩(教子胡同店)",
+                "新和小馆(北新桥店)",
+                "中国国家博物馆"
+              ]
+            },
+            {
+              "source_id": "src_09b330afdbac3e4f",
+              "title": "2026北京住宿推薦－10間靠近景點高評價清單：五星飯店",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "牛街清真满恒記(平安里西大街店)",
+                "花家怡园(四合院总店)",
+                "阳坊胜利涮羊肉(阳坊总店)",
+                "颐和园",
+                "圆明园遗址公园",
+                "祥云轩(教子胡同店)",
+                "新和小馆(北新桥店)",
+                "中国国家博物馆"
+              ]
+            },
+            {
+              "source_id": "src_c8ffac55c8f33911",
+              "title": "2026年北京住宿推荐",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "牛街清真满恒記(平安里西大街店)",
+                "花家怡园(四合院总店)",
+                "阳坊胜利涮羊肉(阳坊总店)",
+                "颐和园",
+                "圆明园遗址公园",
+                "祥云轩(教子胡同店)",
+                "新和小馆(北新桥店)",
+                "中国国家博物馆"
+              ]
+            },
+            {
+              "source_id": "src_1830e78cf12e9075",
+              "title": "地图地点核验",
+              "source_name": "map_search_places",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "coordinates",
+                "address",
+                "category",
+                "route"
+              ],
+              "related_place_ids": [
+                "牛街清真满恒記(平安里西大街店)",
+                "花家怡园(四合院总店)",
+                "阳坊胜利涮羊肉(阳坊总店)",
+                "颐和园",
+                "圆明园遗址公园",
+                "祥云轩(教子胡同店)",
+                "新和小馆(北新桥店)",
+                "中国国家博物馆"
+              ]
+            },
+            {
+              "source_id": "src_4dc2d429ece2d3ba",
+              "title": "行程顺序与费用估算",
+              "source_name": "行程可行性校验",
+              "status": "user_confirmation_required",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "route",
+                "budget"
+              ],
+              "related_place_ids": [
+                "牛街清真满恒記(平安里西大街店)",
+                "花家怡园(四合院总店)",
+                "阳坊胜利涮羊肉(阳坊总店)",
+                "颐和园",
+                "圆明园遗址公园",
+                "祥云轩(教子胡同店)",
+                "新和小馆(北新桥店)",
+                "中国国家博物馆"
+              ]
+            },
+            {
+              "source_id": "src_4713ec4592efd31a",
+              "title": "北京目的地封面",
+              "source_name": "Unsplash",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "destination_overview.cover_image"
+              ],
+              "related_place_ids": [
+                "北京"
+              ]
+            },
+            {
+              "source_id": "src_ae5d07848541c1eb",
+              "title": "北京富力万丽酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "北京富力万丽酒店"
+              ]
+            },
+            {
+              "source_id": "src_e722e4ce669db8dd",
+              "title": "北京北辰洲际酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "北京北辰洲际酒店"
+              ]
+            },
+            {
+              "source_id": "src_a91a2c6e488fd698",
+              "title": "北京东方君悦大酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "北京东方君悦大酒店"
+              ]
+            },
+            {
+              "source_id": "src_1005b00a17558ddb",
+              "title": "中国北京地区推荐民宿",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_11ddba8afa55ff1b",
+              "title": "北京特价酒店| Skyscanner - 机票预订",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_64df7fa27a18cce9",
+              "title": "2026 北京热门酒店预订$49 起- 全部可退款选项",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_132e98e31335166e",
+              "title": "铁路票务平台查询结果",
+              "source_name": "铁路票务平台",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "outbound_transport",
+                "price",
+                "availability"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_39a1541049b25f66",
+              "title": "铁路票务平台查询结果",
+              "source_name": "铁路票务平台",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "return_transport",
+                "price",
+                "availability"
+              ],
+              "related_place_ids": []
+            }
+          ]
+        },
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "section": "sources"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 35,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:beijing-family-3d:event:0036",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "checksum": "046baa87aeb988f656ce12183d643c5dcb7e92121259a5751e52cd50f78e117c",
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "status": "completed_degraded"
+      },
+      "request_id": "demo:beijing-family-3d:run",
+      "run_id": "demo:beijing-family-3d:run",
+      "sequence": 36,
+      "type": "trip_plan_completed"
+    },
+    {
+      "document": {
+        "schema_version": "3.0",
+        "plan_id": "demo-beijing-family-3d",
+        "revision": 1,
+        "status": "degraded",
+        "title": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+        "generated_at": "2000-01-01T00:00:00Z",
+        "locale": "zh-CN",
+        "intent": {
+          "origin": "天津",
+          "destination": "北京",
+          "date_mode": "fixed",
+          "start_date": "2026-07-29",
+          "end_date": "2026-07-31",
+          "days": 3,
+          "travelers": {
+            "adults": 2,
+            "children": 0,
+            "seniors": 0
+          },
+          "budget": {
+            "amount": 6000.0,
+            "currency": "CNY",
+            "cny_reference_amount": null,
+            "exchange_rate_as_of": null,
+            "source_status": "user_confirmation_required"
+          },
+          "preferences": [
+            "人文历史、亲子体验",
+            "人文历史",
+            "亲子体验"
+          ],
+          "dietary_preferences": [],
+          "pace": "balanced"
+        },
+        "destination_overview": {
+          "name_zh": "北京",
+          "name_en": null,
+          "country_code": "CN",
+          "country_name": "中国",
+          "timezone": "Asia/Shanghai",
+          "currency": "CNY",
+          "summary": "... 旅行小提醒19:20 北京自由行預算花費參考#北京自由行#北京懶人包#北京攻略＃北京怎麼玩#北京旅遊#北京景點＃北京酒店推薦#北京自由行酒店#北京行程 ...。",
+          "themes": [
+            "人文历史",
+            "亲子体验"
+          ],
+          "cover_image": null,
+          "evidence_refs": []
+        },
+        "outbound_transport": {
+          "direction": "outbound",
+          "scope": "domestic",
+          "status": "ready",
+          "status_reason": null,
+          "selected_option_id": null,
+          "options": [
+            {
+              "option_id": "transport_66b1da6a06c129ba",
+              "mode": "train",
+              "service_number": "T58",
+              "departure_place": "天津",
+              "arrival_place": "北京丰台",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-29 14:04",
+                "utc": "2026-07-29T06:04:00Z",
+                "local_iso": "2026-07-29T14:04:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T14:04:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-29 15:16",
+                "utc": "2026-07-29T07:16:00Z",
+                "local_iso": "2026-07-29T15:16:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T15:16:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 72,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_132e98e31335166e"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_0b9ffe9c0b3fb748",
+              "mode": "train",
+              "service_number": "K1786",
+              "departure_place": "天津西",
+              "arrival_place": "北京丰台",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-29 13:48",
+                "utc": "2026-07-29T05:48:00Z",
+                "local_iso": "2026-07-29T13:48:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T13:48:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-29 15:10",
+                "utc": "2026-07-29T07:10:00Z",
+                "local_iso": "2026-07-29T15:10:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T15:10:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 82,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "available",
+                  "remaining_text": "17",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_132e98e31335166e"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_0dada64f465c2095",
+              "mode": "train",
+              "service_number": "K1786",
+              "departure_place": "杨柳青",
+              "arrival_place": "北京丰台",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-29 13:27",
+                "utc": "2026-07-29T05:27:00Z",
+                "local_iso": "2026-07-29T13:27:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T13:27:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-29 15:10",
+                "utc": "2026-07-29T07:10:00Z",
+                "local_iso": "2026-07-29T15:10:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-29T15:10:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 103,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "available",
+                  "remaining_text": "7",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_132e98e31335166e"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            }
+          ],
+          "official_query_url": null
+        },
+        "lodging_plan": {
+          "status": "user_confirmation_required",
+          "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+          "planning_lodging_id": "cde9e2c7aa52b6ade81e9706",
+          "options": [
+            {
+              "lodging_id": "cde9e2c7aa52b6ade81e9706",
+              "name": "北京富力万丽酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "北京市朝阳区东三环中路61号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_ae5d07848541c1eb",
+                "src_1005b00a17558ddb",
+                "src_11ddba8afa55ff1b",
+                "src_64df7fa27a18cce9"
+              ]
+            },
+            {
+              "lodging_id": "c879fa0194805253c909f001",
+              "name": "北京北辰洲际酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "c879fa0194805253c909f001",
+                "name": "北京北辰洲际酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 40.004719,
+                  "longitude": 116.394515,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区北辰西路8号院4号楼",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "北京市朝阳区北辰西路8号院4号楼",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_e722e4ce669db8dd",
+                "src_1005b00a17558ddb",
+                "src_11ddba8afa55ff1b",
+                "src_64df7fa27a18cce9"
+              ]
+            },
+            {
+              "lodging_id": "669775d035a11b42fd0eb03d",
+              "name": "北京东方君悦大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "669775d035a11b42fd0eb03d",
+                "name": "北京东方君悦大酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.916164,
+                  "longitude": 116.420937,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "东长安街1号东方君悦大酒店1层",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "东长安街1号东方君悦大酒店1层",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_a91a2c6e488fd698",
+                "src_1005b00a17558ddb",
+                "src_11ddba8afa55ff1b",
+                "src_64df7fa27a18cce9"
+              ]
+            }
+          ]
+        },
+        "itinerary": {
+          "days": [
+            {
+              "day": 1,
+              "date": "2026-07-29",
+              "timezone": "Asia/Shanghai",
+              "theme": "第1天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_2",
+                  "kind": "attraction",
+                  "title": "花家怡园(四合院总店)",
+                  "day": 1,
+                  "order": 1,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "5e53af1aab3ec7464051c0a7",
+                    "name": "花家怡园(四合院总店)",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "东直门内大街235号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.947391,
+                      "longitude": 116.425534,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "东直门内大街235号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_09b330afdbac3e4f"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_348c7c510e60d387",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_1",
+                  "kind": "attraction",
+                  "title": "牛街清真满恒記(平安里西大街店)",
+                  "day": 1,
+                  "order": 2,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "aa40108b9f99270cc5effb45",
+                    "name": "牛街清真满恒記(平安里西大街店)",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "平安里西大街与赵登禹路交叉口西南角",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.937806,
+                      "longitude": 116.374046,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "平安里西大街与赵登禹路交叉口西南角",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_99952f37637a123d"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_1d190a1f998a80d2",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_3",
+                  "kind": "food",
+                  "title": "阳坊胜利涮羊肉(阳坊总店)",
+                  "day": 1,
+                  "order": 3,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "f4a33da9b053fa103010af18",
+                    "name": "阳坊胜利涮羊肉(阳坊总店)",
+                    "category": "food",
+                    "city": "北京",
+                    "address": "温南路10号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 40.143731,
+                      "longitude": 116.146989,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "温南路10号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_c8ffac55c8f33911"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_796bf9ae00ad221a",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_2cf338e9ba2ddb05",
+                  "kind": "lodging_departure",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_57704ce5bbee8402",
+                  "kind": "lodging_return",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-07-30",
+              "timezone": "Asia/Shanghai",
+              "theme": "第2天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_386a7c42f006429f",
+                  "kind": "attraction",
+                  "title": "颐和园",
+                  "day": 2,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_386a7c42f006429f",
+                    "name": "颐和园",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "颐和园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "颐和园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_e0c80d4edc8aa9be",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_4",
+                  "kind": "food",
+                  "title": "祥云轩(教子胡同店)",
+                  "day": 2,
+                  "order": 2,
+                  "start_at": "11:30",
+                  "end_at": "13:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "lunch",
+                  "place": {
+                    "poi_id": "7881ec3a1cc09b3d07026f0b",
+                    "name": "祥云轩(教子胡同店)",
+                    "category": "food",
+                    "city": "北京",
+                    "address": "教子胡同法源寺西里5号楼",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.890424,
+                      "longitude": 116.374011,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "教子胡同法源寺西里5号楼",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_1830e78cf12e9075"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_29937784bfcc7cbd",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_165c285cf04c58d2",
+                  "kind": "attraction",
+                  "title": "圆明园遗址公园",
+                  "day": 2,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_165c285cf04c58d2",
+                    "name": "圆明园遗址公园",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "圆明园遗址公园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "圆明园遗址公园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_cbf81c6dc85e4498",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_5",
+                  "kind": "food",
+                  "title": "新和小馆(北新桥店)",
+                  "day": 2,
+                  "order": 4,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "8a5175844c44ee31abf0cdfd",
+                    "name": "新和小馆(北新桥店)",
+                    "category": "food",
+                    "city": "北京",
+                    "address": "雍和宫大街155号（北新桥地铁站A口步行240米）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.949529,
+                      "longitude": 116.423008,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "雍和宫大街155号（北新桥地铁站A口步行240米）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_4dc2d429ece2d3ba"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_04ad779e2030a893",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_a9d586545f47ea14",
+                  "kind": "lodging_departure",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_0d6795735545e721",
+                  "kind": "lodging_return",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-07-31",
+              "timezone": "Asia/Shanghai",
+              "theme": "第3天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_a413ce40ec5819fd",
+                  "kind": "attraction",
+                  "title": "中国国家博物馆",
+                  "day": 3,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_a413ce40ec5819fd",
+                    "name": "中国国家博物馆",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "中国国家博物馆是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "中国国家博物馆是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_89a23b714399a3da",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_acf6edbeb22a57ef",
+                  "kind": "attraction",
+                  "title": "798艺术区",
+                  "day": 3,
+                  "order": 2,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_acf6edbeb22a57ef",
+                    "name": "798艺术区",
+                    "category": "attraction",
+                    "city": "北京",
+                    "address": "798艺术区是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "798艺术区是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_fad12cd006664c44",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_7abf5ce50f256967",
+                  "kind": "lodging_departure",
+                  "day": 3,
+                  "place": {
+                    "poi_id": "cde9e2c7aa52b6ade81e9706",
+                    "name": "北京富力万丽酒店",
+                    "category": "hotel",
+                    "city": "北京",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 39.903501,
+                      "longitude": 116.467283,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "北京市朝阳区东三环中路61号",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                }
+              ]
+            }
+          ]
+        },
+        "candidate_pool": [],
+        "action_items": [
+          {
+            "action_id": "action_9d01d6b6d9c008fb",
+            "kind": "checklist",
+            "scope": "trip",
+            "target_id": null,
+            "text": "出发前请查询目的地最新天气，并按降雨、气温和季节调整穿着与行程。",
+            "status": "pending",
+            "due_at": null,
+            "timezone": null,
+            "source_ref": null
+          }
+        ],
+        "notes": [
+          {
+            "note_id": "note_348c7c510e60d387",
+            "scope": "activity",
+            "target_id": "travel_place_2",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_1d190a1f998a80d2",
+            "scope": "activity",
+            "target_id": "travel_place_1",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_796bf9ae00ad221a",
+            "scope": "activity",
+            "target_id": "travel_place_3",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_e0c80d4edc8aa9be",
+            "scope": "activity",
+            "target_id": "catalog_386a7c42f006429f",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_29937784bfcc7cbd",
+            "scope": "activity",
+            "target_id": "travel_place_4",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_cbf81c6dc85e4498",
+            "scope": "activity",
+            "target_id": "catalog_165c285cf04c58d2",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_04ad779e2030a893",
+            "scope": "activity",
+            "target_id": "travel_place_5",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_89a23b714399a3da",
+            "scope": "activity",
+            "target_id": "catalog_a413ce40ec5819fd",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_fad12cd006664c44",
+            "scope": "activity",
+            "target_id": "catalog_acf6edbeb22a57ef",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          }
+        ],
+        "budget": {
+          "total_budget": {
+            "amount": 6000.0,
+            "currency": "CNY",
+            "cny_reference_amount": null,
+            "exchange_rate_as_of": null,
+            "source_status": "user_confirmation_required"
+          },
+          "estimated_total": null,
+          "categories": [],
+          "unknown_cost_count": 1,
+          "over_budget": false,
+          "overrun_amount": null,
+          "traveler_costs": [
+            {
+              "traveler_type": "adult",
+              "count": 2,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            },
+            {
+              "traveler_type": "child",
+              "count": 0,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            },
+            {
+              "traveler_type": "senior",
+              "count": 0,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            }
+          ],
+          "warnings": [
+            "示例不包含实时价格，实际费用请重新确认。"
+          ]
+        },
+        "return_transport": {
+          "direction": "return",
+          "scope": "domestic",
+          "status": "ready",
+          "status_reason": null,
+            "selected_option_id": null,
+          "options": [
+            {
+              "option_id": "transport_2da055e338adb02d",
+              "mode": "train",
+              "service_number": "T57",
+              "departure_place": "北京丰台",
+              "arrival_place": "天津",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 11:33",
+                "utc": "2026-07-31T03:33:00Z",
+                "local_iso": "2026-07-31T11:33:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T11:33:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 12:58",
+                "utc": "2026-07-31T04:58:00Z",
+                "local_iso": "2026-07-31T12:58:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T12:58:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 85,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "available",
+                  "remaining_text": "9",
+                  "price": null
+                },
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "limited",
+                  "remaining_text": "5",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_39a1541049b25f66"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_bda0745027ee8be2",
+              "mode": "train",
+              "service_number": "K887",
+              "departure_place": "北京丰台",
+              "arrival_place": "天津",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 09:32",
+                "utc": "2026-07-31T01:32:00Z",
+                "local_iso": "2026-07-31T09:32:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T09:32:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 11:00",
+                "utc": "2026-07-31T03:00:00Z",
+                "local_iso": "2026-07-31T11:00:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T11:00:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 88,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "limited",
+                  "remaining_text": "1",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "unavailable",
+                  "remaining_text": "无",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_39a1541049b25f66"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_3124acc73911655a",
+              "mode": "train",
+              "service_number": "K7731",
+              "departure_place": "北京丰台",
+              "arrival_place": "天津",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 00:22",
+                "utc": "2026-07-30T16:22:00Z",
+                "local_iso": "2026-07-31T00:22:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T00:22:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 02:05",
+                "utc": "2026-07-30T18:05:00Z",
+                "local_iso": "2026-07-31T02:05:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T02:05:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 103,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "limited",
+                  "remaining_text": "2",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_39a1541049b25f66"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            }
+          ],
+          "official_query_url": null
+        },
+        "map_guidance": {
+          "status": "user_confirmation_required",
+          "status_reason": "真实路线待计算",
+          "formal_location_ids": [
+            "travel_place_2",
+            "travel_place_1",
+            "travel_place_3",
+            "catalog_386a7c42f006429f",
+            "travel_place_4",
+            "catalog_165c285cf04c58d2",
+            "travel_place_5",
+            "catalog_a413ce40ec5819fd",
+            "catalog_acf6edbeb22a57ef",
+            "anchor_2cf338e9ba2ddb05",
+            "anchor_57704ce5bbee8402",
+            "anchor_a9d586545f47ea14",
+            "anchor_0d6795735545e721",
+            "anchor_7abf5ce50f256967"
+          ],
+          "day_routes": [],
+          "candidates_visible_by_default": false
+        },
+        "sources": [
+          {
+            "source_id": "src_99952f37637a123d",
+            "title": "北京自由行怎麼玩？｜最完整攻略懶人包！機票、景點地圖 ...",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "牛街清真满恒記(平安里西大街店)",
+              "花家怡园(四合院总店)",
+              "阳坊胜利涮羊肉(阳坊总店)",
+              "颐和园",
+              "圆明园遗址公园",
+              "祥云轩(教子胡同店)",
+              "新和小馆(北新桥店)",
+              "中国国家博物馆"
+            ]
+          },
+          {
+            "source_id": "src_09b330afdbac3e4f",
+            "title": "2026北京住宿推薦－10間靠近景點高評價清單：五星飯店",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "牛街清真满恒記(平安里西大街店)",
+              "花家怡园(四合院总店)",
+              "阳坊胜利涮羊肉(阳坊总店)",
+              "颐和园",
+              "圆明园遗址公园",
+              "祥云轩(教子胡同店)",
+              "新和小馆(北新桥店)",
+              "中国国家博物馆"
+            ]
+          },
+          {
+            "source_id": "src_c8ffac55c8f33911",
+            "title": "2026年北京住宿推荐",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "牛街清真满恒記(平安里西大街店)",
+              "花家怡园(四合院总店)",
+              "阳坊胜利涮羊肉(阳坊总店)",
+              "颐和园",
+              "圆明园遗址公园",
+              "祥云轩(教子胡同店)",
+              "新和小馆(北新桥店)",
+              "中国国家博物馆"
+            ]
+          },
+          {
+            "source_id": "src_1830e78cf12e9075",
+            "title": "地图地点核验",
+            "source_name": "map_search_places",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "coordinates",
+              "address",
+              "category",
+              "route"
+            ],
+            "related_place_ids": [
+              "牛街清真满恒記(平安里西大街店)",
+              "花家怡园(四合院总店)",
+              "阳坊胜利涮羊肉(阳坊总店)",
+              "颐和园",
+              "圆明园遗址公园",
+              "祥云轩(教子胡同店)",
+              "新和小馆(北新桥店)",
+              "中国国家博物馆"
+            ]
+          },
+          {
+            "source_id": "src_4dc2d429ece2d3ba",
+            "title": "行程顺序与费用估算",
+            "source_name": "行程可行性校验",
+            "status": "user_confirmation_required",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "route",
+              "budget"
+            ],
+            "related_place_ids": [
+              "牛街清真满恒記(平安里西大街店)",
+              "花家怡园(四合院总店)",
+              "阳坊胜利涮羊肉(阳坊总店)",
+              "颐和园",
+              "圆明园遗址公园",
+              "祥云轩(教子胡同店)",
+              "新和小馆(北新桥店)",
+              "中国国家博物馆"
+            ]
+          },
+          {
+            "source_id": "src_4713ec4592efd31a",
+            "title": "北京目的地封面",
+            "source_name": "Unsplash",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "destination_overview.cover_image"
+            ],
+            "related_place_ids": [
+              "北京"
+            ]
+          },
+          {
+            "source_id": "src_ae5d07848541c1eb",
+            "title": "北京富力万丽酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "北京富力万丽酒店"
+            ]
+          },
+          {
+            "source_id": "src_e722e4ce669db8dd",
+            "title": "北京北辰洲际酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "北京北辰洲际酒店"
+            ]
+          },
+          {
+            "source_id": "src_a91a2c6e488fd698",
+            "title": "北京东方君悦大酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "北京东方君悦大酒店"
+            ]
+          },
+          {
+            "source_id": "src_1005b00a17558ddb",
+            "title": "中国北京地区推荐民宿",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_11ddba8afa55ff1b",
+            "title": "北京特价酒店| Skyscanner - 机票预订",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_64df7fa27a18cce9",
+            "title": "2026 北京热门酒店预订$49 起- 全部可退款选项",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_132e98e31335166e",
+            "title": "铁路票务平台查询结果",
+            "source_name": "铁路票务平台",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "outbound_transport",
+              "price",
+              "availability"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_39a1541049b25f66",
+            "title": "铁路票务平台查询结果",
+            "source_name": "铁路票务平台",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "return_transport",
+              "price",
+              "availability"
+            ],
+            "related_place_ids": []
+          }
+        ],
+        "delivery": {
+          "markdown_filename": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+          "pdf_filename": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+          "markdown_enabled": true,
+          "pdf_enabled": true
+        },
+        "validation": {
+          "valid": true,
+          "degraded": true,
+          "issues": [
+            {
+              "code": "CANDIDATE_POOL_VERIFICATION_INSUFFICIENT",
+              "message": "部分候选地点缺少稳定 POI 或坐标，未进入可排程候选池",
+              "severity": "warning",
+              "target_id": null
+            },
+            {
+              "code": "MISSING_COORDINATES",
+              "message": "4个地点缺少地图坐标：颐和园, 圆明园遗址公园, 中国国家博物馆, 798艺术区。",
+              "severity": "warning",
+              "target_id": null
+            },
+            {
+              "code": "MISSING_HOTEL_AREA",
+              "message": "多日行程缺少住宿区域或酒店建议。",
+              "severity": "info",
+              "target_id": null
+            }
+          ]
+        }
+      },
+      "plan": {},
+      "request_id": "demo:beijing-family-3d:run",
+      "sequence": 37,
+      "type": "trip_plan",
+      "version": 1,
+      "event_id": "demo:beijing-family-3d:event:0037",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:beijing-family-3d:message:0038",
+      "message_id": "demo:beijing-family-3d:message:0038",
+      "request_id": "demo:beijing-family-3d:run",
+      "role": "assistant",
+      "sequence": 38,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "researching",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:beijing-family-3d:event:0038",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:beijing-family-3d:message:0039",
+      "message_id": "demo:beijing-family-3d:message:0039",
+      "replace": true,
+      "request_id": "demo:beijing-family-3d:run",
+      "role": "assistant",
+      "sequence": 39,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "finalizing",
+      "step_type": "final_answer",
+      "type": "chat_chunk",
+      "event_id": "demo:beijing-family-3d:event:0039",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "finish_reason": "completed",
+      "message_id": "demo:beijing-family-3d:message:0040",
+      "request_id": "demo:beijing-family-3d:run",
+      "sequence": 40,
+      "type": "chat_complete",
+      "event_id": "demo:beijing-family-3d:event:0040",
+      "run_id": "demo:beijing-family-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    }
+  ],
+  "document": {
+    "schema_version": "3.0",
+    "plan_id": "demo-beijing-family-3d",
+    "revision": 1,
+    "status": "degraded",
+    "title": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+    "generated_at": "2000-01-01T00:00:00Z",
+    "locale": "zh-CN",
+    "intent": {
+      "origin": "天津",
+      "destination": "北京",
+      "date_mode": "fixed",
+      "start_date": "2026-07-29",
+      "end_date": "2026-07-31",
+      "days": 3,
+      "travelers": {
+        "adults": 2,
+        "children": 0,
+        "seniors": 0
+      },
+      "budget": {
+        "amount": 6000.0,
+        "currency": "CNY",
+        "cny_reference_amount": null,
+        "exchange_rate_as_of": null,
+        "source_status": "user_confirmation_required"
+      },
+      "preferences": [
+        "人文历史、亲子体验",
+        "人文历史",
+        "亲子体验"
+      ],
+      "dietary_preferences": [],
+      "pace": "balanced"
+    },
+    "destination_overview": {
+      "name_zh": "北京",
+      "name_en": null,
+      "country_code": "CN",
+      "country_name": "中国",
+      "timezone": "Asia/Shanghai",
+      "currency": "CNY",
+      "summary": "... 旅行小提醒19:20 北京自由行預算花費參考#北京自由行#北京懶人包#北京攻略＃北京怎麼玩#北京旅遊#北京景點＃北京酒店推薦#北京自由行酒店#北京行程 ...。",
+      "themes": [
+        "人文历史",
+        "亲子体验"
+      ],
+      "cover_image": null,
+      "evidence_refs": []
+    },
+    "outbound_transport": {
+      "direction": "outbound",
+      "scope": "domestic",
+      "status": "ready",
+      "status_reason": null,
+        "selected_option_id": null,
+      "options": [
+        {
+          "option_id": "transport_66b1da6a06c129ba",
+          "mode": "train",
+          "service_number": "T58",
+          "departure_place": "天津",
+          "arrival_place": "北京丰台",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-29 14:04",
+            "utc": "2026-07-29T06:04:00Z",
+            "local_iso": "2026-07-29T14:04:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T14:04:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-29 15:16",
+            "utc": "2026-07-29T07:16:00Z",
+            "local_iso": "2026-07-29T15:16:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T15:16:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 72,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_132e98e31335166e"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_0b9ffe9c0b3fb748",
+          "mode": "train",
+          "service_number": "K1786",
+          "departure_place": "天津西",
+          "arrival_place": "北京丰台",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-29 13:48",
+            "utc": "2026-07-29T05:48:00Z",
+            "local_iso": "2026-07-29T13:48:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T13:48:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-29 15:10",
+            "utc": "2026-07-29T07:10:00Z",
+            "local_iso": "2026-07-29T15:10:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T15:10:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 82,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "available",
+              "remaining_text": "17",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_132e98e31335166e"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_0dada64f465c2095",
+          "mode": "train",
+          "service_number": "K1786",
+          "departure_place": "杨柳青",
+          "arrival_place": "北京丰台",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-29 13:27",
+            "utc": "2026-07-29T05:27:00Z",
+            "local_iso": "2026-07-29T13:27:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T13:27:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-29 15:10",
+            "utc": "2026-07-29T07:10:00Z",
+            "local_iso": "2026-07-29T15:10:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-29T15:10:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 103,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "available",
+              "remaining_text": "7",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_132e98e31335166e"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "official_query_url": null
+    },
+    "lodging_plan": {
+      "status": "user_confirmation_required",
+      "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+      "planning_lodging_id": "cde9e2c7aa52b6ade81e9706",
+      "options": [
+        {
+          "lodging_id": "cde9e2c7aa52b6ade81e9706",
+          "name": "北京富力万丽酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "cde9e2c7aa52b6ade81e9706",
+            "name": "北京富力万丽酒店",
+            "category": "hotel",
+            "city": "北京",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 39.903501,
+              "longitude": 116.467283,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "北京市朝阳区东三环中路61号",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "北京市朝阳区东三环中路61号",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_ae5d07848541c1eb",
+            "src_1005b00a17558ddb",
+            "src_11ddba8afa55ff1b",
+            "src_64df7fa27a18cce9"
+          ]
+        },
+        {
+          "lodging_id": "c879fa0194805253c909f001",
+          "name": "北京北辰洲际酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "c879fa0194805253c909f001",
+            "name": "北京北辰洲际酒店",
+            "category": "hotel",
+            "city": "北京",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 40.004719,
+              "longitude": 116.394515,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "北京市朝阳区北辰西路8号院4号楼",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "北京市朝阳区北辰西路8号院4号楼",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_e722e4ce669db8dd",
+            "src_1005b00a17558ddb",
+            "src_11ddba8afa55ff1b",
+            "src_64df7fa27a18cce9"
+          ]
+        },
+        {
+          "lodging_id": "669775d035a11b42fd0eb03d",
+          "name": "北京东方君悦大酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "669775d035a11b42fd0eb03d",
+            "name": "北京东方君悦大酒店",
+            "category": "hotel",
+            "city": "北京",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 39.916164,
+              "longitude": 116.420937,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "东长安街1号东方君悦大酒店1层",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "东长安街1号东方君悦大酒店1层",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_a91a2c6e488fd698",
+            "src_1005b00a17558ddb",
+            "src_11ddba8afa55ff1b",
+            "src_64df7fa27a18cce9"
+          ]
+        }
+      ]
+    },
+    "itinerary": {
+      "days": [
+        {
+          "day": 1,
+          "date": "2026-07-29",
+          "timezone": "Asia/Shanghai",
+          "theme": "第1天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "travel_place_2",
+              "kind": "attraction",
+              "title": "花家怡园(四合院总店)",
+              "day": 1,
+              "order": 1,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "5e53af1aab3ec7464051c0a7",
+                "name": "花家怡园(四合院总店)",
+                "category": "attraction",
+                "city": "北京",
+                "address": "东直门内大街235号",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.947391,
+                  "longitude": 116.425534,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "东直门内大街235号",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_09b330afdbac3e4f"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_348c7c510e60d387",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_1",
+              "kind": "attraction",
+              "title": "牛街清真满恒記(平安里西大街店)",
+              "day": 1,
+              "order": 2,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "aa40108b9f99270cc5effb45",
+                "name": "牛街清真满恒記(平安里西大街店)",
+                "category": "attraction",
+                "city": "北京",
+                "address": "平安里西大街与赵登禹路交叉口西南角",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.937806,
+                  "longitude": 116.374046,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "平安里西大街与赵登禹路交叉口西南角",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_99952f37637a123d"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_1d190a1f998a80d2",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_3",
+              "kind": "food",
+              "title": "阳坊胜利涮羊肉(阳坊总店)",
+              "day": 1,
+              "order": 3,
+              "start_at": "17:30",
+              "end_at": "19:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "dinner",
+              "place": {
+                "poi_id": "f4a33da9b053fa103010af18",
+                "name": "阳坊胜利涮羊肉(阳坊总店)",
+                "category": "food",
+                "city": "北京",
+                "address": "温南路10号",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 40.143731,
+                  "longitude": 116.146989,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "温南路10号",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_c8ffac55c8f33911"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_796bf9ae00ad221a",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_2cf338e9ba2ddb05",
+              "kind": "lodging_departure",
+              "day": 1,
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            },
+            {
+              "anchor_id": "anchor_57704ce5bbee8402",
+              "kind": "lodging_return",
+              "day": 1,
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "返回规划住宿点"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-07-30",
+          "timezone": "Asia/Shanghai",
+          "theme": "第2天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "catalog_386a7c42f006429f",
+              "kind": "attraction",
+              "title": "颐和园",
+              "day": 2,
+              "order": 1,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_386a7c42f006429f",
+                "name": "颐和园",
+                "category": "attraction",
+                "city": "北京",
+                "address": "颐和园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "颐和园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_e0c80d4edc8aa9be",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_4",
+              "kind": "food",
+              "title": "祥云轩(教子胡同店)",
+              "day": 2,
+              "order": 2,
+              "start_at": "11:30",
+              "end_at": "13:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "lunch",
+              "place": {
+                "poi_id": "7881ec3a1cc09b3d07026f0b",
+                "name": "祥云轩(教子胡同店)",
+                "category": "food",
+                "city": "北京",
+                "address": "教子胡同法源寺西里5号楼",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.890424,
+                  "longitude": 116.374011,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "教子胡同法源寺西里5号楼",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_1830e78cf12e9075"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_29937784bfcc7cbd",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_165c285cf04c58d2",
+              "kind": "attraction",
+              "title": "圆明园遗址公园",
+              "day": 2,
+              "order": 3,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_165c285cf04c58d2",
+                "name": "圆明园遗址公园",
+                "category": "attraction",
+                "city": "北京",
+                "address": "圆明园遗址公园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "圆明园遗址公园是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_cbf81c6dc85e4498",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_5",
+              "kind": "food",
+              "title": "新和小馆(北新桥店)",
+              "day": 2,
+              "order": 4,
+              "start_at": "17:30",
+              "end_at": "19:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "dinner",
+              "place": {
+                "poi_id": "8a5175844c44ee31abf0cdfd",
+                "name": "新和小馆(北新桥店)",
+                "category": "food",
+                "city": "北京",
+                "address": "雍和宫大街155号（北新桥地铁站A口步行240米）",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.949529,
+                  "longitude": 116.423008,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "雍和宫大街155号（北新桥地铁站A口步行240米）",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_4dc2d429ece2d3ba"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_04ad779e2030a893",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_a9d586545f47ea14",
+              "kind": "lodging_departure",
+              "day": 2,
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            },
+            {
+              "anchor_id": "anchor_0d6795735545e721",
+              "kind": "lodging_return",
+              "day": 2,
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "返回规划住宿点"
+            }
+          ]
+        },
+        {
+          "day": 3,
+          "date": "2026-07-31",
+          "timezone": "Asia/Shanghai",
+          "theme": "第3天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "catalog_a413ce40ec5819fd",
+              "kind": "attraction",
+              "title": "中国国家博物馆",
+              "day": 3,
+              "order": 1,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_a413ce40ec5819fd",
+                "name": "中国国家博物馆",
+                "category": "attraction",
+                "city": "北京",
+                "address": "中国国家博物馆是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "中国国家博物馆是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_89a23b714399a3da",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_acf6edbeb22a57ef",
+              "kind": "attraction",
+              "title": "798艺术区",
+              "day": 3,
+              "order": 2,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_acf6edbeb22a57ef",
+                "name": "798艺术区",
+                "category": "attraction",
+                "city": "北京",
+                "address": "798艺术区是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "798艺术区是北京的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_fad12cd006664c44",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_7abf5ce50f256967",
+              "kind": "lodging_departure",
+              "day": 3,
+              "place": {
+                "poi_id": "cde9e2c7aa52b6ade81e9706",
+                "name": "北京富力万丽酒店",
+                "category": "hotel",
+                "city": "北京",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 39.903501,
+                  "longitude": 116.467283,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "北京市朝阳区东三环中路61号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            }
+          ]
+        }
+      ]
+    },
+    "candidate_pool": [],
+    "action_items": [
+      {
+        "action_id": "action_9d01d6b6d9c008fb",
+        "kind": "checklist",
+        "scope": "trip",
+        "target_id": null,
+        "text": "出发前请查询目的地最新天气，并按降雨、气温和季节调整穿着与行程。",
+        "status": "pending",
+        "due_at": null,
+        "timezone": null,
+        "source_ref": null
+      }
+    ],
+    "notes": [
+      {
+        "note_id": "note_348c7c510e60d387",
+        "scope": "activity",
+        "target_id": "travel_place_2",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_1d190a1f998a80d2",
+        "scope": "activity",
+        "target_id": "travel_place_1",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_796bf9ae00ad221a",
+        "scope": "activity",
+        "target_id": "travel_place_3",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_e0c80d4edc8aa9be",
+        "scope": "activity",
+        "target_id": "catalog_386a7c42f006429f",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_29937784bfcc7cbd",
+        "scope": "activity",
+        "target_id": "travel_place_4",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_cbf81c6dc85e4498",
+        "scope": "activity",
+        "target_id": "catalog_165c285cf04c58d2",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_04ad779e2030a893",
+        "scope": "activity",
+        "target_id": "travel_place_5",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_89a23b714399a3da",
+        "scope": "activity",
+        "target_id": "catalog_a413ce40ec5819fd",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_fad12cd006664c44",
+        "scope": "activity",
+        "target_id": "catalog_acf6edbeb22a57ef",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      }
+    ],
+    "budget": {
+      "total_budget": {
+        "amount": 6000.0,
+        "currency": "CNY",
+        "cny_reference_amount": null,
+        "exchange_rate_as_of": null,
+        "source_status": "user_confirmation_required"
+      },
+      "estimated_total": null,
+      "categories": [],
+      "unknown_cost_count": 1,
+      "over_budget": false,
+      "overrun_amount": null,
+      "traveler_costs": [
+        {
+          "traveler_type": "adult",
+          "count": 2,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        },
+        {
+          "traveler_type": "child",
+          "count": 0,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        },
+        {
+          "traveler_type": "senior",
+          "count": 0,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        }
+      ],
+      "warnings": [
+        "示例不包含实时价格，实际费用请重新确认。"
+      ]
+    },
+    "return_transport": {
+      "direction": "return",
+      "scope": "domestic",
+      "status": "ready",
+      "status_reason": null,
+            "selected_option_id": null,
+      "options": [
+        {
+          "option_id": "transport_2da055e338adb02d",
+          "mode": "train",
+          "service_number": "T57",
+          "departure_place": "北京丰台",
+          "arrival_place": "天津",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 11:33",
+            "utc": "2026-07-31T03:33:00Z",
+            "local_iso": "2026-07-31T11:33:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T11:33:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 12:58",
+            "utc": "2026-07-31T04:58:00Z",
+            "local_iso": "2026-07-31T12:58:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T12:58:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 85,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "available",
+              "remaining_text": "9",
+              "price": null
+            },
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "limited",
+              "remaining_text": "5",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_39a1541049b25f66"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_bda0745027ee8be2",
+          "mode": "train",
+          "service_number": "K887",
+          "departure_place": "北京丰台",
+          "arrival_place": "天津",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 09:32",
+            "utc": "2026-07-31T01:32:00Z",
+            "local_iso": "2026-07-31T09:32:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T09:32:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 11:00",
+            "utc": "2026-07-31T03:00:00Z",
+            "local_iso": "2026-07-31T11:00:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T11:00:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 88,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "limited",
+              "remaining_text": "1",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "unavailable",
+              "remaining_text": "无",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_39a1541049b25f66"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_3124acc73911655a",
+          "mode": "train",
+          "service_number": "K7731",
+          "departure_place": "北京丰台",
+          "arrival_place": "天津",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 00:22",
+            "utc": "2026-07-30T16:22:00Z",
+            "local_iso": "2026-07-31T00:22:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T00:22:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 02:05",
+            "utc": "2026-07-30T18:05:00Z",
+            "local_iso": "2026-07-31T02:05:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T02:05:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 103,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "limited",
+              "remaining_text": "2",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_39a1541049b25f66"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "official_query_url": null
+    },
+    "map_guidance": {
+      "status": "user_confirmation_required",
+      "status_reason": "真实路线待计算",
+      "formal_location_ids": [
+        "travel_place_2",
+        "travel_place_1",
+        "travel_place_3",
+        "catalog_386a7c42f006429f",
+        "travel_place_4",
+        "catalog_165c285cf04c58d2",
+        "travel_place_5",
+        "catalog_a413ce40ec5819fd",
+        "catalog_acf6edbeb22a57ef",
+        "anchor_2cf338e9ba2ddb05",
+        "anchor_57704ce5bbee8402",
+        "anchor_a9d586545f47ea14",
+        "anchor_0d6795735545e721",
+        "anchor_7abf5ce50f256967"
+      ],
+      "day_routes": [],
+      "candidates_visible_by_default": false
+    },
+    "sources": [
+      {
+        "source_id": "src_99952f37637a123d",
+        "title": "北京自由行怎麼玩？｜最完整攻略懶人包！機票、景點地圖 ...",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "牛街清真满恒記(平安里西大街店)",
+          "花家怡园(四合院总店)",
+          "阳坊胜利涮羊肉(阳坊总店)",
+          "颐和园",
+          "圆明园遗址公园",
+          "祥云轩(教子胡同店)",
+          "新和小馆(北新桥店)",
+          "中国国家博物馆"
+        ]
+      },
+      {
+        "source_id": "src_09b330afdbac3e4f",
+        "title": "2026北京住宿推薦－10間靠近景點高評價清單：五星飯店",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "牛街清真满恒記(平安里西大街店)",
+          "花家怡园(四合院总店)",
+          "阳坊胜利涮羊肉(阳坊总店)",
+          "颐和园",
+          "圆明园遗址公园",
+          "祥云轩(教子胡同店)",
+          "新和小馆(北新桥店)",
+          "中国国家博物馆"
+        ]
+      },
+      {
+        "source_id": "src_c8ffac55c8f33911",
+        "title": "2026年北京住宿推荐",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "牛街清真满恒記(平安里西大街店)",
+          "花家怡园(四合院总店)",
+          "阳坊胜利涮羊肉(阳坊总店)",
+          "颐和园",
+          "圆明园遗址公园",
+          "祥云轩(教子胡同店)",
+          "新和小馆(北新桥店)",
+          "中国国家博物馆"
+        ]
+      },
+      {
+        "source_id": "src_1830e78cf12e9075",
+        "title": "地图地点核验",
+        "source_name": "map_search_places",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "coordinates",
+          "address",
+          "category",
+          "route"
+        ],
+        "related_place_ids": [
+          "牛街清真满恒記(平安里西大街店)",
+          "花家怡园(四合院总店)",
+          "阳坊胜利涮羊肉(阳坊总店)",
+          "颐和园",
+          "圆明园遗址公园",
+          "祥云轩(教子胡同店)",
+          "新和小馆(北新桥店)",
+          "中国国家博物馆"
+        ]
+      },
+      {
+        "source_id": "src_4dc2d429ece2d3ba",
+        "title": "行程顺序与费用估算",
+        "source_name": "行程可行性校验",
+        "status": "user_confirmation_required",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "route",
+          "budget"
+        ],
+        "related_place_ids": [
+          "牛街清真满恒記(平安里西大街店)",
+          "花家怡园(四合院总店)",
+          "阳坊胜利涮羊肉(阳坊总店)",
+          "颐和园",
+          "圆明园遗址公园",
+          "祥云轩(教子胡同店)",
+          "新和小馆(北新桥店)",
+          "中国国家博物馆"
+        ]
+      },
+      {
+        "source_id": "src_4713ec4592efd31a",
+        "title": "北京目的地封面",
+        "source_name": "Unsplash",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "destination_overview.cover_image"
+        ],
+        "related_place_ids": [
+          "北京"
+        ]
+      },
+      {
+        "source_id": "src_ae5d07848541c1eb",
+        "title": "北京富力万丽酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "北京富力万丽酒店"
+        ]
+      },
+      {
+        "source_id": "src_e722e4ce669db8dd",
+        "title": "北京北辰洲际酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "北京北辰洲际酒店"
+        ]
+      },
+      {
+        "source_id": "src_a91a2c6e488fd698",
+        "title": "北京东方君悦大酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "北京东方君悦大酒店"
+        ]
+      },
+      {
+        "source_id": "src_1005b00a17558ddb",
+        "title": "中国北京地区推荐民宿",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_11ddba8afa55ff1b",
+        "title": "北京特价酒店| Skyscanner - 机票预订",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_64df7fa27a18cce9",
+        "title": "2026 北京热门酒店预订$49 起- 全部可退款选项",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_132e98e31335166e",
+        "title": "铁路票务平台查询结果",
+        "source_name": "铁路票务平台",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "outbound_transport",
+          "price",
+          "availability"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_39a1541049b25f66",
+        "title": "铁路票务平台查询结果",
+        "source_name": "铁路票务平台",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "return_transport",
+          "price",
+          "availability"
+        ],
+        "related_place_ids": []
+      }
+    ],
+    "delivery": {
+      "markdown_filename": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+      "pdf_filename": "请帮我规划一趟从天津出发、前往北京的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：家庭。总预算6000元，旅行偏好：人文历史、亲子体验。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+      "markdown_enabled": true,
+      "pdf_enabled": true
+    },
+    "validation": {
+      "valid": true,
+      "degraded": true,
+      "issues": [
+        {
+          "code": "CANDIDATE_POOL_VERIFICATION_INSUFFICIENT",
+          "message": "部分候选地点缺少稳定 POI 或坐标，未进入可排程候选池",
+          "severity": "warning",
+          "target_id": null
+        },
+        {
+          "code": "MISSING_COORDINATES",
+          "message": "4个地点缺少地图坐标：颐和园, 圆明园遗址公园, 中国国家博物馆, 798艺术区。",
+          "severity": "warning",
+          "target_id": null
+        },
+        {
+          "code": "MISSING_HOTEL_AREA",
+          "message": "多日行程缺少住宿区域或酒店建议。",
+          "severity": "info",
+          "target_id": null
+        }
+      ]
+    }
+  },
+  "map_data": {
+    "status": "user_confirmation_required",
+    "status_reason": "真实路线待计算",
+    "formal_location_ids": [
+      "travel_place_2",
+      "travel_place_1",
+      "travel_place_3",
+      "catalog_386a7c42f006429f",
+      "travel_place_4",
+      "catalog_165c285cf04c58d2",
+      "travel_place_5",
+      "catalog_a413ce40ec5819fd",
+      "catalog_acf6edbeb22a57ef",
+      "anchor_2cf338e9ba2ddb05",
+      "anchor_57704ce5bbee8402",
+      "anchor_a9d586545f47ea14",
+      "anchor_0d6795735545e721",
+      "anchor_7abf5ce50f256967"
+    ],
+    "day_routes": [],
+    "candidates_visible_by_default": false
+  }
+}

@@ -1,0 +1,4619 @@
+{
+  "kind": "supertravelagent_demo_case",
+  "package_version": 1,
+  "case": {
+    "id": "hangzhou-humanities-3d",
+    "title": "杭州三日人文慢游",
+    "summary": "湖山、人文与本地餐饮结合的轻松路线。",
+    "days": 3,
+    "traveler_label": "双人",
+    "origin": "上海",
+    "destination": "杭州",
+    "preferences": [
+      "人文历史、轻松慢游",
+      "人文历史",
+      "轻松慢游"
+    ],
+    "recording_status": "ready"
+  },
+  "recording": {
+    "source": "real_sse",
+    "accepted": true,
+    "accepted_on": "2026-07-29",
+    "run_count": 1,
+    "event_count": 40,
+    "notice": "案例录制时的信息，仅用于演示。"
+  },
+  "events": [
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0001",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "开始规划",
+        "status": "planning"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 1,
+      "type": "run_started"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0002",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "需求分析 Agent",
+        "data_sources": [
+          "用户输入",
+          "用户画像"
+        ],
+        "duration_ms": null,
+        "stage": "requirements_analysis",
+        "status": "running",
+        "summary": null,
+        "task": "整理日期、人数、预算与偏好"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 2,
+      "type": "agent_stage_started"
+    },
+    {
+      "message_id": "demo:hangzhou-humanities-3d:message:0003",
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 3,
+      "stage": "initializing",
+      "type": "chat_start",
+      "event_id": "demo:hangzhou-humanities-3d:event:0003",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:hangzhou-humanities-3d:message:0004",
+      "message_id": "demo:hangzhou-humanities-3d:message:0004",
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "role": "assistant",
+      "sequence": 4,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "understanding",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:hangzhou-humanities-3d:event:0004",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0005",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "需求分析 Agent",
+        "data_sources": [
+          "用户输入",
+          "用户画像"
+        ],
+        "duration_ms": 47,
+        "stage": "requirements_analysis",
+        "status": "completed",
+        "summary": "已整理行程约束",
+        "task": "整理日期、人数、预算与偏好"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 5,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0006",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "资料研究 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "网页/攻略",
+          "本地知识库"
+        ],
+        "duration_ms": null,
+        "stage": "research",
+        "status": "running",
+        "summary": null,
+        "task": "并行研究交通、住宿、美食与目的地资料"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 6,
+      "type": "agent_stage_started"
+    },
+    {
+      "intent": {
+        "adult_count": 2,
+        "avoid": [],
+        "budget_per_person": null,
+        "budget_total": 6000.0,
+        "child_count": 0,
+        "confidence": 1.0,
+        "date_range": "2026-07-29 至 2026-07-31",
+        "days": 3,
+        "destination": "杭州",
+        "dietary_preferences": [],
+        "hotel_preference": null,
+        "interests": [
+          "人文历史",
+          "轻松慢游"
+        ],
+        "must_visit": [],
+        "origin": "上海",
+        "output_preference": null,
+        "pace": "relaxed",
+        "people_count": 2,
+        "people_type": "情侣",
+        "senior_count": 0,
+        "transport_preference": null,
+        "travel_style": "人文历史、轻松慢游"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 7,
+      "stage": "understanding",
+      "type": "trip_intent",
+      "event_id": "demo:hangzhou-humanities-3d:event:0007",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:hangzhou-humanities-3d:message:0008",
+      "message_id": "demo:hangzhou-humanities-3d:message:0008",
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "role": "assistant",
+      "sequence": 8,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "understanding",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:hangzhou-humanities-3d:event:0008",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0009",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 9,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0010",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 10,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0011",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 11,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0012",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_weather",
+        "priority": "candidate",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 12,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0013",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_search_places",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 13,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0014",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_search_places",
+        "priority": "scheduled_dining",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 14,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0015",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 15,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0016",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 16,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0017",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 17,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0018",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 18,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0019",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_geocode",
+        "priority": "formal",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 19,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0020",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "message": "地点核验排队中",
+        "operation": "map_place_details",
+        "priority": "supplemental",
+        "provider": "baidu-map",
+        "queue_position": 1,
+        "stage": "realtime_verification"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 20,
+      "type": "provider_queue_waiting"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0021",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "资料研究 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "网页/攻略",
+          "本地知识库"
+        ],
+        "duration_ms": 96844,
+        "stage": "research",
+        "status": "completed",
+        "summary": "交通、住宿、美食与目的地资料已汇总",
+        "task": "并行研究交通、住宿、美食与目的地资料"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 21,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0022",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "路线 Agent",
+        "data_sources": [
+          "研究结果",
+          "地图"
+        ],
+        "duration_ms": null,
+        "stage": "route_planning",
+        "status": "running",
+        "summary": null,
+        "task": "编排每日活动、餐饮、预算与路线"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 22,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0023",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "路线 Agent",
+        "data_sources": [
+          "研究结果",
+          "地图"
+        ],
+        "duration_ms": 15,
+        "stage": "route_planning",
+        "status": "completed",
+        "summary": "日程、餐饮、预算与路线编排完成",
+        "task": "编排每日活动、餐饮、预算与路线"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 23,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0024",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "实时核验 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "百度地图"
+        ],
+        "duration_ms": null,
+        "stage": "realtime_verification",
+        "status": "running",
+        "summary": null,
+        "task": "核验正式地点、路线与强实时事实"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 24,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0025",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "实时核验 Agent",
+        "data_sources": [
+          "官方实时交通",
+          "百度地图"
+        ],
+        "duration_ms": 16,
+        "stage": "realtime_verification",
+        "status": "degraded",
+        "summary": "正式地点、路线和强实时事实核验完成",
+        "task": "核验正式地点、路线与强实时事实"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 25,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0026",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "质量 Agent",
+        "data_sources": [
+          "V3 Schema",
+          "来源冲突规则"
+        ],
+        "duration_ms": null,
+        "stage": "validation_completed",
+        "status": "running",
+        "summary": null,
+        "task": "执行完整 V3 Schema 与业务校验"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 26,
+      "type": "agent_stage_started"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0027",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "agent_name": "质量 Agent",
+        "data_sources": [
+          "V3 Schema",
+          "来源冲突规则"
+        ],
+        "duration_ms": 15,
+        "stage": "validation_completed",
+        "status": "degraded",
+        "summary": "完整 V3 Schema 与业务规则校验通过",
+        "task": "执行完整 V3 Schema 与业务校验"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 27,
+      "type": "agent_stage_completed"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0028",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "title": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+          "intent": {
+            "origin": "上海",
+            "destination": "杭州",
+            "date_mode": "fixed",
+            "start_date": "2026-07-29",
+            "end_date": "2026-07-31",
+            "days": 3,
+            "travelers": {
+              "adults": 2,
+              "children": 0,
+              "seniors": 0
+            },
+            "budget": {
+              "amount": 6000.0,
+              "currency": "CNY",
+              "cny_reference_amount": null,
+              "exchange_rate_as_of": null,
+              "source_status": "user_confirmation_required"
+            },
+            "preferences": [
+              "人文历史、轻松慢游",
+              "人文历史",
+              "轻松慢游"
+            ],
+            "dietary_preferences": [],
+            "pace": "relaxed"
+          },
+          "destination_overview": {
+            "name_zh": "杭州",
+            "name_en": null,
+            "country_code": "CN",
+            "country_name": "中国",
+            "timezone": "Asia/Shanghai",
+            "currency": "CNY",
+            "summary": "百度百科摘要整理：杭州市是浙江省下辖地级市。页面介绍重点包括行政区划、地理环境、历史文化、交通经济、风景名胜和地方特产；可作为回答杭州基础情况时的本地知识背景。",
+            "themes": [
+              "人文历史",
+              "轻松慢游"
+            ],
+            "cover_image": null,
+            "evidence_refs": [
+              "src_070a9d3496e4e51d"
+            ]
+          }
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "destination_overview"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 28,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0029",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "outbound_transport": {
+            "direction": "outbound",
+            "scope": "domestic",
+            "status": "user_confirmation_required",
+            "status_reason": "暂无可靠实时票务数据。可先按“上海 → 杭州”比较高铁、航班与长途客运的到达时间，再前往官方渠道核验具体车次、席别、余票与价格。",
+            "selected_option_id": null,
+            "options": [],
+            "official_query_url": null
+          },
+          "return_transport": {
+            "direction": "return",
+            "scope": "domestic",
+            "status": "ready",
+            "status_reason": null,
+            "selected_option_id": null,
+            "options": [
+              {
+                "option_id": "transport_74c6ff28a6952d45",
+                "mode": "train",
+                "service_number": "K752",
+                "departure_place": "杭州",
+                "arrival_place": "上海松江",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 05:30",
+                  "utc": "2026-07-30T21:30:00Z",
+                  "local_iso": "2026-07-31T05:30:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T05:30:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 07:33",
+                  "utc": "2026-07-30T23:33:00Z",
+                  "local_iso": "2026-07-31T07:33:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T07:33:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 123,
+                "transfers": 0,
+                "price": null,
+                "availability": "limited",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "limited",
+                    "remaining_text": "1",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "limited",
+                    "remaining_text": "2",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_10c0f2c227538d47"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_47b5d415bd8942f9",
+                "mode": "train",
+                "service_number": "K528",
+                "departure_place": "杭州南",
+                "arrival_place": "上海松江",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 01:55",
+                  "utc": "2026-07-30T17:55:00Z",
+                  "local_iso": "2026-07-31T01:55:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T01:55:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 03:46",
+                  "utc": "2026-07-30T19:46:00Z",
+                  "local_iso": "2026-07-31T03:46:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T03:46:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 111,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬卧",
+                    "availability": "available",
+                    "remaining_text": "7",
+                    "price": null
+                  },
+                  {
+                    "name": "软卧",
+                    "availability": "limited",
+                    "remaining_text": "1",
+                    "price": null
+                  },
+                  {
+                    "name": "硬座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_10c0f2c227538d47"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              },
+              {
+                "option_id": "transport_a202e933e8984a6d",
+                "mode": "train",
+                "service_number": "K4178",
+                "departure_place": "杭州南",
+                "arrival_place": "上海松江",
+                "departure_hub": null,
+                "arrival_hub": null,
+                "departure_time": {
+                  "display_text": "2026-07-31 02:11",
+                  "utc": "2026-07-30T18:11:00Z",
+                  "local_iso": "2026-07-31T02:11:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T02:11:00+08:00",
+                  "day_offset": 0
+                },
+                "arrival_time": {
+                  "display_text": "2026-07-31 04:05",
+                  "utc": "2026-07-30T20:05:00Z",
+                  "local_iso": "2026-07-31T04:05:00+08:00",
+                  "timezone": "Asia/Shanghai",
+                  "beijing_iso": "2026-07-31T04:05:00+08:00",
+                  "day_offset": 0
+                },
+                "duration_minutes": 114,
+                "transfers": 0,
+                "price": null,
+                "availability": "unknown",
+                "seat_options": [
+                  {
+                    "name": "硬座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "硬卧",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  },
+                  {
+                    "name": "无座",
+                    "availability": "unknown",
+                    "remaining_text": "有",
+                    "price": null
+                  }
+                ],
+                "booking_url": null,
+                "source_status": "realtime_verified",
+                "source_refs": [
+                  "src_10c0f2c227538d47"
+                ],
+                "verified_at": "2000-01-01T00:00:00Z"
+              }
+            ],
+            "official_query_url": null
+          }
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "outbound_transport"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 29,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0030",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "status": "user_confirmation_required",
+          "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+          "planning_lodging_id": "d24e48ebecf42badafee7a0f",
+          "options": [
+            {
+              "lodging_id": "d24e48ebecf42badafee7a0f",
+              "name": "杭州开元名都大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_82f9205e67312cc1",
+                "src_621d4881da618f62",
+                "src_0f893908e1141592",
+                "src_ad998f44d6c3c2cf"
+              ]
+            },
+            {
+              "lodging_id": "7e70ed429089686083a00c43",
+              "name": "杭州维景国际大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "7e70ed429089686083a00c43",
+                "name": "杭州维景国际大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.260335,
+                  "longitude": 120.17728,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市上城区平海路2号(中河中路与平海路交汇口)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "浙江省杭州市上城区平海路2号(中河中路与平海路交汇口)",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_e7c66a667b6193ef",
+                "src_621d4881da618f62",
+                "src_0f893908e1141592",
+                "src_ad998f44d6c3c2cf"
+              ]
+            },
+            {
+              "lodging_id": "e3a7fd135cac234b28b97c59",
+              "name": "杭州索菲特西湖大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "e3a7fd135cac234b28b97c59",
+                "name": "杭州索菲特西湖大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.25139,
+                  "longitude": 120.168122,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "西湖大道333号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "西湖大道333号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_3b1f696d6bb942e3",
+                "src_621d4881da618f62",
+                "src_0f893908e1141592",
+                "src_ad998f44d6c3c2cf"
+              ]
+            }
+          ]
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "lodging_plan"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 30,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0031",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "days": [
+            {
+              "day": 1,
+              "date": "2026-07-29",
+              "timezone": "Asia/Shanghai",
+              "theme": "第1天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_2",
+                  "kind": "attraction",
+                  "title": "点都德(湖滨银泰in77店)",
+                  "day": 1,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "2b13993cc84bae06bfa8221c",
+                    "name": "点都德(湖滨银泰in77店)",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "延安路258号湖滨银泰in77C2区4楼",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.258055,
+                      "longitude": 120.171094,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "延安路258号湖滨银泰in77C2区4楼",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_6b08b9c87891dfd1"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_8fdba5dfc0c30ccd",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_7d4a9b29b4dbca02",
+                  "kind": "attraction",
+                  "title": "西湖风景名胜区",
+                  "day": 1,
+                  "order": 2,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_7d4a9b29b4dbca02",
+                    "name": "西湖风景名胜区",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "西湖风景名胜区是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "西湖风景名胜区是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_a1e3750f6ed58a07",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_d4343b1d0affad88",
+                  "kind": "lodging_departure",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_78b2b3ef92be5de9",
+                  "kind": "lodging_return",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-07-30",
+              "timezone": "Asia/Shanghai",
+              "theme": "第2天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_31066b558857d552",
+                  "kind": "attraction",
+                  "title": "灵隐寺",
+                  "day": 2,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_31066b558857d552",
+                    "name": "灵隐寺",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "灵隐寺是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "灵隐寺是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_7e7b76531efdd846",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_1",
+                  "kind": "food",
+                  "title": "杭州酒家(延安路店)",
+                  "day": 2,
+                  "order": 2,
+                  "start_at": "11:30",
+                  "end_at": "13:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "lunch",
+                  "place": {
+                    "poi_id": "e635b6e94f9526a4fda778ed",
+                    "name": "杭州酒家(延安路店)",
+                    "category": "food",
+                    "city": "杭州",
+                    "address": "延安路205号1-3楼",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.257505,
+                      "longitude": 120.170539,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "延安路205号1-3楼",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_a5f9f7ff1c35c3bb"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_753d34dad23b2fb8",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_9afd4ca4168d0446",
+                  "kind": "attraction",
+                  "title": "中国茶叶博物馆",
+                  "day": 2,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_9afd4ca4168d0446",
+                    "name": "中国茶叶博物馆",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "中国茶叶博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "中国茶叶博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_02ec249e35f4256d",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_3",
+                  "kind": "food",
+                  "title": "漢舍小馆(丽水路店)",
+                  "day": 2,
+                  "order": 4,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "8eb48fa1cd322dbff32d83cb",
+                    "name": "漢舍小馆(丽水路店)",
+                    "category": "food",
+                    "city": "杭州",
+                    "address": "丽水路100-1号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.313136,
+                      "longitude": 120.145555,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "丽水路100-1号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_35d4cb4f28f82748"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_d4ec0cd82261aa4c",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_1620c8c448fcff92",
+                  "kind": "lodging_departure",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_561c49eff0a54832",
+                  "kind": "lodging_return",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-07-31",
+              "timezone": "Asia/Shanghai",
+              "theme": "第3天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_4",
+                  "kind": "food",
+                  "title": "二火锅(杭州店)",
+                  "day": 3,
+                  "order": 1,
+                  "start_at": "07:00",
+                  "end_at": "08:30",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "breakfast",
+                  "place": {
+                    "poi_id": "fc899e6a857fc364593ac871",
+                    "name": "二火锅(杭州店)",
+                    "category": "food",
+                    "city": "杭州",
+                    "address": "平海路124号湖滨88商场B1层（花西子楼下）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.260237,
+                      "longitude": 120.169201,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "平海路124号湖滨88商场B1层（花西子楼下）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_cf42643e746fa87a"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_c8ad08d878206a6b",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_c498a4fa33a2413e",
+                  "kind": "attraction",
+                  "title": "良渚博物院",
+                  "day": 3,
+                  "order": 2,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_c498a4fa33a2413e",
+                    "name": "良渚博物院",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "良渚博物院是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "良渚博物院是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_a6c06f0df14765a6",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_3393a54270dea688",
+                  "kind": "attraction",
+                  "title": "中国京杭大运河博物馆",
+                  "day": 3,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_3393a54270dea688",
+                    "name": "中国京杭大运河博物馆",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "中国京杭大运河博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "中国京杭大运河博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_8385377e16376b8a",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_143b424b746ba7bd",
+                  "kind": "lodging_departure",
+                  "day": 3,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                }
+              ]
+            }
+          ]
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "itinerary"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 31,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0032",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "budget": {
+            "total_budget": {
+              "amount": 6000.0,
+              "currency": "CNY",
+              "cny_reference_amount": null,
+              "exchange_rate_as_of": null,
+              "source_status": "user_confirmation_required"
+            },
+            "estimated_total": null,
+            "categories": [],
+            "unknown_cost_count": 1,
+            "over_budget": false,
+            "overrun_amount": null,
+            "traveler_costs": [
+              {
+                "traveler_type": "adult",
+                "count": 2,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              },
+              {
+                "traveler_type": "child",
+                "count": 0,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              },
+              {
+                "traveler_type": "senior",
+                "count": 0,
+                "estimated_total": null,
+                "pricing_status": "not_applicable"
+              }
+            ],
+            "warnings": [
+              "示例不包含实时价格，实际费用请重新确认。"
+            ]
+          },
+          "candidate_pool": [],
+          "action_items": [
+            {
+              "action_id": "action_f5c463331d9d75ee",
+              "kind": "checklist",
+              "scope": "trip",
+              "target_id": null,
+              "text": "出发前请查询目的地最新天气，并按降雨、气温和季节调整穿着与行程。",
+              "status": "pending",
+              "due_at": null,
+              "timezone": null,
+              "source_ref": null
+            }
+          ],
+          "notes": [
+            {
+              "note_id": "note_8fdba5dfc0c30ccd",
+              "scope": "activity",
+              "target_id": "travel_place_2",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_a1e3750f6ed58a07",
+              "scope": "activity",
+              "target_id": "catalog_7d4a9b29b4dbca02",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_7e7b76531efdd846",
+              "scope": "activity",
+              "target_id": "catalog_31066b558857d552",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_753d34dad23b2fb8",
+              "scope": "activity",
+              "target_id": "travel_place_1",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_02ec249e35f4256d",
+              "scope": "activity",
+              "target_id": "catalog_9afd4ca4168d0446",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_d4ec0cd82261aa4c",
+              "scope": "activity",
+              "target_id": "travel_place_3",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_c8ad08d878206a6b",
+              "scope": "activity",
+              "target_id": "travel_place_4",
+              "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_a6c06f0df14765a6",
+              "scope": "activity",
+              "target_id": "catalog_c498a4fa33a2413e",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "note_id": "note_8385377e16376b8a",
+              "scope": "activity",
+              "target_id": "catalog_3393a54270dea688",
+              "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+              "updated_at": "2000-01-01T00:00:00Z"
+            }
+          ]
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "budget_and_reminders"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 32,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0033",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "status": "user_confirmation_required",
+          "status_reason": "真实路线待计算",
+          "formal_location_ids": [
+            "travel_place_2",
+            "catalog_7d4a9b29b4dbca02",
+            "catalog_31066b558857d552",
+            "travel_place_1",
+            "catalog_9afd4ca4168d0446",
+            "travel_place_3",
+            "travel_place_4",
+            "catalog_c498a4fa33a2413e",
+            "catalog_3393a54270dea688",
+            "anchor_d4343b1d0affad88",
+            "anchor_78b2b3ef92be5de9",
+            "anchor_1620c8c448fcff92",
+            "anchor_561c49eff0a54832",
+            "anchor_143b424b746ba7bd"
+          ],
+          "day_routes": [],
+          "candidates_visible_by_default": false
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "map_guidance"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 33,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0034",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "markdown_filename": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+          "pdf_filename": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+          "markdown_enabled": true,
+          "pdf_enabled": true
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "delivery"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 34,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0035",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "content": {
+          "sources": [
+            {
+              "source_id": "src_a5f9f7ff1c35c3bb",
+              "title": "杭州自由行旅遊攻略（2026）：附近熱門好去處、人氣景點",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_6b08b9c87891dfd1",
+              "title": "【杭州旅遊攻略2026】杭州自由行必去景點",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_35d4cb4f28f82748",
+              "title": "【杭州自由行】2026十大景點美食| 附交通+住宿+行程全攻略",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_cf42643e746fa87a",
+              "title": "【第一次去#杭州旅游怎么安排🤔❓】全网最全2️⃣天1️⃣夜攻略 ...",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "opening_hours",
+                "price"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_070a9d3496e4e51d",
+              "title": "本地旅行知识库",
+              "source_name": "travel_knowledge_base",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "summary",
+                "classic_coverage"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_239a528d435f215e",
+              "title": "地图地点核验",
+              "source_name": "map_search_places",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "coordinates",
+                "address",
+                "category",
+                "route"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_a6be5d6e80bc3de9",
+              "title": "行程顺序与费用估算",
+              "source_name": "行程可行性校验",
+              "status": "user_confirmation_required",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "route",
+                "budget"
+              ],
+              "related_place_ids": [
+                "点都德(湖滨银泰in77店)",
+                "西湖风景名胜区",
+                "灵隐寺",
+                "中国茶叶博物馆",
+                "杭州酒家(延安路店)",
+                "漢舍小馆(丽水路店)",
+                "良渚博物院",
+                "中国京杭大运河博物馆"
+              ]
+            },
+            {
+              "source_id": "src_9287688e3c7137e6",
+              "title": "杭州目的地封面",
+              "source_name": "Unsplash",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "destination_overview.cover_image"
+              ],
+              "related_place_ids": [
+                "杭州"
+              ]
+            },
+            {
+              "source_id": "src_82f9205e67312cc1",
+              "title": "杭州开元名都大酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "杭州开元名都大酒店"
+              ]
+            },
+            {
+              "source_id": "src_e7c66a667b6193ef",
+              "title": "杭州维景国际大酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "杭州维景国际大酒店"
+              ]
+            },
+            {
+              "source_id": "src_3b1f696d6bb942e3",
+              "title": "杭州索菲特西湖大酒店住宿候选",
+              "source_name": "地图住宿专项检索",
+              "status": "map_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": [
+                "杭州索菲特西湖大酒店"
+              ]
+            },
+            {
+              "source_id": "src_621d4881da618f62",
+              "title": "中国杭州10大推荐低价酒店",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_0f893908e1141592",
+              "title": "杭州住宿推薦：精選10間高性價比酒店（每晚低至HK$313 ）",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_ad998f44d6c3c2cf",
+              "title": "预订杭州酒店宾馆住宿限时优惠",
+              "source_name": "-",
+              "status": "guide_reference",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "lodging_plan"
+              ],
+              "related_place_ids": []
+            },
+            {
+              "source_id": "src_10c0f2c227538d47",
+              "title": "铁路票务平台查询结果",
+              "source_name": "铁路票务平台",
+              "status": "realtime_verified",
+              "url": null,
+              "updated_at": "2000-01-01T00:00:00Z",
+              "related_fields": [
+                "return_transport",
+                "price",
+                "availability"
+              ],
+              "related_place_ids": []
+            }
+          ]
+        },
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "section": "sources"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 35,
+      "type": "final_plan_section"
+    },
+    {
+      "event_id": "demo:hangzhou-humanities-3d:event:0036",
+      "event_version": 1,
+      "occurred_at": "2000-01-01T00:00:00+00:00",
+      "payload": {
+        "checksum": "213ef6962b7201936eac6c6f152a73cfdbee9b6d31eeac75a627b15a5865d747",
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "status": "completed_degraded"
+      },
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 36,
+      "type": "trip_plan_completed"
+    },
+    {
+      "document": {
+        "schema_version": "3.0",
+        "plan_id": "demo-hangzhou-humanities-3d",
+        "revision": 1,
+        "status": "degraded",
+        "title": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+        "generated_at": "2000-01-01T00:00:00Z",
+        "locale": "zh-CN",
+        "intent": {
+          "origin": "上海",
+          "destination": "杭州",
+          "date_mode": "fixed",
+          "start_date": "2026-07-29",
+          "end_date": "2026-07-31",
+          "days": 3,
+          "travelers": {
+            "adults": 2,
+            "children": 0,
+            "seniors": 0
+          },
+          "budget": {
+            "amount": 6000.0,
+            "currency": "CNY",
+            "cny_reference_amount": null,
+            "exchange_rate_as_of": null,
+            "source_status": "user_confirmation_required"
+          },
+          "preferences": [
+            "人文历史、轻松慢游",
+            "人文历史",
+            "轻松慢游"
+          ],
+          "dietary_preferences": [],
+          "pace": "relaxed"
+        },
+        "destination_overview": {
+          "name_zh": "杭州",
+          "name_en": null,
+          "country_code": "CN",
+          "country_name": "中国",
+          "timezone": "Asia/Shanghai",
+          "currency": "CNY",
+          "summary": "百度百科摘要整理：杭州市是浙江省下辖地级市。页面介绍重点包括行政区划、地理环境、历史文化、交通经济、风景名胜和地方特产；可作为回答杭州基础情况时的本地知识背景。",
+          "themes": [
+            "人文历史",
+            "轻松慢游"
+          ],
+          "cover_image": null,
+          "evidence_refs": [
+            "src_070a9d3496e4e51d"
+          ]
+        },
+        "outbound_transport": {
+          "direction": "outbound",
+          "scope": "domestic",
+          "status": "user_confirmation_required",
+          "status_reason": "暂无可靠实时票务数据。可先按“上海 → 杭州”比较高铁、航班与长途客运的到达时间，再前往官方渠道核验具体车次、席别、余票与价格。",
+          "selected_option_id": null,
+          "options": [],
+          "official_query_url": null
+        },
+        "lodging_plan": {
+          "status": "user_confirmation_required",
+          "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+          "planning_lodging_id": "d24e48ebecf42badafee7a0f",
+          "options": [
+            {
+              "lodging_id": "d24e48ebecf42badafee7a0f",
+              "name": "杭州开元名都大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_82f9205e67312cc1",
+                "src_621d4881da618f62",
+                "src_0f893908e1141592",
+                "src_ad998f44d6c3c2cf"
+              ]
+            },
+            {
+              "lodging_id": "7e70ed429089686083a00c43",
+              "name": "杭州维景国际大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "7e70ed429089686083a00c43",
+                "name": "杭州维景国际大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.260335,
+                  "longitude": 120.17728,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市上城区平海路2号(中河中路与平海路交汇口)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "浙江省杭州市上城区平海路2号(中河中路与平海路交汇口)",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_e7c66a667b6193ef",
+                "src_621d4881da618f62",
+                "src_0f893908e1141592",
+                "src_ad998f44d6c3c2cf"
+              ]
+            },
+            {
+              "lodging_id": "e3a7fd135cac234b28b97c59",
+              "name": "杭州索菲特西湖大酒店",
+              "area": "区域待确认",
+              "place": {
+                "poi_id": "e3a7fd135cac234b28b97c59",
+                "name": "杭州索菲特西湖大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.25139,
+                  "longitude": 120.168122,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "西湖大道333号",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "nightly_price": null,
+              "total_price": null,
+              "rating": null,
+              "reasons": [
+                "西湖大道333号",
+                "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+              ],
+              "booking_url": null,
+              "source_status": "guide_reference",
+              "source_refs": [
+                "src_3b1f696d6bb942e3",
+                "src_621d4881da618f62",
+                "src_0f893908e1141592",
+                "src_ad998f44d6c3c2cf"
+              ]
+            }
+          ]
+        },
+        "itinerary": {
+          "days": [
+            {
+              "day": 1,
+              "date": "2026-07-29",
+              "timezone": "Asia/Shanghai",
+              "theme": "第1天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_2",
+                  "kind": "attraction",
+                  "title": "点都德(湖滨银泰in77店)",
+                  "day": 1,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "2b13993cc84bae06bfa8221c",
+                    "name": "点都德(湖滨银泰in77店)",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "延安路258号湖滨银泰in77C2区4楼",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.258055,
+                      "longitude": 120.171094,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "延安路258号湖滨银泰in77C2区4楼",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_6b08b9c87891dfd1"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_8fdba5dfc0c30ccd",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_7d4a9b29b4dbca02",
+                  "kind": "attraction",
+                  "title": "西湖风景名胜区",
+                  "day": 1,
+                  "order": 2,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_7d4a9b29b4dbca02",
+                    "name": "西湖风景名胜区",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "西湖风景名胜区是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "西湖风景名胜区是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_a1e3750f6ed58a07",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_d4343b1d0affad88",
+                  "kind": "lodging_departure",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_78b2b3ef92be5de9",
+                  "kind": "lodging_return",
+                  "day": 1,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 2,
+              "date": "2026-07-30",
+              "timezone": "Asia/Shanghai",
+              "theme": "第2天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "catalog_31066b558857d552",
+                  "kind": "attraction",
+                  "title": "灵隐寺",
+                  "day": 2,
+                  "order": 1,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_31066b558857d552",
+                    "name": "灵隐寺",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "灵隐寺是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "灵隐寺是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_7e7b76531efdd846",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_1",
+                  "kind": "food",
+                  "title": "杭州酒家(延安路店)",
+                  "day": 2,
+                  "order": 2,
+                  "start_at": "11:30",
+                  "end_at": "13:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "lunch",
+                  "place": {
+                    "poi_id": "e635b6e94f9526a4fda778ed",
+                    "name": "杭州酒家(延安路店)",
+                    "category": "food",
+                    "city": "杭州",
+                    "address": "延安路205号1-3楼",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.257505,
+                      "longitude": 120.170539,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "延安路205号1-3楼",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_a5f9f7ff1c35c3bb"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_753d34dad23b2fb8",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_9afd4ca4168d0446",
+                  "kind": "attraction",
+                  "title": "中国茶叶博物馆",
+                  "day": 2,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_9afd4ca4168d0446",
+                    "name": "中国茶叶博物馆",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "中国茶叶博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "中国茶叶博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_02ec249e35f4256d",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "travel_place_3",
+                  "kind": "food",
+                  "title": "漢舍小馆(丽水路店)",
+                  "day": 2,
+                  "order": 4,
+                  "start_at": "17:30",
+                  "end_at": "19:00",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "dinner",
+                  "place": {
+                    "poi_id": "8eb48fa1cd322dbff32d83cb",
+                    "name": "漢舍小馆(丽水路店)",
+                    "category": "food",
+                    "city": "杭州",
+                    "address": "丽水路100-1号",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.313136,
+                      "longitude": 120.145555,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "丽水路100-1号",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_35d4cb4f28f82748"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_d4ec0cd82261aa4c",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_1620c8c448fcff92",
+                  "kind": "lodging_departure",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                },
+                {
+                  "anchor_id": "anchor_561c49eff0a54832",
+                  "kind": "lodging_return",
+                  "day": 2,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "返回规划住宿点"
+                }
+              ]
+            },
+            {
+              "day": 3,
+              "date": "2026-07-31",
+              "timezone": "Asia/Shanghai",
+              "theme": "第3天行程",
+              "note_id": null,
+              "activities": [
+                {
+                  "activity_id": "travel_place_4",
+                  "kind": "food",
+                  "title": "二火锅(杭州店)",
+                  "day": 3,
+                  "order": 1,
+                  "start_at": "07:00",
+                  "end_at": "08:30",
+                  "duration_minutes": 90,
+                  "fixed_time": false,
+                  "meal_type": "breakfast",
+                  "place": {
+                    "poi_id": "fc899e6a857fc364593ac871",
+                    "name": "二火锅(杭州店)",
+                    "category": "food",
+                    "city": "杭州",
+                    "address": "平海路124号湖滨88商场B1层（花西子楼下）",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.260237,
+                      "longitude": 120.169201,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "平海路124号湖滨88商场B1层（花西子楼下）",
+                    "review_summary": null,
+                    "evidence_refs": [
+                      "src_cf42643e746fa87a"
+                    ]
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_c8ad08d878206a6b",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_c498a4fa33a2413e",
+                  "kind": "attraction",
+                  "title": "良渚博物院",
+                  "day": 3,
+                  "order": 2,
+                  "start_at": "09:30",
+                  "end_at": "11:30",
+                  "duration_minutes": 120,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_c498a4fa33a2413e",
+                    "name": "良渚博物院",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "良渚博物院是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "良渚博物院是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_a6c06f0df14765a6",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                },
+                {
+                  "activity_id": "catalog_3393a54270dea688",
+                  "kind": "attraction",
+                  "title": "中国京杭大运河博物馆",
+                  "day": 3,
+                  "order": 3,
+                  "start_at": "13:30",
+                  "end_at": "16:00",
+                  "duration_minutes": 150,
+                  "fixed_time": false,
+                  "meal_type": null,
+                  "place": {
+                    "poi_id": "catalog_3393a54270dea688",
+                    "name": "中国京杭大运河博物馆",
+                    "category": "attraction",
+                    "city": "杭州",
+                    "address": "中国京杭大运河博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": null,
+                    "summary": "中国京杭大运河博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "images": [],
+                  "cover_image_id": null,
+                  "estimated_cost": null,
+                  "reservation": null,
+                  "note_id": "note_8385377e16376b8a",
+                  "evidence_refs": [],
+                  "route_to_next": null,
+                  "insertion_options": [],
+                  "insertion_unavailable_reason": null
+                }
+              ],
+              "anchors": [
+                {
+                  "anchor_id": "anchor_143b424b746ba7bd",
+                  "kind": "lodging_departure",
+                  "day": 3,
+                  "place": {
+                    "poi_id": "d24e48ebecf42badafee7a0f",
+                    "name": "杭州开元名都大酒店",
+                    "category": "hotel",
+                    "city": "杭州",
+                    "address": null,
+                    "phone": null,
+                    "opening_hours": null,
+                    "timezone": null,
+                    "coordinates": {
+                      "latitude": 30.185953,
+                      "longitude": 120.274686,
+                      "coordinate_system": "WGS84"
+                    },
+                    "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                    "review_summary": null,
+                    "evidence_refs": []
+                  },
+                  "display_label": "从规划住宿点出发"
+                }
+              ]
+            }
+          ]
+        },
+        "candidate_pool": [],
+        "action_items": [
+          {
+            "action_id": "action_f5c463331d9d75ee",
+            "kind": "checklist",
+            "scope": "trip",
+            "target_id": null,
+            "text": "出发前请查询目的地最新天气，并按降雨、气温和季节调整穿着与行程。",
+            "status": "pending",
+            "due_at": null,
+            "timezone": null,
+            "source_ref": null
+          }
+        ],
+        "notes": [
+          {
+            "note_id": "note_8fdba5dfc0c30ccd",
+            "scope": "activity",
+            "target_id": "travel_place_2",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_a1e3750f6ed58a07",
+            "scope": "activity",
+            "target_id": "catalog_7d4a9b29b4dbca02",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_7e7b76531efdd846",
+            "scope": "activity",
+            "target_id": "catalog_31066b558857d552",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_753d34dad23b2fb8",
+            "scope": "activity",
+            "target_id": "travel_place_1",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_02ec249e35f4256d",
+            "scope": "activity",
+            "target_id": "catalog_9afd4ca4168d0446",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_d4ec0cd82261aa4c",
+            "scope": "activity",
+            "target_id": "travel_place_3",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_c8ad08d878206a6b",
+            "scope": "activity",
+            "target_id": "travel_place_4",
+            "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_a6c06f0df14765a6",
+            "scope": "activity",
+            "target_id": "catalog_c498a4fa33a2413e",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          },
+          {
+            "note_id": "note_8385377e16376b8a",
+            "scope": "activity",
+            "target_id": "catalog_3393a54270dea688",
+            "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+            "updated_at": "2000-01-01T00:00:00Z"
+          }
+        ],
+        "budget": {
+          "total_budget": {
+            "amount": 6000.0,
+            "currency": "CNY",
+            "cny_reference_amount": null,
+            "exchange_rate_as_of": null,
+            "source_status": "user_confirmation_required"
+          },
+          "estimated_total": null,
+          "categories": [],
+          "unknown_cost_count": 1,
+          "over_budget": false,
+          "overrun_amount": null,
+          "traveler_costs": [
+            {
+              "traveler_type": "adult",
+              "count": 2,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            },
+            {
+              "traveler_type": "child",
+              "count": 0,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            },
+            {
+              "traveler_type": "senior",
+              "count": 0,
+              "estimated_total": null,
+              "pricing_status": "not_applicable"
+            }
+          ],
+          "warnings": [
+            "示例不包含实时价格，实际费用请重新确认。"
+          ]
+        },
+        "return_transport": {
+          "direction": "return",
+          "scope": "domestic",
+          "status": "ready",
+          "status_reason": null,
+            "selected_option_id": null,
+          "options": [
+            {
+              "option_id": "transport_74c6ff28a6952d45",
+              "mode": "train",
+              "service_number": "K752",
+              "departure_place": "杭州",
+              "arrival_place": "上海松江",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 05:30",
+                "utc": "2026-07-30T21:30:00Z",
+                "local_iso": "2026-07-31T05:30:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T05:30:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 07:33",
+                "utc": "2026-07-30T23:33:00Z",
+                "local_iso": "2026-07-31T07:33:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T07:33:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 123,
+              "transfers": 0,
+              "price": null,
+              "availability": "limited",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "limited",
+                  "remaining_text": "1",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "limited",
+                  "remaining_text": "2",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_10c0f2c227538d47"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_47b5d415bd8942f9",
+              "mode": "train",
+              "service_number": "K528",
+              "departure_place": "杭州南",
+              "arrival_place": "上海松江",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 01:55",
+                "utc": "2026-07-30T17:55:00Z",
+                "local_iso": "2026-07-31T01:55:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T01:55:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 03:46",
+                "utc": "2026-07-30T19:46:00Z",
+                "local_iso": "2026-07-31T03:46:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T03:46:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 111,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬卧",
+                  "availability": "available",
+                  "remaining_text": "7",
+                  "price": null
+                },
+                {
+                  "name": "软卧",
+                  "availability": "limited",
+                  "remaining_text": "1",
+                  "price": null
+                },
+                {
+                  "name": "硬座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_10c0f2c227538d47"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            },
+            {
+              "option_id": "transport_a202e933e8984a6d",
+              "mode": "train",
+              "service_number": "K4178",
+              "departure_place": "杭州南",
+              "arrival_place": "上海松江",
+              "departure_hub": null,
+              "arrival_hub": null,
+              "departure_time": {
+                "display_text": "2026-07-31 02:11",
+                "utc": "2026-07-30T18:11:00Z",
+                "local_iso": "2026-07-31T02:11:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T02:11:00+08:00",
+                "day_offset": 0
+              },
+              "arrival_time": {
+                "display_text": "2026-07-31 04:05",
+                "utc": "2026-07-30T20:05:00Z",
+                "local_iso": "2026-07-31T04:05:00+08:00",
+                "timezone": "Asia/Shanghai",
+                "beijing_iso": "2026-07-31T04:05:00+08:00",
+                "day_offset": 0
+              },
+              "duration_minutes": 114,
+              "transfers": 0,
+              "price": null,
+              "availability": "unknown",
+              "seat_options": [
+                {
+                  "name": "硬座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "硬卧",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                },
+                {
+                  "name": "无座",
+                  "availability": "unknown",
+                  "remaining_text": "有",
+                  "price": null
+                }
+              ],
+              "booking_url": null,
+              "source_status": "realtime_verified",
+              "source_refs": [
+                "src_10c0f2c227538d47"
+              ],
+              "verified_at": "2000-01-01T00:00:00Z"
+            }
+          ],
+          "official_query_url": null
+        },
+        "map_guidance": {
+          "status": "user_confirmation_required",
+          "status_reason": "真实路线待计算",
+          "formal_location_ids": [
+            "travel_place_2",
+            "catalog_7d4a9b29b4dbca02",
+            "catalog_31066b558857d552",
+            "travel_place_1",
+            "catalog_9afd4ca4168d0446",
+            "travel_place_3",
+            "travel_place_4",
+            "catalog_c498a4fa33a2413e",
+            "catalog_3393a54270dea688",
+            "anchor_d4343b1d0affad88",
+            "anchor_78b2b3ef92be5de9",
+            "anchor_1620c8c448fcff92",
+            "anchor_561c49eff0a54832",
+            "anchor_143b424b746ba7bd"
+          ],
+          "day_routes": [],
+          "candidates_visible_by_default": false
+        },
+        "sources": [
+          {
+            "source_id": "src_a5f9f7ff1c35c3bb",
+            "title": "杭州自由行旅遊攻略（2026）：附近熱門好去處、人氣景點",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_6b08b9c87891dfd1",
+            "title": "【杭州旅遊攻略2026】杭州自由行必去景點",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_35d4cb4f28f82748",
+            "title": "【杭州自由行】2026十大景點美食| 附交通+住宿+行程全攻略",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_cf42643e746fa87a",
+            "title": "【第一次去#杭州旅游怎么安排🤔❓】全网最全2️⃣天1️⃣夜攻略 ...",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "opening_hours",
+              "price"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_070a9d3496e4e51d",
+            "title": "本地旅行知识库",
+            "source_name": "travel_knowledge_base",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "summary",
+              "classic_coverage"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_239a528d435f215e",
+            "title": "地图地点核验",
+            "source_name": "map_search_places",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "coordinates",
+              "address",
+              "category",
+              "route"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_a6be5d6e80bc3de9",
+            "title": "行程顺序与费用估算",
+            "source_name": "行程可行性校验",
+            "status": "user_confirmation_required",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "route",
+              "budget"
+            ],
+            "related_place_ids": [
+              "点都德(湖滨银泰in77店)",
+              "西湖风景名胜区",
+              "灵隐寺",
+              "中国茶叶博物馆",
+              "杭州酒家(延安路店)",
+              "漢舍小馆(丽水路店)",
+              "良渚博物院",
+              "中国京杭大运河博物馆"
+            ]
+          },
+          {
+            "source_id": "src_9287688e3c7137e6",
+            "title": "杭州目的地封面",
+            "source_name": "Unsplash",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "destination_overview.cover_image"
+            ],
+            "related_place_ids": [
+              "杭州"
+            ]
+          },
+          {
+            "source_id": "src_82f9205e67312cc1",
+            "title": "杭州开元名都大酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "杭州开元名都大酒店"
+            ]
+          },
+          {
+            "source_id": "src_e7c66a667b6193ef",
+            "title": "杭州维景国际大酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "杭州维景国际大酒店"
+            ]
+          },
+          {
+            "source_id": "src_3b1f696d6bb942e3",
+            "title": "杭州索菲特西湖大酒店住宿候选",
+            "source_name": "地图住宿专项检索",
+            "status": "map_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": [
+              "杭州索菲特西湖大酒店"
+            ]
+          },
+          {
+            "source_id": "src_621d4881da618f62",
+            "title": "中国杭州10大推荐低价酒店",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_0f893908e1141592",
+            "title": "杭州住宿推薦：精選10間高性價比酒店（每晚低至HK$313 ）",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_ad998f44d6c3c2cf",
+            "title": "预订杭州酒店宾馆住宿限时优惠",
+            "source_name": "-",
+            "status": "guide_reference",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "lodging_plan"
+            ],
+            "related_place_ids": []
+          },
+          {
+            "source_id": "src_10c0f2c227538d47",
+            "title": "铁路票务平台查询结果",
+            "source_name": "铁路票务平台",
+            "status": "realtime_verified",
+            "url": null,
+            "updated_at": "2000-01-01T00:00:00Z",
+            "related_fields": [
+              "return_transport",
+              "price",
+              "availability"
+            ],
+            "related_place_ids": []
+          }
+        ],
+        "delivery": {
+          "markdown_filename": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+          "pdf_filename": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+          "markdown_enabled": true,
+          "pdf_enabled": true
+        },
+        "validation": {
+          "valid": true,
+          "degraded": true,
+          "issues": [
+            {
+              "code": "CANDIDATE_POOL_VERIFICATION_INSUFFICIENT",
+              "message": "部分候选地点缺少稳定 POI 或坐标，未进入可排程候选池",
+              "severity": "warning",
+              "target_id": null
+            },
+            {
+              "code": "MISSING_COORDINATES",
+              "message": "5个地点缺少地图坐标：西湖风景名胜区, 灵隐寺, 中国茶叶博物馆, 良渚博物院, 中国京杭大运河博物馆。",
+              "severity": "warning",
+              "target_id": null
+            },
+            {
+              "code": "MISSING_HOTEL_AREA",
+              "message": "多日行程缺少住宿区域或酒店建议。",
+              "severity": "info",
+              "target_id": null
+            }
+          ]
+        }
+      },
+      "plan": {},
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 37,
+      "type": "trip_plan",
+      "version": 1,
+      "event_id": "demo:hangzhou-humanities-3d:event:0037",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:hangzhou-humanities-3d:message:0038",
+      "message_id": "demo:hangzhou-humanities-3d:message:0038",
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "role": "assistant",
+      "sequence": 38,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "researching",
+      "step_type": "tool_progress",
+      "type": "chat_chunk",
+      "event_id": "demo:hangzhou-humanities-3d:event:0038",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "agent_type": "assistant",
+      "content": "已录制的过程摘要；正式方案将按章节展示。",
+      "linked_user_message_id": "demo:hangzhou-humanities-3d:message:0039",
+      "message_id": "demo:hangzhou-humanities-3d:message:0039",
+      "replace": true,
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "role": "assistant",
+      "sequence": 39,
+      "show_content": "已录制的过程摘要；正式方案将按章节展示。",
+      "stage": "finalizing",
+      "step_type": "final_answer",
+      "type": "chat_chunk",
+      "event_id": "demo:hangzhou-humanities-3d:event:0039",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    },
+    {
+      "finish_reason": "completed",
+      "message_id": "demo:hangzhou-humanities-3d:message:0040",
+      "request_id": "demo:hangzhou-humanities-3d:run",
+      "sequence": 40,
+      "type": "chat_complete",
+      "event_id": "demo:hangzhou-humanities-3d:event:0040",
+      "run_id": "demo:hangzhou-humanities-3d:run",
+      "occurred_at": "2000-01-01T00:00:00+00:00"
+    }
+  ],
+  "document": {
+    "schema_version": "3.0",
+    "plan_id": "demo-hangzhou-humanities-3d",
+    "revision": 1,
+    "status": "degraded",
+    "title": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。",
+    "generated_at": "2000-01-01T00:00:00Z",
+    "locale": "zh-CN",
+    "intent": {
+      "origin": "上海",
+      "destination": "杭州",
+      "date_mode": "fixed",
+      "start_date": "2026-07-29",
+      "end_date": "2026-07-31",
+      "days": 3,
+      "travelers": {
+        "adults": 2,
+        "children": 0,
+        "seniors": 0
+      },
+      "budget": {
+        "amount": 6000.0,
+        "currency": "CNY",
+        "cny_reference_amount": null,
+        "exchange_rate_as_of": null,
+        "source_status": "user_confirmation_required"
+      },
+      "preferences": [
+        "人文历史、轻松慢游",
+        "人文历史",
+        "轻松慢游"
+      ],
+      "dietary_preferences": [],
+      "pace": "relaxed"
+    },
+    "destination_overview": {
+      "name_zh": "杭州",
+      "name_en": null,
+      "country_code": "CN",
+      "country_name": "中国",
+      "timezone": "Asia/Shanghai",
+      "currency": "CNY",
+      "summary": "百度百科摘要整理：杭州市是浙江省下辖地级市。页面介绍重点包括行政区划、地理环境、历史文化、交通经济、风景名胜和地方特产；可作为回答杭州基础情况时的本地知识背景。",
+      "themes": [
+        "人文历史",
+        "轻松慢游"
+      ],
+      "cover_image": null,
+      "evidence_refs": [
+        "src_070a9d3496e4e51d"
+      ]
+    },
+    "outbound_transport": {
+      "direction": "outbound",
+      "scope": "domestic",
+      "status": "user_confirmation_required",
+      "status_reason": "暂无可靠实时票务数据。可先按“上海 → 杭州”比较高铁、航班与长途客运的到达时间，再前往官方渠道核验具体车次、席别、余票与价格。",
+      "selected_option_id": null,
+      "options": [],
+      "official_query_url": null
+    },
+    "lodging_plan": {
+      "status": "user_confirmation_required",
+      "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+      "planning_lodging_id": "d24e48ebecf42badafee7a0f",
+      "options": [
+        {
+          "lodging_id": "d24e48ebecf42badafee7a0f",
+          "name": "杭州开元名都大酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "d24e48ebecf42badafee7a0f",
+            "name": "杭州开元名都大酒店",
+            "category": "hotel",
+            "city": "杭州",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 30.185953,
+              "longitude": 120.274686,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_82f9205e67312cc1",
+            "src_621d4881da618f62",
+            "src_0f893908e1141592",
+            "src_ad998f44d6c3c2cf"
+          ]
+        },
+        {
+          "lodging_id": "7e70ed429089686083a00c43",
+          "name": "杭州维景国际大酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "7e70ed429089686083a00c43",
+            "name": "杭州维景国际大酒店",
+            "category": "hotel",
+            "city": "杭州",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 30.260335,
+              "longitude": 120.17728,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "浙江省杭州市上城区平海路2号(中河中路与平海路交汇口)",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "浙江省杭州市上城区平海路2号(中河中路与平海路交汇口)",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_e7c66a667b6193ef",
+            "src_621d4881da618f62",
+            "src_0f893908e1141592",
+            "src_ad998f44d6c3c2cf"
+          ]
+        },
+        {
+          "lodging_id": "e3a7fd135cac234b28b97c59",
+          "name": "杭州索菲特西湖大酒店",
+          "area": "区域待确认",
+          "place": {
+            "poi_id": "e3a7fd135cac234b28b97c59",
+            "name": "杭州索菲特西湖大酒店",
+            "category": "hotel",
+            "city": "杭州",
+            "address": null,
+            "phone": null,
+            "opening_hours": null,
+            "timezone": null,
+            "coordinates": {
+              "latitude": 30.25139,
+              "longitude": 120.168122,
+              "coordinate_system": "WGS84"
+            },
+            "summary": "西湖大道333号",
+            "review_summary": null,
+            "evidence_refs": []
+          },
+          "nightly_price": null,
+          "total_price": null,
+          "rating": null,
+          "reasons": [
+            "西湖大道333号",
+            "社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。"
+          ],
+          "booking_url": null,
+          "source_status": "guide_reference",
+          "source_refs": [
+            "src_3b1f696d6bb942e3",
+            "src_621d4881da618f62",
+            "src_0f893908e1141592",
+            "src_ad998f44d6c3c2cf"
+          ]
+        }
+      ]
+    },
+    "itinerary": {
+      "days": [
+        {
+          "day": 1,
+          "date": "2026-07-29",
+          "timezone": "Asia/Shanghai",
+          "theme": "第1天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "travel_place_2",
+              "kind": "attraction",
+              "title": "点都德(湖滨银泰in77店)",
+              "day": 1,
+              "order": 1,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "2b13993cc84bae06bfa8221c",
+                "name": "点都德(湖滨银泰in77店)",
+                "category": "attraction",
+                "city": "杭州",
+                "address": "延安路258号湖滨银泰in77C2区4楼",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.258055,
+                  "longitude": 120.171094,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "延安路258号湖滨银泰in77C2区4楼",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_6b08b9c87891dfd1"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_8fdba5dfc0c30ccd",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_7d4a9b29b4dbca02",
+              "kind": "attraction",
+              "title": "西湖风景名胜区",
+              "day": 1,
+              "order": 2,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_7d4a9b29b4dbca02",
+                "name": "西湖风景名胜区",
+                "category": "attraction",
+                "city": "杭州",
+                "address": "西湖风景名胜区是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "西湖风景名胜区是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_a1e3750f6ed58a07",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_d4343b1d0affad88",
+              "kind": "lodging_departure",
+              "day": 1,
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            },
+            {
+              "anchor_id": "anchor_78b2b3ef92be5de9",
+              "kind": "lodging_return",
+              "day": 1,
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "返回规划住宿点"
+            }
+          ]
+        },
+        {
+          "day": 2,
+          "date": "2026-07-30",
+          "timezone": "Asia/Shanghai",
+          "theme": "第2天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "catalog_31066b558857d552",
+              "kind": "attraction",
+              "title": "灵隐寺",
+              "day": 2,
+              "order": 1,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_31066b558857d552",
+                "name": "灵隐寺",
+                "category": "attraction",
+                "city": "杭州",
+                "address": "灵隐寺是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "灵隐寺是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_7e7b76531efdd846",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_1",
+              "kind": "food",
+              "title": "杭州酒家(延安路店)",
+              "day": 2,
+              "order": 2,
+              "start_at": "11:30",
+              "end_at": "13:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "lunch",
+              "place": {
+                "poi_id": "e635b6e94f9526a4fda778ed",
+                "name": "杭州酒家(延安路店)",
+                "category": "food",
+                "city": "杭州",
+                "address": "延安路205号1-3楼",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.257505,
+                  "longitude": 120.170539,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "延安路205号1-3楼",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_a5f9f7ff1c35c3bb"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_753d34dad23b2fb8",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_9afd4ca4168d0446",
+              "kind": "attraction",
+              "title": "中国茶叶博物馆",
+              "day": 2,
+              "order": 3,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_9afd4ca4168d0446",
+                "name": "中国茶叶博物馆",
+                "category": "attraction",
+                "city": "杭州",
+                "address": "中国茶叶博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "中国茶叶博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_02ec249e35f4256d",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "travel_place_3",
+              "kind": "food",
+              "title": "漢舍小馆(丽水路店)",
+              "day": 2,
+              "order": 4,
+              "start_at": "17:30",
+              "end_at": "19:00",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "dinner",
+              "place": {
+                "poi_id": "8eb48fa1cd322dbff32d83cb",
+                "name": "漢舍小馆(丽水路店)",
+                "category": "food",
+                "city": "杭州",
+                "address": "丽水路100-1号",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.313136,
+                  "longitude": 120.145555,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "丽水路100-1号",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_35d4cb4f28f82748"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_d4ec0cd82261aa4c",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_1620c8c448fcff92",
+              "kind": "lodging_departure",
+              "day": 2,
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            },
+            {
+              "anchor_id": "anchor_561c49eff0a54832",
+              "kind": "lodging_return",
+              "day": 2,
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "返回规划住宿点"
+            }
+          ]
+        },
+        {
+          "day": 3,
+          "date": "2026-07-31",
+          "timezone": "Asia/Shanghai",
+          "theme": "第3天行程",
+          "note_id": null,
+          "activities": [
+            {
+              "activity_id": "travel_place_4",
+              "kind": "food",
+              "title": "二火锅(杭州店)",
+              "day": 3,
+              "order": 1,
+              "start_at": "07:00",
+              "end_at": "08:30",
+              "duration_minutes": 90,
+              "fixed_time": false,
+              "meal_type": "breakfast",
+              "place": {
+                "poi_id": "fc899e6a857fc364593ac871",
+                "name": "二火锅(杭州店)",
+                "category": "food",
+                "city": "杭州",
+                "address": "平海路124号湖滨88商场B1层（花西子楼下）",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.260237,
+                  "longitude": 120.169201,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "平海路124号湖滨88商场B1层（花西子楼下）",
+                "review_summary": null,
+                "evidence_refs": [
+                  "src_cf42643e746fa87a"
+                ]
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_c8ad08d878206a6b",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_c498a4fa33a2413e",
+              "kind": "attraction",
+              "title": "良渚博物院",
+              "day": 3,
+              "order": 2,
+              "start_at": "09:30",
+              "end_at": "11:30",
+              "duration_minutes": 120,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_c498a4fa33a2413e",
+                "name": "良渚博物院",
+                "category": "attraction",
+                "city": "杭州",
+                "address": "良渚博物院是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "良渚博物院是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_a6c06f0df14765a6",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            },
+            {
+              "activity_id": "catalog_3393a54270dea688",
+              "kind": "attraction",
+              "title": "中国京杭大运河博物馆",
+              "day": 3,
+              "order": 3,
+              "start_at": "13:30",
+              "end_at": "16:00",
+              "duration_minutes": 150,
+              "fixed_time": false,
+              "meal_type": null,
+              "place": {
+                "poi_id": "catalog_3393a54270dea688",
+                "name": "中国京杭大运河博物馆",
+                "category": "attraction",
+                "city": "杭州",
+                "address": "中国京杭大运河博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": null,
+                "summary": "中国京杭大运河博物馆是杭州的代表性游览候选；具体开放信息需在出发前复核。",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "images": [],
+              "cover_image_id": null,
+              "estimated_cost": null,
+              "reservation": null,
+              "note_id": "note_8385377e16376b8a",
+              "evidence_refs": [],
+              "route_to_next": null,
+              "insertion_options": [],
+              "insertion_unavailable_reason": null
+            }
+          ],
+          "anchors": [
+            {
+              "anchor_id": "anchor_143b424b746ba7bd",
+              "kind": "lodging_departure",
+              "day": 3,
+              "place": {
+                "poi_id": "d24e48ebecf42badafee7a0f",
+                "name": "杭州开元名都大酒店",
+                "category": "hotel",
+                "city": "杭州",
+                "address": null,
+                "phone": null,
+                "opening_hours": null,
+                "timezone": null,
+                "coordinates": {
+                  "latitude": 30.185953,
+                  "longitude": 120.274686,
+                  "coordinate_system": "WGS84"
+                },
+                "summary": "浙江省杭州市萧山区市心中路818号(萧山区人民政府东南侧)",
+                "review_summary": null,
+                "evidence_refs": []
+              },
+              "display_label": "从规划住宿点出发"
+            }
+          ]
+        }
+      ]
+    },
+    "candidate_pool": [],
+    "action_items": [
+      {
+        "action_id": "action_f5c463331d9d75ee",
+        "kind": "checklist",
+        "scope": "trip",
+        "target_id": null,
+        "text": "出发前请查询目的地最新天气，并按降雨、气温和季节调整穿着与行程。",
+        "status": "pending",
+        "due_at": null,
+        "timezone": null,
+        "source_ref": null
+      }
+    ],
+    "notes": [
+      {
+        "note_id": "note_8fdba5dfc0c30ccd",
+        "scope": "activity",
+        "target_id": "travel_place_2",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_a1e3750f6ed58a07",
+        "scope": "activity",
+        "target_id": "catalog_7d4a9b29b4dbca02",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_7e7b76531efdd846",
+        "scope": "activity",
+        "target_id": "catalog_31066b558857d552",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_753d34dad23b2fb8",
+        "scope": "activity",
+        "target_id": "travel_place_1",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_02ec249e35f4256d",
+        "scope": "activity",
+        "target_id": "catalog_9afd4ca4168d0446",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_d4ec0cd82261aa4c",
+        "scope": "activity",
+        "target_id": "travel_place_3",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_c8ad08d878206a6b",
+        "scope": "activity",
+        "target_id": "travel_place_4",
+        "content": "已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。\n用餐时段为目的地当地规划窗口；该餐厅营业时间仍需在出发前核验。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_a6c06f0df14765a6",
+        "scope": "activity",
+        "target_id": "catalog_c498a4fa33a2413e",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      },
+      {
+        "note_id": "note_8385377e16376b8a",
+        "scope": "activity",
+        "target_id": "catalog_3393a54270dea688",
+        "content": "地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。\n请预留返程时间，并在出发前核验车站或机场、班次及行李寄存安排。",
+        "updated_at": "2000-01-01T00:00:00Z"
+      }
+    ],
+    "budget": {
+      "total_budget": {
+        "amount": 6000.0,
+        "currency": "CNY",
+        "cny_reference_amount": null,
+        "exchange_rate_as_of": null,
+        "source_status": "user_confirmation_required"
+      },
+      "estimated_total": null,
+      "categories": [],
+      "unknown_cost_count": 1,
+      "over_budget": false,
+      "overrun_amount": null,
+      "traveler_costs": [
+        {
+          "traveler_type": "adult",
+          "count": 2,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        },
+        {
+          "traveler_type": "child",
+          "count": 0,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        },
+        {
+          "traveler_type": "senior",
+          "count": 0,
+          "estimated_total": null,
+          "pricing_status": "not_applicable"
+        }
+      ],
+      "warnings": [
+        "示例不包含实时价格，实际费用请重新确认。"
+      ]
+    },
+    "return_transport": {
+      "direction": "return",
+      "scope": "domestic",
+      "status": "ready",
+      "status_reason": null,
+            "selected_option_id": null,
+      "options": [
+        {
+          "option_id": "transport_74c6ff28a6952d45",
+          "mode": "train",
+          "service_number": "K752",
+          "departure_place": "杭州",
+          "arrival_place": "上海松江",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 05:30",
+            "utc": "2026-07-30T21:30:00Z",
+            "local_iso": "2026-07-31T05:30:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T05:30:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 07:33",
+            "utc": "2026-07-30T23:33:00Z",
+            "local_iso": "2026-07-31T07:33:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T07:33:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 123,
+          "transfers": 0,
+          "price": null,
+          "availability": "limited",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "limited",
+              "remaining_text": "1",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "limited",
+              "remaining_text": "2",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_10c0f2c227538d47"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_47b5d415bd8942f9",
+          "mode": "train",
+          "service_number": "K528",
+          "departure_place": "杭州南",
+          "arrival_place": "上海松江",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 01:55",
+            "utc": "2026-07-30T17:55:00Z",
+            "local_iso": "2026-07-31T01:55:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T01:55:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 03:46",
+            "utc": "2026-07-30T19:46:00Z",
+            "local_iso": "2026-07-31T03:46:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T03:46:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 111,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬卧",
+              "availability": "available",
+              "remaining_text": "7",
+              "price": null
+            },
+            {
+              "name": "软卧",
+              "availability": "limited",
+              "remaining_text": "1",
+              "price": null
+            },
+            {
+              "name": "硬座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_10c0f2c227538d47"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        },
+        {
+          "option_id": "transport_a202e933e8984a6d",
+          "mode": "train",
+          "service_number": "K4178",
+          "departure_place": "杭州南",
+          "arrival_place": "上海松江",
+          "departure_hub": null,
+          "arrival_hub": null,
+          "departure_time": {
+            "display_text": "2026-07-31 02:11",
+            "utc": "2026-07-30T18:11:00Z",
+            "local_iso": "2026-07-31T02:11:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T02:11:00+08:00",
+            "day_offset": 0
+          },
+          "arrival_time": {
+            "display_text": "2026-07-31 04:05",
+            "utc": "2026-07-30T20:05:00Z",
+            "local_iso": "2026-07-31T04:05:00+08:00",
+            "timezone": "Asia/Shanghai",
+            "beijing_iso": "2026-07-31T04:05:00+08:00",
+            "day_offset": 0
+          },
+          "duration_minutes": 114,
+          "transfers": 0,
+          "price": null,
+          "availability": "unknown",
+          "seat_options": [
+            {
+              "name": "硬座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "硬卧",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            },
+            {
+              "name": "无座",
+              "availability": "unknown",
+              "remaining_text": "有",
+              "price": null
+            }
+          ],
+          "booking_url": null,
+          "source_status": "realtime_verified",
+          "source_refs": [
+            "src_10c0f2c227538d47"
+          ],
+          "verified_at": "2000-01-01T00:00:00Z"
+        }
+      ],
+      "official_query_url": null
+    },
+    "map_guidance": {
+      "status": "user_confirmation_required",
+      "status_reason": "真实路线待计算",
+      "formal_location_ids": [
+        "travel_place_2",
+        "catalog_7d4a9b29b4dbca02",
+        "catalog_31066b558857d552",
+        "travel_place_1",
+        "catalog_9afd4ca4168d0446",
+        "travel_place_3",
+        "travel_place_4",
+        "catalog_c498a4fa33a2413e",
+        "catalog_3393a54270dea688",
+        "anchor_d4343b1d0affad88",
+        "anchor_78b2b3ef92be5de9",
+        "anchor_1620c8c448fcff92",
+        "anchor_561c49eff0a54832",
+        "anchor_143b424b746ba7bd"
+      ],
+      "day_routes": [],
+      "candidates_visible_by_default": false
+    },
+    "sources": [
+      {
+        "source_id": "src_a5f9f7ff1c35c3bb",
+        "title": "杭州自由行旅遊攻略（2026）：附近熱門好去處、人氣景點",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_6b08b9c87891dfd1",
+        "title": "【杭州旅遊攻略2026】杭州自由行必去景點",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_35d4cb4f28f82748",
+        "title": "【杭州自由行】2026十大景點美食| 附交通+住宿+行程全攻略",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_cf42643e746fa87a",
+        "title": "【第一次去#杭州旅游怎么安排🤔❓】全网最全2️⃣天1️⃣夜攻略 ...",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "opening_hours",
+          "price"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_070a9d3496e4e51d",
+        "title": "本地旅行知识库",
+        "source_name": "travel_knowledge_base",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "summary",
+          "classic_coverage"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_239a528d435f215e",
+        "title": "地图地点核验",
+        "source_name": "map_search_places",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "coordinates",
+          "address",
+          "category",
+          "route"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_a6be5d6e80bc3de9",
+        "title": "行程顺序与费用估算",
+        "source_name": "行程可行性校验",
+        "status": "user_confirmation_required",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "route",
+          "budget"
+        ],
+        "related_place_ids": [
+          "点都德(湖滨银泰in77店)",
+          "西湖风景名胜区",
+          "灵隐寺",
+          "中国茶叶博物馆",
+          "杭州酒家(延安路店)",
+          "漢舍小馆(丽水路店)",
+          "良渚博物院",
+          "中国京杭大运河博物馆"
+        ]
+      },
+      {
+        "source_id": "src_9287688e3c7137e6",
+        "title": "杭州目的地封面",
+        "source_name": "Unsplash",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "destination_overview.cover_image"
+        ],
+        "related_place_ids": [
+          "杭州"
+        ]
+      },
+      {
+        "source_id": "src_82f9205e67312cc1",
+        "title": "杭州开元名都大酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "杭州开元名都大酒店"
+        ]
+      },
+      {
+        "source_id": "src_e7c66a667b6193ef",
+        "title": "杭州维景国际大酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "杭州维景国际大酒店"
+        ]
+      },
+      {
+        "source_id": "src_3b1f696d6bb942e3",
+        "title": "杭州索菲特西湖大酒店住宿候选",
+        "source_name": "地图住宿专项检索",
+        "status": "map_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": [
+          "杭州索菲特西湖大酒店"
+        ]
+      },
+      {
+        "source_id": "src_621d4881da618f62",
+        "title": "中国杭州10大推荐低价酒店",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_0f893908e1141592",
+        "title": "杭州住宿推薦：精選10間高性價比酒店（每晚低至HK$313 ）",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_ad998f44d6c3c2cf",
+        "title": "预订杭州酒店宾馆住宿限时优惠",
+        "source_name": "-",
+        "status": "guide_reference",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "lodging_plan"
+        ],
+        "related_place_ids": []
+      },
+      {
+        "source_id": "src_10c0f2c227538d47",
+        "title": "铁路票务平台查询结果",
+        "source_name": "铁路票务平台",
+        "status": "realtime_verified",
+        "url": null,
+        "updated_at": "2000-01-01T00:00:00Z",
+        "related_fields": [
+          "return_transport",
+          "price",
+          "availability"
+        ],
+        "related_place_ids": []
+      }
+    ],
+    "delivery": {
+      "markdown_filename": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.md",
+      "pdf_filename": "请帮我规划一趟从上海出发、前往杭州的3天旅行。日期为2026-07-29至2026-07-31。出行人员：成人2人、儿童0人、老人0人。同行关系：情侣。总预算6000元，旅行偏好：人文历史、轻松慢游。请生成完整行程，并对强实时交通和地图数据进行真实核验。-v1.pdf",
+      "markdown_enabled": true,
+      "pdf_enabled": true
+    },
+    "validation": {
+      "valid": true,
+      "degraded": true,
+      "issues": [
+        {
+          "code": "CANDIDATE_POOL_VERIFICATION_INSUFFICIENT",
+          "message": "部分候选地点缺少稳定 POI 或坐标，未进入可排程候选池",
+          "severity": "warning",
+          "target_id": null
+        },
+        {
+          "code": "MISSING_COORDINATES",
+          "message": "5个地点缺少地图坐标：西湖风景名胜区, 灵隐寺, 中国茶叶博物馆, 良渚博物院, 中国京杭大运河博物馆。",
+          "severity": "warning",
+          "target_id": null
+        },
+        {
+          "code": "MISSING_HOTEL_AREA",
+          "message": "多日行程缺少住宿区域或酒店建议。",
+          "severity": "info",
+          "target_id": null
+        }
+      ]
+    }
+  },
+  "map_data": {
+    "status": "user_confirmation_required",
+    "status_reason": "真实路线待计算",
+    "formal_location_ids": [
+      "travel_place_2",
+      "catalog_7d4a9b29b4dbca02",
+      "catalog_31066b558857d552",
+      "travel_place_1",
+      "catalog_9afd4ca4168d0446",
+      "travel_place_3",
+      "travel_place_4",
+      "catalog_c498a4fa33a2413e",
+      "catalog_3393a54270dea688",
+      "anchor_d4343b1d0affad88",
+      "anchor_78b2b3ef92be5de9",
+      "anchor_1620c8c448fcff92",
+      "anchor_561c49eff0a54832",
+      "anchor_143b424b746ba7bd"
+    ],
+    "day_routes": [],
+    "candidates_visible_by_default": false
+  }
+}
