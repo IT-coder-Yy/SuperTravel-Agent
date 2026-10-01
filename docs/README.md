@@ -22,3 +22,9 @@ permalink: /
 | API | [API reference](API_REFERENCE.md) | [API 参考](API_REFERENCE_CN.md) |
 | 配置 | [Configuration](CONFIGURATION.md) | [配置](CONFIGURATION_CN.md) |
 | 示例 | [Examples](EXAMPLES.md) | [示例](EXAMPLES_CN.md) |
+
+## 文档构建与发布
+
+`Documentation CI` 在文档、根 README 或工作流修改时构建 Jekyll，并保留构建产物；普通提交和 PR 不依赖 GitHub Pages 是否启用。
+
+需要发布文档网站时，先在仓库的 **Settings → Pages** 中选择 **GitHub Actions** 作为构建来源，再到 **Actions → Documentation CI → Run workflow** 选择 `main` 并勾选 `deploy`。默认的手动运行也只校验构建。
