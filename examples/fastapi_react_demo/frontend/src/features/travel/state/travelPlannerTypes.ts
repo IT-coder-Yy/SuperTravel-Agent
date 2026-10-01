@@ -58,8 +58,9 @@ export interface MoneyV3 {
 export interface TripIntentV3 {
   origin: string;
   destination: string;
-  start_date: string;
-  end_date: string;
+  date_mode: 'fixed' | 'flexible';
+  start_date: string | null;
+  end_date: string | null;
   days: number;
   travelers: TravelerCountV3;
   budget: MoneyV3;
@@ -89,7 +90,7 @@ export interface TripPlaceV3 {
   phone?: string | null;
   opening_hours?: string | null;
   timezone?: string | null;
-  coordinates: CoordinatesV3;
+  coordinates?: CoordinatesV3 | null;
   summary?: string | null;
   review_summary?: ReviewSummaryV3 | null;
   evidence_refs: string[];
@@ -106,6 +107,10 @@ export interface ImageAssetV3 {
   export_allowed: boolean;
   attribution_required: boolean;
   attribution_text?: string | null;
+  attribution_url?: string | null;
+  provider_name?: string | null;
+  provider_url?: string | null;
+  download_location?: string | null;
   source_ref?: string | null;
   checked_at?: string | null;
 }
@@ -119,18 +124,28 @@ export interface TransportTimeV3 {
   day_offset: number;
 }
 
+export interface TransportSeatOptionV3 {
+  name: string;
+  availability: 'available' | 'limited' | 'unavailable' | 'unknown';
+  remaining_text?: string | null;
+  price?: MoneyV3 | null;
+}
+
 export interface TransportOptionV3 {
   option_id: string;
   mode: 'train' | 'intercity_bus' | 'flight';
   service_number?: string | null;
   departure_place?: string | null;
   arrival_place?: string | null;
+  departure_hub?: TripPlaceV3 | null;
+  arrival_hub?: TripPlaceV3 | null;
   departure_time?: TransportTimeV3 | null;
   arrival_time?: TransportTimeV3 | null;
   duration_minutes?: number | null;
   transfers?: number | null;
   price?: MoneyV3 | null;
   availability: 'available' | 'limited' | 'unknown';
+  seat_options: TransportSeatOptionV3[];
   booking_url?: string | null;
   source_status: SourceStatus;
   source_refs: string[];
@@ -199,6 +214,7 @@ export interface TripActivityV3 {
   end_at?: string | null;
   duration_minutes?: number | null;
   fixed_time: boolean;
+  meal_type?: 'breakfast' | 'lunch' | 'dinner' | null;
   place?: TripPlaceV3 | null;
   images: ImageAssetV3[];
   cover_image_id?: string | null;
@@ -219,7 +235,7 @@ export interface TripAnchorV3 {
 
 export interface TripDayV3 {
   day: number;
-  date: string;
+  date: string | null;
   timezone: string;
   theme?: string | null;
   note_id?: string | null;
@@ -257,6 +273,12 @@ export interface BudgetSummaryV3 {
   unknown_cost_count: number;
   over_budget: boolean;
   overrun_amount?: MoneyV3 | null;
+  traveler_costs?: Array<{
+    traveler_type: 'adult' | 'child' | 'senior';
+    count: number;
+    estimated_total?: MoneyV3 | null;
+    pricing_status: 'standard_price' | 'official_discount_verified' | 'adult_price_assumed' | 'not_applicable';
+  }>;
   warnings: string[];
 }
 

@@ -1,4 +1,4 @@
-export type PlanningStatus = 'idle' | 'planning' | 'completed' | 'cancelled' | 'error';
+export type PlanningStatus = 'idle' | 'planning' | 'completed' | 'cancelled' | 'error' | 'demo_replaying' | 'demo_completed';
 
 export const statusAfterCompletion = (finishReason?: string): PlanningStatus => {
   if (finishReason === 'cancelled') return 'cancelled';

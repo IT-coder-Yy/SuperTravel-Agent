@@ -32,8 +32,11 @@ export interface TripActivity {
   day: number;
   start_time: string | null;
   end_time: string | null;
+  duration_minutes?: number | null;
+  fixed_time?: boolean;
   title: string;
   place: TripActivityPlace | null;
+  images?: unknown[];
   estimated_cost: number | null;
   notes: string[];
   data_type: TripDataType | null;
@@ -202,8 +205,11 @@ const adaptActivities = (values: unknown[], day: number): TripActivity[] => {
       day: activityDay,
       start_time: asString(rawActivity.start_time),
       end_time: asString(rawActivity.end_time),
+      duration_minutes: asNumber(rawActivity.duration_minutes),
+      fixed_time: rawActivity.fixed_time === true,
       title: asString(rawActivity.title) ?? '',
       place: adaptPlace(rawActivity.place),
+      images: Array.isArray(rawActivity.images) ? rawActivity.images : [],
       estimated_cost: asNumber(rawActivity.estimated_cost),
       notes: asStringArray(rawActivity.notes),
       data_type: dataType,

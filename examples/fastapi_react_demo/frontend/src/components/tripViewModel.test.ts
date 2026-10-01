@@ -57,6 +57,9 @@ describe('tripViewModel', () => {
         activities: [{
           activity_id: 'server-activity-1',
           title: '故宫',
+          duration_minutes: 90,
+          fixed_time: true,
+          images: [{ image_id: 'forbidden-image', display_allowed: false }],
           evidence_refs: [{ id: 'evidence-1' }],
           route_to_next: {
             mode: '地铁',
@@ -85,6 +88,9 @@ describe('tripViewModel', () => {
     });
     expect(day.activities).toHaveLength(1);
     expect(day.activities[0].id).toBe('server-activity-1');
+    expect(day.activities[0].duration_minutes).toBe(90);
+    expect(day.activities[0].fixed_time).toBe(true);
+    expect(day.activities[0].images).toEqual([{ image_id: 'forbidden-image', display_allowed: false }]);
     expect(day.activities[0].evidence_refs).toEqual([{ id: 'evidence-1' }]);
     expect(day.activities[0].route_to_next).toEqual({
       mode: '地铁',
