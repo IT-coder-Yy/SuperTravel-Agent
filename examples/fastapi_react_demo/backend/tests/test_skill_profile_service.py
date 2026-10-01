@@ -77,7 +77,7 @@ class SkillProfileServiceTests(unittest.TestCase):
             selected_skill_ids=["rail_transport", "map_route"],
         )
 
-        self.assertEqual(merged, ["fetch", "12306-mcp", "baidu-map"])
+        self.assertEqual(merged, ["fetch", "12306-mcp", "amap-maps", "baidu-map"])
 
     def test_collect_skill_local_tools_returns_deduped_tools(self):
         tools = skill_profile_service.collect_skill_local_tools(
@@ -102,6 +102,34 @@ class SkillProfileServiceTests(unittest.TestCase):
             ["query_12306_realtime_tickets", "query_12306_tickets_by_query"],
         )
         self.assertTrue(by_id["budget_optimizer"]["available"])
+
+    def test_map_skill_accepts_either_amap_or_baidu_provider(self):
+        app_config = SimpleNamespace(
+            mcp=SimpleNamespace(
+                servers={
+                    "amap-maps": SimpleNamespace(disabled=False),
+                    "baidu-map": SimpleNamespace(disabled=True),
+                }
+            )
+        )
+
+        infos = skill_profile_service.list_skill_infos(
+            tool_manager=FakeToolManager(["maps_text_search"]),
+            app_config=app_config,
+        )
+        by_id = {info["id"]: info for info in infos}
+
+        self.assertTrue(by_id["map_route"]["available"])
+        self.assertIn("baidu-map", by_id["map_route"]["missing_mcp_servers"])
+
+    def test_destination_research_accepts_tavily_as_search_provider(self):
+        infos = skill_profile_service.list_skill_infos(
+            tool_manager=FakeToolManager(["tavily_search"]),
+            app_config=build_app_config(),
+        )
+        by_id = {info["id"]: info for info in infos}
+
+        self.assertTrue(by_id["destination_research"]["available"])
 
 
 if __name__ == "__main__":

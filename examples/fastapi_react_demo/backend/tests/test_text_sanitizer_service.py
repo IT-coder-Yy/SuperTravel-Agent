@@ -29,6 +29,31 @@ class TextSanitizerServiceTests(unittest.TestCase):
         self.assertEqual(sanitized.count("[内部路径已隐藏]"), 2)
         self.assertIn("[敏感凭据已隐藏]", sanitized)
 
+    def test_redacts_named_credentials_and_url_userinfo(self):
+        named_secret = "fixture_secret_value_123456"
+        basic_token = "Zml4dHVyZTpzZWNyZXQ="
+        content = "\n".join(
+            [
+                f"api_key={named_secret}",
+                f"X-API-Key: {named_secret}",
+                f"Authorization: Basic {basic_token}",
+                "请访问 https://fixture:secret@example.com/guide。",
+            ]
+        )
+
+        sanitized = sanitize_user_visible_text(content)
+
+        self.assertNotIn(named_secret, sanitized)
+        self.assertNotIn(basic_token, sanitized)
+        self.assertNotIn("fixture:secret@", sanitized)
+        self.assertEqual(sanitized.count("[敏感凭据已隐藏]"), 4)
+        self.assertEqual(
+            sanitize_user_visible_text(
+                f'```json\n{{"api_key":"{named_secret}"}}\n```'
+            ),
+            "",
+        )
+
     def test_removes_raw_tool_lines_and_debug_trace(self):
         content = "\n".join(
             [
@@ -92,6 +117,30 @@ class TextSanitizerServiceTests(unittest.TestCase):
         self.assertNotIn("source_tool", source)
         self.assertNotIn("raw_payload", source)
         self.assertEqual(source["url"], "https://example.com/hangzhou")
+
+    def test_drops_sensitive_structured_fields_recursively(self):
+        payload = {
+            "title": "杭州旅行参考",
+            "api_key": "fixture_secret_value_123456",
+            "headers": {
+                "Authorization": "Basic Zml4dHVyZTpzZWNyZXQ=",
+                "X-API-Key": "fixture_secret_value_123456",
+                "accept": "application/json",
+            },
+        }
+
+        sanitized = sanitize_user_visible_payload(payload)
+
+        self.assertEqual(sanitized, {"title": "杭州旅行参考", "headers": {"accept": "application/json"}})
+
+    def test_keeps_valid_official_query_url_without_replacing_host_identifiers(self):
+        sanitized = sanitize_user_visible_payload({
+            "official_query_url": "https://www.12306.cn/index/",
+            "source": "12306-mcp",
+        })
+
+        self.assertEqual(sanitized["official_query_url"], "https://www.12306.cn/index/")
+        self.assertEqual(sanitized["source"], "铁路票务平台")
 
 
 if __name__ == "__main__":

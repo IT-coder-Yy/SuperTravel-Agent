@@ -177,6 +177,10 @@ async def search_image_from_web(query: str, date_range: str = None,country:str =
                     {
                         "title": result.get("title", ""),
                         "image_url": result.get("imageUrl", ""),
+                        "source_url": result.get("link", ""),
+                        "source": result.get("source", ""),
+                        "width": result.get("imageWidth"),
+                        "height": result.get("imageHeight"),
                     }
                 )
             return json.dumps({"results": results}, ensure_ascii=False)

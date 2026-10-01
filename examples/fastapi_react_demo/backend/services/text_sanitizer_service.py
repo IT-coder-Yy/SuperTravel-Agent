@@ -1,5 +1,6 @@
 import json
 import re
+from urllib.parse import urlparse
 
 from services.file_service import get_output_root_path
 
@@ -44,6 +45,23 @@ _UNIX_PATH_PATTERN = re.compile(
 _SECRET_PATTERN = re.compile(
     r"(?i)(?:bearer\s+|sk-)[a-z0-9._-]{12,}"
 )
+_NAMED_SECRET_PATTERN = re.compile(
+    r"""(?ix)
+    (?P<key>
+        [\"']?(?:x[-_]?api[-_]?key|api[-_]?key|access[-_]?token|refresh[-_]?token|
+        id[-_]?token|client[-_]?secret|authorization|proxy[-_]?authorization|
+        password|passwd|secret|token)[\"']?
+    )
+    \s*(?P<separator>[:=])\s*
+    (?P<value>\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;;&]+)
+    """
+)
+_BASIC_AUTH_PATTERN = re.compile(
+    r"(?ix)(?P<key>\b(?:authorization|proxy[-_]?authorization)\s*:)\s*basic\s+[^\s,;;&]+"
+)
+_URL_CREDENTIAL_PATTERN = re.compile(
+    r"(?i)(?P<scheme>https?://)[^/\s:@]+(?::[^@\s/]*)?@"
+)
 _INTERNAL_JSON_KEYS = {
     "tool_call_id",
     "tool_name",
@@ -56,7 +74,23 @@ _INTERNAL_JSON_KEYS = {
     "stack_trace",
 }
 
-_INTERNAL_PRESENTATION_KEYS = _INTERNAL_JSON_KEYS | {
+_SENSITIVE_PRESENTATION_KEYS = {
+    "api_key",
+    "api-key",
+    "x-api-key",
+    "access_token",
+    "refresh_token",
+    "id_token",
+    "client_secret",
+    "authorization",
+    "proxy_authorization",
+    "password",
+    "passwd",
+    "secret",
+    "token",
+}
+
+_INTERNAL_PRESENTATION_KEYS = _INTERNAL_JSON_KEYS | _SENSITIVE_PRESENTATION_KEYS | {
     "source_tool",
     "tool_result",
     "raw_result",
@@ -65,14 +99,34 @@ _INTERNAL_PRESENTATION_KEYS = _INTERNAL_JSON_KEYS | {
     "mcp_server",
 }
 
+_URL_VALUE_KEYS = {
+    "url",
+    "official_query_url",
+    "booking_url",
+    "attribution_url",
+    "provider_url",
+    "download_location",
+    "image_url",
+}
+
 _SOURCE_LABELS = {
     "serper_site_search": "联网搜索",
     "serper_web_search": "联网搜索",
+    "tavily_search": "联网搜索",
+    "tavily-mcp": "联网搜索",
     "web_search": "联网搜索",
     "xhs_search_and_summarize": "小红书公开笔记",
     "xhs-mcp": "小红书公开笔记",
     "xiaohongshu": "小红书公开笔记",
     "baidu-map": "地图地点核验",
+    "amap-maps": "地图地点核验",
+    "maps_text_search": "地图地点核验",
+    "maps_search_detail": "地图地点详情",
+    "maps_geo": "地图地点核验",
+    "maps_around_search": "地图周边检索",
+    "maps_regeocode": "地图地点核验",
+    "maps_weather": "天气查询",
+    "maps_ip_location": "城市定位",
     "map_geocode": "地图地点核验",
     "trip_plan_rules": "行程可行性校验",
     "seed_fallback": "本地旅行知识",
@@ -92,7 +146,7 @@ _INTERNAL_IDENTIFIER_PATTERN = re.compile(
 
 def _json_contains_internal_fields(value) -> bool:
     if isinstance(value, dict):
-        if {str(key).lower() for key in value} & _INTERNAL_JSON_KEYS:
+        if {str(key).lower() for key in value} & (_INTERNAL_JSON_KEYS | _SENSITIVE_PRESENTATION_KEYS):
             return True
         return any(_json_contains_internal_fields(item) for item in value.values())
     if isinstance(value, list):
@@ -116,6 +170,33 @@ def _source_label(value: str) -> str:
 
 def _replace_internal_identifier(match: re.Match) -> str:
     return _source_label(match.group(0))
+
+
+def _redact_named_secret(match: re.Match) -> str:
+    return f"{match.group('key')}{match.group('separator')}[敏感凭据已隐藏]"
+
+
+def _redact_basic_authorization(match: re.Match) -> str:
+    return f"{match.group('key')} [敏感凭据已隐藏]"
+
+
+def _redact_url_credentials(match: re.Match) -> str:
+    return f"{match.group('scheme')}[敏感凭据已隐藏]@"
+
+
+def _sanitize_user_visible_url(value) -> str:
+    """Keep a valid public URL intact instead of replacing identifiers in its host.
+
+    Source/tool labels should be made readable in prose, but applying that replacement
+    to structured URL fields turned ``www.12306.cn`` into a non-existent domain.
+    """
+    candidate = str(value or "").strip()
+    if not candidate:
+        return ""
+    parsed = urlparse(candidate)
+    if parsed.scheme in {"http", "https"} and parsed.netloc and not parsed.username and not parsed.password:
+        return candidate
+    return ""
 
 
 def sanitize_user_visible_text(text: str) -> str:
@@ -150,6 +231,9 @@ def sanitize_user_visible_text(text: str) -> str:
             continue
         safe_line = _WINDOWS_PATH_PATTERN.sub("[内部路径已隐藏]", line)
         safe_line = _UNIX_PATH_PATTERN.sub("[内部路径已隐藏]", safe_line)
+        safe_line = _URL_CREDENTIAL_PATTERN.sub(_redact_url_credentials, safe_line)
+        safe_line = _BASIC_AUTH_PATTERN.sub(_redact_basic_authorization, safe_line)
+        safe_line = _NAMED_SECRET_PATTERN.sub(_redact_named_secret, safe_line)
         safe_line = _SECRET_PATTERN.sub("[敏感凭据已隐藏]", safe_line)
         filtered_lines.append(safe_line)
 
@@ -178,6 +262,9 @@ def sanitize_user_visible_payload(value):
     for key, item in value.items():
         normalized_key = str(key).strip().lower()
         if normalized_key in _INTERNAL_PRESENTATION_KEYS:
+            continue
+        if normalized_key in _URL_VALUE_KEYS and isinstance(item, str):
+            sanitized[key] = _sanitize_user_visible_url(item)
             continue
         if normalized_key in {"source", "source_name"} and isinstance(item, str):
             sanitized[key] = _source_label(sanitize_user_visible_text(item))

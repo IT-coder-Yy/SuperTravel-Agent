@@ -16,12 +16,52 @@ import traceback
 import time
 import os,sys
 import threading
+import re
 
 from agents.tool.map_request_governor import MapRequestGovernor, MapRequestLimitExceeded
 
 
 def _verbose_tool_logging_enabled() -> bool:
     return os.getenv("SAGE_VERBOSE_TOOL_LOGS", "0").strip().lower() in {"1", "true", "yes", "on"}
+
+
+_SECRET_FIELD_NAMES = {
+    "ak", "key", "api_key", "apikey", "appkey", "token", "access_token",
+    "authorization", "secret", "password",
+}
+_SECRET_QUERY_PATTERN = re.compile(
+    r"(?i)([?&](?:ak|key|api[_-]?key|appkey|token|access[_-]?token)=)[^&\s\"']+"
+)
+_NAMED_SECRET_PATTERN = re.compile(
+    r"(?i)\b((?:api[_-]?key|appkey|authorization|access[_-]?token|token|secret|password)\s*[:=]\s*)"
+    r"[^\s,;}\]\"']+"
+)
+
+
+def _redact_sensitive_text(value: Any) -> str:
+    text = str(value or "")
+    text = _NAMED_SECRET_PATTERN.sub(r"\1[REDACTED]", text)
+    return _SECRET_QUERY_PATTERN.sub(r"\1[REDACTED]", text)
+
+
+def _sanitize_mcp_payload(value: Any) -> Any:
+    """Remove credentials from MCP results before logs, agents or clients see them."""
+    if isinstance(value, dict):
+        return {
+            key: (
+                "[REDACTED]"
+                if str(key).strip().lower() in _SECRET_FIELD_NAMES
+                else _sanitize_mcp_payload(item)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_sanitize_mcp_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_mcp_payload(item) for item in value)
+    if isinstance(value, str):
+        return _redact_sensitive_text(value)
+    return value
 
 class ToolManager:
     def __init__(
@@ -63,6 +103,10 @@ class ToolManager:
         self.baidu_network_timeout_seconds = max(
             35.0,
             float(os.getenv("BAIDU_MAP_NETWORK_TIMEOUT_SECONDS", "35")),
+        )
+        self.mcp_network_timeout_seconds = max(
+            15.0,
+            float(os.getenv("MCP_NETWORK_TIMEOUT_SECONDS", "90")),
         )
         
         if is_auto_discover:
@@ -122,7 +166,7 @@ class ToolManager:
         if 'sse_url' in config:
             logger.debug(f"Registering SSE server {server_name} with URL: {config['sse_url']}")
             server_params = SseServerParameters(url=config['sse_url'])
-            await self._register_mcp_tools_sse(server_name, server_params)
+            connected = await self._register_mcp_tools_sse(server_name, server_params)
         else:
             logger.debug(f"Registering stdio server {server_name} with command: {config['command']}")
             server_params = StdioServerParameters(
@@ -130,7 +174,9 @@ class ToolManager:
                 args=config.get('args', []),
                 env=config.get('env', None)
             )
-            await self._register_mcp_tools_stdio(server_name, server_params)
+            connected = await self._register_mcp_tools_stdio(server_name, server_params)
+        if not connected:
+            return False
         logger.info(f"Successfully registered MCP server: {server_name}")
         return True
 
@@ -173,16 +219,28 @@ class ToolManager:
         ready = asyncio.get_running_loop().create_future()
         shutdown_event = asyncio.Event()
         connection: Dict[str, Any] = {
+            "ready": ready,
             "shutdown_event": shutdown_event,
             "lock": asyncio.Lock(),
         }
         task = asyncio.create_task(
             self._persistent_stdio_server_task(server_name, server_params, ready, shutdown_event, connection)
         )
-        tools = await ready
         connection["task"] = task
         self._persistent_stdio_servers[server_name] = connection
-        return tools
+        try:
+            return await asyncio.shield(ready)
+        except BaseException:
+            if self._persistent_stdio_servers.get(server_name) is connection:
+                self._persistent_stdio_servers.pop(server_name, None)
+            shutdown_event.set()
+            if not task.done():
+                task.cancel()
+            try:
+                await task
+            except BaseException:
+                pass
+            raise
 
     async def _persistent_stdio_server_task(
         self,
@@ -204,13 +262,20 @@ class ToolManager:
                     response = await session.list_tools()
                     tools = [tool.model_dump() if isinstance(tool, Tool) else tool for tool in response.tools]
                     connection["session"] = session
-                    ready.set_result(tools)
+                    if not ready.done():
+                        ready.set_result(tools)
                     await shutdown_event.wait()
         except Exception as error:
             if not ready.done():
                 ready.set_exception(error)
             else:
                 logger.error(f"Persistent stdio MCP server stopped unexpectedly: {server_name}: {error}")
+        finally:
+            if (
+                not shutdown_event.is_set()
+                and self._persistent_stdio_servers.get(server_name) is connection
+            ):
+                self._persistent_stdio_servers.pop(server_name, None)
 
     async def _close_persistent_stdio_server(self, server_name: str) -> None:
         connection = self._persistent_stdio_servers.pop(server_name, None)
@@ -355,17 +420,42 @@ class ToolManager:
         logger.info(f"Registering tools from stdio MCP server: {server_name}")
         try:
             start_time = time.time()
-            tools = await self._run_on_mcp_runtime_loop(
-                self._connect_persistent_stdio_server(server_name, server_params)
+            registration_task = asyncio.create_task(
+                self._run_on_mcp_runtime_loop(
+                    self._connect_persistent_stdio_server(server_name, server_params)
+                )
             )
+            timeout_seconds = max(
+                1.0,
+                float(os.getenv("MCP_SERVER_STARTUP_TIMEOUT_SECONDS", "90")),
+            )
+            done, _ = await asyncio.wait({registration_task}, timeout=timeout_seconds)
+            if registration_task not in done:
+                registration_task.cancel()
+
+                def consume_late_result(completed_task: asyncio.Task) -> None:
+                    if completed_task.cancelled():
+                        return
+                    try:
+                        completed_task.exception()
+                    except (asyncio.CancelledError, Exception):
+                        return
+
+                registration_task.add_done_callback(consume_late_result)
+                raise asyncio.TimeoutError(
+                    f"MCP server {server_name} startup exceeded {timeout_seconds:g}s"
+                )
+            tools = registration_task.result()
             elapsed = time.time() - start_time
             logger.debug(f"Initialized persistent stdio MCP server {server_name} in {elapsed:.2f} seconds")
             logger.info(f"Received {len(tools)} tools from stdio MCP server {server_name}")
             for tool in tools:
                 await self._register_mcp_tool(server_name, tool, server_params)
+            return True
         except Exception as e:
             logger.error(f"Failed to connect to stdio MCP server {server_name}: {str(e)}")
             logger.error(traceback.format_exc())
+            return False
 
     async def _register_mcp_tools_sse(self, server_name: str, server_params: SseServerParameters):
         """Register tools from SSE MCP server"""
@@ -383,8 +473,10 @@ class ToolManager:
                     logger.info(f"Received {len(tools)} tools from SSE MCP server {server_name}")
                     for tool in tools:
                         await self._register_mcp_tool(server_name, tool, server_params)
+            return True
         except Exception as e:
             logger.error(f"Failed to connect to SSE MCP server {server_name}: {str(e)}")
+            return False
 
     async def _register_mcp_tool(self, server_name: str, tool_info:Union[Tool, dict], 
                                server_params: Union[StdioServerParameters, SseServerParameters]):
@@ -523,6 +615,18 @@ class ToolManager:
                 # For MCP tools, we need to handle async execution properly
                 try:
                     def execute_mcp_call():
+                        if not isinstance(tool.server_params, SseServerParameters):
+                            timeout_seconds = (
+                                self.baidu_network_timeout_seconds
+                                if str(getattr(tool, "server_name", "")).lower() == "baidu-map"
+                                else self.mcp_network_timeout_seconds
+                            )
+                            result = self._execute_stdio_mcp_tool_sync(
+                                tool,
+                                timeout_seconds=timeout_seconds,
+                                **kwargs,
+                            )
+                            return self._format_mcp_result(_sanitize_mcp_payload(result))
                         try:
                             loop = asyncio.get_running_loop()
                         except RuntimeError:
@@ -732,13 +836,13 @@ class ToolManager:
         error_response = {
             "error": True,
             "error_type": error_type,
-            "message": error_msg,
+            "message": _redact_sensitive_text(error_msg),
             "tool_name": tool_name,
             "timestamp": time.time()
         }
         
         if exception_detail:
-            error_response["exception_detail"] = exception_detail
+            error_response["exception_detail"] = _redact_sensitive_text(exception_detail)
             
         return json.dumps(error_response, ensure_ascii=False, indent=2)
 
@@ -758,15 +862,39 @@ class ToolManager:
                 execution = self._execute_sse_mcp_tool(tool, **kwargs)
             else:
                 execution = self._execute_stdio_mcp_tool(tool, **kwargs)
-            if str(server_name).lower() == "baidu-map":
-                return await asyncio.wait_for(
-                    execution,
-                    timeout=self.baidu_network_timeout_seconds,
+            # ``asyncio.wait_for`` waits for cancellation to finish. A wedged
+            # stdio MCP process could therefore hold its persistent session lock
+            # indefinitely. Use a bounded wait for every provider and consume any
+            # late cancellation result in the background.
+            timeout_seconds = (
+                self.baidu_network_timeout_seconds
+                if str(server_name).lower() == "baidu-map"
+                else self.mcp_network_timeout_seconds
+            )
+            task = asyncio.create_task(execution)
+            done, _ = await asyncio.wait({task}, timeout=timeout_seconds)
+            if task not in done:
+                task.cancel()
+
+                def consume_late_result(completed_task: asyncio.Task) -> None:
+                    if completed_task.cancelled():
+                        return
+                    try:
+                        completed_task.exception()
+                    except (asyncio.CancelledError, Exception):
+                        return
+
+                task.add_done_callback(consume_late_result)
+                raise asyncio.TimeoutError(
+                    f"MCP call exceeded {timeout_seconds:g}s"
                 )
-            return await execution
+            return _sanitize_mcp_payload(task.result())
         except Exception as e:
-            logger.error(f"MCP tool '{tool.name}' failed on server '{server_name}': {str(e)}")
-            logger.debug(f"MCP error details - Tool: {tool.name}, Server: {server_name}, Args: {kwargs}")
+            safe_error = _redact_sensitive_text(e)
+            logger.error(f"MCP tool '{tool.name}' failed on server '{server_name}': {safe_error}")
+            logger.debug(f"MCP error details - Tool: {tool.name}, Server: {server_name}")
+            if safe_error != str(e):
+                raise RuntimeError(safe_error) from None
             raise
 
     async def _execute_sse_mcp_tool(self, tool: McpToolSpec, **kwargs) -> Any:
@@ -779,14 +907,44 @@ class ToolManager:
 
     async def _execute_stdio_mcp_tool(self, tool: McpToolSpec, **kwargs) -> Any:
         """Execute through the stdio session kept alive since application startup."""
-        server_name = tool.server_name
-        if server_name not in self._persistent_stdio_servers:
-            await self._run_on_mcp_runtime_loop(
-                self._connect_persistent_stdio_server(server_name, tool.server_params)
-            )
         return await self._run_on_mcp_runtime_loop(
-            self._call_persistent_stdio_tool(server_name, tool.name, kwargs)
+            self._execute_stdio_mcp_tool_on_runtime(tool, **kwargs)
         )
+
+    async def _execute_stdio_mcp_tool_on_runtime(self, tool: McpToolSpec, **kwargs) -> Any:
+        """Execute a stdio call on the owning persistent-session event loop."""
+        server_name = tool.server_name
+        connection = self._persistent_stdio_servers.get(server_name)
+        if connection is None:
+            await self._connect_persistent_stdio_server(server_name, tool.server_params)
+        else:
+            ready = connection.get("ready")
+            if ready is not None:
+                await asyncio.shield(ready)
+        return await self._call_persistent_stdio_tool(server_name, tool.name, kwargs)
+
+    def _execute_stdio_mcp_tool_sync(
+        self,
+        tool: McpToolSpec,
+        *,
+        timeout_seconds: float,
+        **kwargs,
+    ) -> Any:
+        """Bound a synchronous stdio call without waiting for asyncio.run cleanup."""
+        import concurrent.futures
+
+        loop = self._get_mcp_runtime_loop()
+        future = asyncio.run_coroutine_threadsafe(
+            self._execute_stdio_mcp_tool_on_runtime(tool, **kwargs),
+            loop,
+        )
+        try:
+            return future.result(timeout=max(0.01, float(timeout_seconds)))
+        except concurrent.futures.TimeoutError:
+            future.cancel()
+            raise asyncio.TimeoutError(
+                f"MCP call exceeded {float(timeout_seconds):g}s"
+            ) from None
 
     def _validate_json_response(self, response_text: str, tool_name: str) -> tuple[bool, str]:
         """Validate if response is proper JSON and return validation result"""

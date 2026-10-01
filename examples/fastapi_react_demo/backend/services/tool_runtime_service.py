@@ -51,7 +51,9 @@ def _build_mcp_registration_config(server_config: Any) -> Dict[str, Any]:
     if server_config.env:
         resolved_env = _build_resolved_env_map(server_config.env)
         if resolved_env:
-            mcp_config["env"] = resolved_env
+            inherited_env = os.environ.copy()
+            inherited_env.update(resolved_env)
+            mcp_config["env"] = inherited_env
 
     return mcp_config
 
@@ -175,22 +177,29 @@ async def initialize_tool_manager(
     disabled_mcp_servers = []
 
     if app_config.mcp and app_config.mcp.servers:
-        for server_name, server_config in app_config.mcp.servers.items():
+        async def register_server(server_name: str, server_config: Any) -> tuple[str, str]:
             if server_config.disabled:
-                disabled_mcp_servers.append(server_name)
-                continue
-
+                return "disabled", server_name
             try:
                 await _ensure_auto_started_sse_server(tool_manager, server_name, server_config)
                 mcp_config = _build_mcp_registration_config(server_config)
                 success = await tool_manager.register_mcp_server(server_name, mcp_config)
-                if success:
-                    connected_mcp_servers.append(server_name)
-                else:
-                    failed_mcp_servers.append(server_name)
+                return ("connected" if success else "failed"), server_name
             except Exception as e:
-                failed_mcp_servers.append(server_name)
                 logger.error(f"MCP服务器注册失败: {e}")
+                return "failed", server_name
+
+        results = await asyncio.gather(*(
+            register_server(server_name, server_config)
+            for server_name, server_config in app_config.mcp.servers.items()
+        ))
+        for status, server_name in results:
+            if status == "connected":
+                connected_mcp_servers.append(server_name)
+            elif status == "disabled":
+                disabled_mcp_servers.append(server_name)
+            else:
+                failed_mcp_servers.append(server_name)
 
     local_tool_names = sorted(
         spec.name for spec in tool_manager.tools.values() if not isinstance(spec, McpToolSpec)

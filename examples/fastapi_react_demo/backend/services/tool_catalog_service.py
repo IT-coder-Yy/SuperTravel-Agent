@@ -14,7 +14,7 @@ def _simple_chinese_description(name: str, description: Any) -> str:
         (("map", "route", "geocode"), "查询地点、坐标、距离和路线建议。"),
         (("weather",), "查询目的地天气和出行提示。"),
         (("xhs", "xiaohongshu"), "检索与目的地旅行主题相关的小红书公开内容。"),
-        (("search", "serper", "fetch"), "检索公开网页中的旅行参考信息。"),
+        (("search", "serper", "tavily", "fetch"), "检索公开网页中的旅行参考信息。"),
         (("file",), "在旅行输出目录中读取和保存文件。"),
     ]
     for keywords, text in rules:

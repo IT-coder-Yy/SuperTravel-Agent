@@ -34,7 +34,15 @@ BUILTIN_SKILL_PROFILES: List[SkillProfile] = [
             "按区域和时间顺序组织每日行程",
             "给出交通、预算、风险和备选方案",
         ],
-        allowed_mcp_servers=["baidu-map", "12306-mcp", "xhs-mcp", "serper_web_search", "fetch"],
+        allowed_mcp_servers=[
+            "amap-maps",
+            "baidu-map",
+            "12306-mcp",
+            "xhs-mcp",
+            "tavily-mcp",
+            "serper_web_search",
+            "fetch",
+        ],
         allowed_local_tools=["calculate", "query_12306_realtime_tickets", "query_12306_tickets_by_query"],
         answer_style="结论优先；按天输出行程；附交通、预算和注意事项。",
         fallback="缺少实时数据时明确说明无法确认，不编造价格、余票、营业时间或链接。",
@@ -79,7 +87,7 @@ BUILTIN_SKILL_PROFILES: List[SkillProfile] = [
             "按距离和通勤时间聚类地点",
             "输出顺路路线和备选路线",
         ],
-        allowed_mcp_servers=["baidu-map"],
+        allowed_mcp_servers=["amap-maps", "baidu-map"],
         allowed_local_tools=[],
         answer_style="路线顺序 + 时间/距离理由 + 地图友好的地点清单。",
         fallback="地图工具不可用时，只能给经验性路线，并明确未经过实时地图验证。",
@@ -118,11 +126,11 @@ BUILTIN_SKILL_PROFILES: List[SkillProfile] = [
             "按需结合小红书资源做交叉验证",
             "输出研究简报和决策建议",
         ],
-        allowed_mcp_servers=["serper_web_search", "fetch", "xhs-mcp"],
+        allowed_mcp_servers=["tavily-mcp", "serper_web_search", "fetch", "xhs-mcp"],
         allowed_local_tools=[],
         answer_style="简明研究结论 + 分主题证据 + 风险提示。",
         fallback="搜索工具不可用时，只给通用建议，并提示需要外部核验。",
-        required_any_tools=["search_web_page", "xhs_search_and_summarize"],
+        required_any_tools=["tavily_search", "search_web_page", "xhs_search_and_summarize"],
     ),
     SkillProfile(
         id="budget_optimizer",
@@ -138,7 +146,7 @@ BUILTIN_SKILL_PROFILES: List[SkillProfile] = [
             "调用计算工具核算总额和人均费用",
             "给出基础、省钱和舒适三个档位",
         ],
-        allowed_mcp_servers=["12306-mcp", "baidu-map", "serper_web_search"],
+        allowed_mcp_servers=["12306-mcp", "amap-maps", "baidu-map", "tavily-mcp", "serper_web_search"],
         allowed_local_tools=["calculate"],
         answer_style="预算表 + 总额/人均 + 省钱杠杆 + 推荐档位。",
         fallback="缺少实时价格时使用区间估算，并明确估算来源和不确定性。",
@@ -158,11 +166,11 @@ BUILTIN_SKILL_PROFILES: List[SkillProfile] = [
             "按区域和路线便利性筛选",
             "输出分类短名单和适合人群",
         ],
-        allowed_mcp_servers=["baidu-map", "xhs-mcp", "serper_web_search"],
+        allowed_mcp_servers=["amap-maps", "baidu-map", "xhs-mcp", "tavily-mcp", "serper_web_search"],
         allowed_local_tools=[],
         answer_style="住宿/美食/景点分类清单 + 推荐理由 + 路线匹配。",
         fallback="缺少实时地点数据时给区域级建议，并提醒用户二次核验。",
-        required_any_tools=["xhs_search_and_summarize", "search_web_page"],
+        required_any_tools=["maps_text_search", "map_search_places", "xhs_search_and_summarize", "tavily_search", "search_web_page"],
     ),
 ]
 
@@ -312,10 +320,10 @@ def _is_available(
 ) -> bool:
     if missing_env:
         return False
-    if missing_mcp_servers and not profile.allowed_local_tools:
-        return False
     if profile.required_any_tools:
         return any(tool_name in runtime_tools for tool_name in profile.required_any_tools)
+    if profile.allowed_mcp_servers and not profile.allowed_local_tools:
+        return len(missing_mcp_servers) < len(profile.allowed_mcp_servers)
     return True
 
 

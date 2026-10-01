@@ -24,11 +24,16 @@ class ToolRuntimeServiceTests(unittest.IsolatedAsyncioTestCase):
             env={"SERPER_API_KEY": "${SERPER_API_KEY}"},
         )
 
-        with patch.dict("os.environ", {"SERPER_API_KEY": "secret-value"}):
+        with patch.dict(
+            "os.environ",
+            {"SERPER_API_KEY": "secret-value", "PATH": "travel-path"},
+            clear=True,
+        ):
             payload = tool_runtime_service._build_mcp_registration_config(server_config)
 
         self.assertEqual(payload["sse_url"], "http://127.0.0.1:34011/sse")
-        self.assertEqual(payload["env"], {"SERPER_API_KEY": "secret-value"})
+        self.assertEqual(payload["env"]["SERPER_API_KEY"], "secret-value")
+        self.assertEqual(payload["env"]["PATH"], "travel-path")
 
     async def test_auto_start_skips_when_sse_endpoint_is_already_ready(self):
         tool_manager = SimpleNamespace()
