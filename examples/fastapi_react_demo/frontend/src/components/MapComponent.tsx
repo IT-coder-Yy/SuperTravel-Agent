@@ -1,11 +1,30 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
-import { Tag } from 'antd';
 import { EnvironmentOutlined } from '@ant-design/icons';
 import L from 'leaflet';
+import type { ImageAssetV3, ReviewSummaryV3 } from '../features/travel/state/travelPlannerTypes';
 import 'leaflet/dist/leaflet.css';
-import PoiDetailContent from './PoiDetailContent';
+import MapLocationQuickView from './MapLocationQuickView';
 import BaiduMapAdapter from './map/BaiduMapAdapter';
+import { syncLeafletViewport } from './map/leafletViewport';
+import {
+  normalizeDayRoutes,
+  routeAvailability,
+  routeAvailabilityMessage,
+  routeLineCoordinates,
+  type DayRouteGeometry,
+} from './map/routePresentation';
+import {
+  clusterMapLocations,
+  escapeMapHtml,
+  mapAnchorGlyph,
+  mapAnchorLabel,
+  mapCategoryGlyph,
+  mapCategoryLabel,
+  mapDayColor,
+  type MapAnchorKind,
+  type MapLocationCluster,
+} from './map/mapMarkerPresentation';
 
 const TRANSPORT_HUB_DISPLAY_REGEX = /(交通枢纽|火车站|高铁站|动车站|铁路(?:站|枢纽)|城际站|地铁站|轻轨站|客运站|汽车站|公交(?:站|枢纽)|机场|航站楼|(?:东|西|南|北)?站|[\u4e00-\u9fa5A-Za-z0-9]{2,24}(?:东|西|南|北)?站|railway station|train station|airport|terminal|metro station|subway station|bus station|bus terminal|transport hub)/i;
 
@@ -17,16 +36,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png',
 });
 
-export interface DayRouteGeometry {
-  day: number;
-  plan_version: number;
-  status: 'ready' | 'partial' | 'unavailable';
-  coordinate_system: 'BD09LL' | 'WGS84';
-  legs: Array<{
-    status: 'ready' | 'unavailable';
-    geometry?: { type: 'LineString'; coordinates: number[][] } | null;
-  }>;
-}
+export type { DayRouteGeometry } from './map/routePresentation';
 
 const RouteLines: React.FC<{ routes: DayRouteGeometry[] }> = ({ routes }) => {
   const map = useMap();
@@ -40,15 +50,13 @@ const RouteLines: React.FC<{ routes: DayRouteGeometry[] }> = ({ routes }) => {
       map.removeLayer(line);
     });
     linesRef.current = [];
-    const colors = ['#2563eb', '#0f766e', '#c2410c', '#7c3aed', '#be123c'];
-    routes.forEach((route, routeIndex) => route.legs.forEach((leg) => {
-      if (leg.status !== 'ready' || leg.geometry?.type !== 'LineString') return;
-      const points = leg.geometry.coordinates
-        .filter((point) => point.length >= 2 && point.every(Number.isFinite))
+    routes.forEach((route) => route.legs.forEach((leg) => {
+      if (route.coordinate_system !== 'WGS84') return;
+      const points = routeLineCoordinates(route, leg)
         .map(([lng, lat]) => [lat, lng] as [number, number]);
       if (points.length < 2) return;
       const line = L.polyline(points, {
-        color: colors[routeIndex % colors.length],
+        color: mapDayColor(route.day),
         weight: 3,
         opacity: 0.82,
         className: 'route-line',
@@ -68,105 +76,6 @@ const RouteLines: React.FC<{ routes: DayRouteGeometry[] }> = ({ routes }) => {
   return null;
 };
 
-// 创建彩色圆形标记图标
-const createColorIcon = (location: LocationPoint, number: number): L.DivIcon => {
-  const normalizedCategory = getNormalizedCategory(location);
-  const color = getCategoryColor(normalizedCategory);
-  return L.divIcon({
-    html: `
-      <div style="
-        position: relative;
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        transform: translateX(-50%);
-      ">
-        <!-- 主标记点 - 根据分类颜色 -->
-        <div style="
-          background: ${color};
-          color: white;
-          width: 28px;
-          height: 28px;
-          border-radius: 50%;
-          border: 3px solid white;
-          box-shadow: 0 2px 6px ${color}40;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          font-size: 12px;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-          position: relative;
-          z-index: 1000;
-        ">
-          ${number}
-        </div>
-        
-        <!-- 地点名称标签 -->
-        <div style="
-          background: rgba(255, 255, 255, 0.95);
-          border: 1px solid ${color}30;
-          border-radius: 4px;
-          padding: 2px 6px;
-          margin-top: 4px;
-          font-size: 11px;
-          font-weight: 500;
-          color: #333;
-          white-space: nowrap;
-          max-width: 120px;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          box-shadow: 0 1px 3px ${color}20;
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-          text-align: center;
-          position: relative;
-          z-index: 999;
-        ">
-          ${location.name}
-        </div>
-      </div>
-    `,
-    className: 'custom-marker',
-    iconSize: [28, 60],
-    iconAnchor: [14, 28],
-    popupAnchor: [0, -28]
-  });
-};
-
-// 获取分类颜色 - 不同类别使用不同颜色
-const getCategoryColor = (category?: string) => {
-  const colors: { [key: string]: string } = {
-    '景点': '#1890ff',
-    '酒店': '#52c41a',
-    '餐厅': '#fa8c16',
-    '交通': '#722ed1',
-    '交通枢纽': '#722ed1',
-    '购物': '#eb2f96',
-    '娱乐': '#13c2c2',
-    'attraction': '#1890ff',
-    'hotel': '#52c41a',
-    'restaurant': '#fa8c16',
-    'transport': '#722ed1',
-    'transport hub': '#722ed1',
-    'transportation hub': '#722ed1',
-    'transport_hub': '#722ed1',
-    'shopping': '#eb2f96',
-    'entertainment': '#13c2c2',
-    'temple': '#1890ff',
-    'shrine': '#1890ff',
-    'park': '#52c41a',
-    'museum': '#1890ff',
-    '人文古迹': '#1890ff',
-    '自然风光': '#52c41a',
-    '文化体验': '#13c2c2',
-    '历史建筑': '#1890ff',
-    '亲子娱乐': '#eb2f96',
-    'other': '#8c8c8c',
-    '其他': '#8c8c8c'
-  };
-  return colors[category || '景点'] || '#1890ff';
-};
-
 export interface LocationPoint {
   id: string;
   name: string;
@@ -177,11 +86,15 @@ export interface LocationPoint {
   day?: number | string;
   order?: number | string;
   poi_id?: string;
+  anchor_kind?: MapAnchorKind;
+  anchor_label?: string;
   address?: string;
   city?: string;
   rating?: number | null;
   images?: string[];
+  image_assets?: ImageAssetV3[];
   summary?: string;
+  review_summary?: ReviewSummaryV3 | null;
   suggested_duration_minutes?: number | null;
   opening_hours?: unknown;
   reservation?: unknown;
@@ -194,6 +107,31 @@ export interface LocationPoint {
   updated_at?: string;
 }
 
+const numericRouteOrder = (value: unknown, fallback: number): number => {
+  const match = String(value ?? '').match(/\d+/);
+  const parsed = match ? Number(match[0]) : Number.NaN;
+  return Number.isFinite(parsed) ? parsed : fallback;
+};
+
+/**
+ * 地图上的编号必须与日程路线保持同一顺序：先按天，再按当天活动顺序。
+ * 缺少结构化顺序时保留原始列表顺序，避免为了编号虚构路线关系。
+ */
+export const orderMapLocations = (locations: LocationPoint[]): LocationPoint[] => (
+  locations
+    .map((location, sourceIndex) => ({ location, sourceIndex }))
+    .sort((left, right) => {
+      const dayDifference = numericRouteOrder(left.location.day, Number.MAX_SAFE_INTEGER)
+        - numericRouteOrder(right.location.day, Number.MAX_SAFE_INTEGER);
+      if (dayDifference !== 0) return dayDifference;
+
+      const orderDifference = numericRouteOrder(left.location.order, left.sourceIndex)
+        - numericRouteOrder(right.location.order, right.sourceIndex);
+      return orderDifference !== 0 ? orderDifference : left.sourceIndex - right.sourceIndex;
+    })
+    .map(({ location }) => location)
+);
+
 const getNormalizedCategory = (location: Pick<LocationPoint, 'name' | 'description' | 'category'>): string => {
   const text = `${location.name || ''} ${location.description || ''} ${location.category || ''}`;
   if (TRANSPORT_HUB_DISPLAY_REGEX.test(text)) {
@@ -201,6 +139,107 @@ const getNormalizedCategory = (location: Pick<LocationPoint, 'name' | 'descripti
   }
 
   return location.category || '其他';
+};
+
+const createLocationIcon = (location: LocationPoint, isSelected: boolean): L.DivIcon => {
+  const category = getNormalizedCategory(location);
+  const dayColor = mapDayColor(location.day);
+  const isAnchor = Boolean(location.anchor_kind);
+  const label = location.anchor_label || location.name;
+  const safeName = escapeMapHtml(label);
+  const safeMarkerLabel = escapeMapHtml(
+    isAnchor ? mapAnchorLabel(location.anchor_kind) : mapCategoryLabel(category),
+  );
+  const markerGlyph = isAnchor ? mapAnchorGlyph(location.anchor_kind) : mapCategoryGlyph(category);
+  const classNames = [
+    'travel-map-marker',
+    isSelected ? 'travel-map-marker--selected' : '',
+    isAnchor ? 'travel-map-marker--anchor' : '',
+  ].filter(Boolean).join(' ');
+
+  return L.divIcon({
+    html: `<div class="${classNames}" role="img" aria-label="${safeName}，${safeMarkerLabel}">
+      <span class="travel-map-marker-pin" style="--marker-day-color:${dayColor}">${escapeMapHtml(markerGlyph)}</span>
+      <span class="travel-map-marker-label">${safeName}</span>
+    </div>`,
+    className: 'custom-marker',
+    iconSize: [34, 34],
+    iconAnchor: [17, 17],
+    popupAnchor: [0, -22],
+  });
+};
+
+const createClusterIcon = (cluster: MapLocationCluster): L.DivIcon => {
+  const dayColor = mapDayColor(cluster.locations[0]?.day);
+  const count = cluster.locations.length;
+  return L.divIcon({
+    html: `<div class="travel-map-cluster" style="--marker-day-color:${dayColor}" role="img" aria-label="聚合标记，包含 ${count} 个地点">${count}</div>`,
+    className: 'custom-marker',
+    iconSize: [42, 42],
+    iconAnchor: [21, 21],
+  });
+};
+
+const MapZoomObserver: React.FC<{ onZoomChange: (zoom: number) => void }> = ({ onZoomChange }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const updateZoom = () => {
+      const zoom = map?.getZoom?.();
+      if (Number.isFinite(zoom)) onZoomChange(zoom);
+    };
+    updateZoom();
+    map?.on?.('zoomend', updateZoom);
+    return () => {
+      map?.off?.('zoomend', updateZoom);
+    };
+  }, [map, onZoomChange]);
+
+  return null;
+};
+
+const MapViewportSync: React.FC<{
+  locations: LocationPoint[];
+  selectedLocationId?: string;
+  zoom: number;
+  markerRefs: React.MutableRefObject<Record<string, L.Marker>>;
+}> = ({ locations, selectedLocationId, zoom, markerRefs }) => {
+  const map = useMap();
+  const pendingPopup = useRef<string | null>(null);
+  const openPendingPopup = () => {
+    const id = pendingPopup.current;
+    const marker = id ? markerRefs.current[id] : null;
+    if (marker && map.getContainer().clientWidth > 0 && map.getContainer().clientHeight > 0) {
+      marker.openPopup();
+      if (!marker.isPopupOpen || marker.isPopupOpen()) pendingPopup.current = null;
+    }
+  };
+  useEffect(() => {
+    pendingPopup.current = selectedLocationId || null;
+    let popupFrame: number | undefined;
+    const sync = () => {
+      if (!syncLeafletViewport(map, locations, selectedLocationId)) return;
+      if (popupFrame !== undefined) cancelAnimationFrame(popupFrame);
+      // React Leaflet 在兄弟组件的 effect 中绑定 Popup，等待本轮提交完成后再打开。
+      if (selectedLocationId) popupFrame = requestAnimationFrame(openPendingPopup);
+      else map.closePopup();
+    };
+    sync();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(() => sync());
+    observer?.observe(map.getContainer());
+    return () => {
+      observer?.disconnect();
+      if (popupFrame !== undefined) cancelAnimationFrame(popupFrame);
+      // MapContainer 卸载时负责停止动画；此处的清理可能晚于 map.remove()。
+    };
+  }, [map, locations, selectedLocationId, markerRefs]);
+  useEffect(() => {
+    // 聚合展开后只补开未挂载的弹窗，不重置用户手动选择的缩放级别。
+    if (!pendingPopup.current) return;
+    const frame = requestAnimationFrame(openPendingPopup);
+    return () => cancelAnimationFrame(frame);
+  }, [map, zoom, markerRefs]);
+  return null;
 };
 
 export interface LocationGroup {
@@ -216,6 +255,7 @@ export interface MapComponentProps {
   locationGroups?: LocationGroup[];
   activeGroupId?: string;
   selectedLocationId?: string;
+  baiduMapApiKey?: string;
   onSelectLocation: (locationId: string) => void;
   dayRoutes?: DayRouteGeometry[];
 }
@@ -234,6 +274,13 @@ const areLocationArraysEqual = (prev: LocationPoint[] = [], next: LocationPoint[
     if (Number(a.lng) !== Number(b.lng)) return false;
     if ((a.description || '') !== (b.description || '')) return false;
     if ((a.category || '') !== (b.category || '')) return false;
+    if ((a.anchor_kind || '') !== (b.anchor_kind || '')) return false;
+    if ((a.anchor_label || '') !== (b.anchor_label || '')) return false;
+    if (String(a.day ?? '') !== String(b.day ?? '')) return false;
+    if (String(a.order ?? '') !== String(b.order ?? '')) return false;
+    if ((a.summary || '') !== (b.summary || '')) return false;
+    if (JSON.stringify(a.review_summary ?? null) !== JSON.stringify(b.review_summary ?? null)) return false;
+    if (JSON.stringify(a.image_assets ?? []) !== JSON.stringify(b.image_assets ?? [])) return false;
   }
 
   return true;
@@ -260,7 +307,9 @@ const areMapPropsEqual = (prev: MapComponentProps, next: MapComponentProps) => {
     prev.height === next.height &&
     prev.activeGroupId === next.activeGroupId &&
     prev.selectedLocationId === next.selectedLocationId &&
+    prev.baiduMapApiKey === next.baiduMapApiKey &&
     prev.onSelectLocation === next.onSelectLocation &&
+    JSON.stringify(prev.dayRoutes || []) === JSON.stringify(next.dayRoutes || []) &&
     areLocationArraysEqual(prev.locations || [], next.locations || []) &&
     areLocationGroupsEqual(prev.locationGroups || [], next.locationGroups || []);
 };
@@ -316,13 +365,15 @@ const MapComponent: React.FC<MapComponentProps> = ({
   locationGroups: externalLocationGroups = [],
   activeGroupId,
   selectedLocationId,
+  baiduMapApiKey,
   onSelectLocation,
   dayRoutes = [],
 }) => {
   const [tileProviderIndex, setTileProviderIndex] = useState(0);
+  const [mapZoom, setMapZoom] = useState(16);
   const mapRef = useRef<L.Map | null>(null);
-  const mapViewportRef = useRef<HTMLDivElement>(null);
   const markerRefs = useRef<Record<string, L.Marker>>({});
+  const coordinateSystemRef = useRef<'BD09LL' | 'WGS84' | null>(null);
   const tileErrorCountRef = useRef(0);
   const currentTileProvider = TILE_PROVIDERS[tileProviderIndex];
 
@@ -368,116 +419,32 @@ const MapComponent: React.FC<MapComponentProps> = ({
   );
   const locations = useMemo(() => {
     if (!activeGroupId || safeLocationGroups.length === 0) {
-      return safeExternalLocations;
+      return orderMapLocations(safeExternalLocations);
     }
 
-    return safeLocationGroups.find((group) => group.id === activeGroupId)?.locations || [];
+    return orderMapLocations(safeLocationGroups.find((group) => group.id === activeGroupId)?.locations || []);
   }, [activeGroupId, safeExternalLocations, safeLocationGroups]);
+  const markerDisplayItems = useMemo(
+    () => clusterMapLocations(locations, mapZoom),
+    [locations, mapZoom],
+  );
+  const normalizedDayRoutes = useMemo(() => normalizeDayRoutes(dayRoutes), [dayRoutes]);
 
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) {
-      return;
-    }
-
-    if (locations.length === 0) {
-      map.closePopup();
-      map.setView([39.9042, 116.4074], 12);
-      return;
-    }
-
-    try {
-      const bounds = L.latLngBounds(locations.map((location) => [location.lat, location.lng]));
-      map.flyToBounds(bounds, {
-        padding: [50, 50],
-        duration: 1.5,
-        easeLinearity: 0.25,
-      });
-    } catch (error) {
-      console.error('地图视图更新失败:', error);
-    }
-  }, [locations]);
-
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) {
-      return;
-    }
-
-    if (!selectedLocationId) {
-      map.closePopup();
-      return;
-    }
-
-    const selectedLocation = locations.find((location) => location.id === selectedLocationId);
-    if (!selectedLocation) {
-      map.closePopup();
-      return;
-    }
-
-    map.flyTo([selectedLocation.lat, selectedLocation.lng], 16);
-    markerRefs.current[selectedLocationId]?.openPopup();
-  }, [locations, selectedLocationId]);
-
-  // 获取分类中文名称
-  const getCategoryName = (category?: string) => {
-    const normalized = (category || '').trim().toLowerCase();
-    if (
-      normalized === 'transport' ||
-      normalized === 'transport hub' ||
-      normalized === 'transportation hub' ||
-      normalized === 'transport_hub' ||
-      normalized === '交通'
-    ) {
-      return '交通枢纽';
-    }
-
-    if ((category || '').trim() === '交通枢纽') {
-      return '交通枢纽';
-    }
-
-    return category || '其他';
-  };
-
-  useEffect(() => {
-    const target = mapViewportRef.current;
-    if (!target || typeof ResizeObserver === 'undefined') {
-      return;
-    }
-
-    let rafId = 0;
-    const observer = new ResizeObserver(() => {
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-
-      rafId = requestAnimationFrame(() => {
-        try {
-          mapRef.current?.invalidateSize?.();
-        } catch (error) {
-          console.error('地图尺寸观察刷新失败:', error);
-        }
-      });
-    });
-
-    observer.observe(target);
-
-    return () => {
-      observer.disconnect();
-      if (rafId) {
-        cancelAnimationFrame(rafId);
-      }
-    };
-  }, []);
-
-  const hasDomesticRoute = dayRoutes.some((route) => route.coordinate_system === 'BD09LL');
+  const domesticRoutes = normalizedDayRoutes.filter((route) => route.coordinate_system === 'BD09LL');
+  // 恢复中的空路线、候选图层都不代表坐标系变化。保留已确定的底图，
+  // 避免把 BD-09 地点交给 Leaflet，并避免销毁仍有异步请求的百度实例。
+  if (domesticRoutes.length > 0) coordinateSystemRef.current = 'BD09LL';
+  else if (normalizedDayRoutes.some((route) => route.coordinate_system === 'WGS84')) coordinateSystemRef.current = 'WGS84';
+  const hasDomesticRoute = coordinateSystemRef.current === 'BD09LL';
   const frontendEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-  const baiduBrowserKey = String(frontendEnv?.VITE_BAIDU_MAP_AK || '').trim();
+  const baiduBrowserKey = String(
+    baiduMapApiKey !== undefined ? baiduMapApiKey : (frontendEnv?.VITE_BAIDU_MAP_AK || '')
+  ).trim();
   if (hasDomesticRoute && baiduBrowserKey) {
     return <BaiduMapAdapter
       apiKey={baiduBrowserKey}
       locations={locations}
-      routes={dayRoutes.filter((route) => route.coordinate_system === 'BD09LL')}
+      routes={domesticRoutes}
       selectedLocationId={selectedLocationId}
       onSelectLocation={onSelectLocation}
     />;
@@ -496,12 +463,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
             </button>
           ))}
         </div>
-        {selectedLocation && <PoiDetailContent location={selectedLocation} />}
+        {selectedLocation && <MapLocationQuickView location={selectedLocation} onClose={() => onSelectLocation?.('')} />}
       </div>
     );
   }
 
-  const leafletRoutes = dayRoutes.filter((route) => route.coordinate_system === 'WGS84');
+  const leafletRoutes = normalizedDayRoutes.filter((route) => route.coordinate_system === 'WGS84');
+  const leafletRouteAvailability = routeAvailability(leafletRoutes);
 
   return (
     <div style={{
@@ -551,7 +519,6 @@ const MapComponent: React.FC<MapComponentProps> = ({
       `}</style>
 
       <div
-        ref={mapViewportRef}
         style={{
           flex: 1,
           minHeight: 0,
@@ -564,6 +531,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
           style={{ width: '100%', height: '100%' }}
           ref={mapRef}
         >
+          <MapViewportSync locations={locations} selectedLocationId={selectedLocationId} zoom={mapZoom} markerRefs={markerRefs} />
+          <MapZoomObserver onZoomChange={setMapZoom} />
           <TileLayer
             key={currentTileProvider.id}
             attribution={currentTileProvider.attribution}
@@ -584,8 +553,26 @@ const MapComponent: React.FC<MapComponentProps> = ({
             }}
           />
 
-          {locations.map((location, index) => {
-            const normalizedCategory = getNormalizedCategory(location);
+          {markerDisplayItems.map((item) => {
+            if (item.kind === 'cluster') {
+              return (
+                <Marker
+                  key={item.id}
+                  position={[item.lat, item.lng]}
+                  icon={createClusterIcon(item)}
+                  keyboard
+                  title={`聚合标记，包含 ${item.locations.length} 个地点`}
+                  eventHandlers={{
+                    click: () => mapRef.current?.flyTo(
+                      [item.lat, item.lng],
+                      Math.min(mapZoom + 2, 16),
+                    ),
+                  }}
+                />
+              );
+            }
+
+            const location = item.location;
             return (
               <Marker
                 key={location.id}
@@ -597,70 +584,17 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   }
                 }}
                 position={[location.lat, location.lng]}
-                icon={createColorIcon(location, index + 1)}
+                icon={createLocationIcon(location, selectedLocationId === location.id)}
+                keyboard
+                title={location.anchor_label || `${location.name} · ${location.anchor_kind
+                  ? mapAnchorLabel(location.anchor_kind)
+                  : mapCategoryLabel(getNormalizedCategory(location))}`}
                 eventHandlers={{
                   click: () => onSelectLocation(location.id),
                 }}
               >
-                <Popup minWidth={320} maxWidth={380}>
-                  <div style={{ minWidth: '300px', padding: '4px' }}>
-                    <div style={{ display: 'none', alignItems: 'center', marginBottom: '12px' }}>
-                      <div style={{
-                        background: getCategoryColor(normalizedCategory),
-                        color: 'white',
-                        width: 24,
-                        height: 24,
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                        marginRight: '10px',
-                        flexShrink: 0,
-                      }}>
-                        {index + 1}
-                      </div>
-                      <div style={{ fontWeight: 'bold', fontSize: '16px', color: '#1a1a1a', lineHeight: '1.4' }}>
-                        {location.name}
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'none', marginBottom: '12px' }}>
-                      <Tag
-                        color={getCategoryColor(normalizedCategory)}
-                        style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '12px', fontWeight: '500' }}
-                      >
-                        {getCategoryName(normalizedCategory)}
-                      </Tag>
-                    </div>
-
-                    {false && location.description && (
-                      <div style={{
-                        fontSize: '13px',
-                        color: '#666',
-                        lineHeight: '1.5',
-                        marginBottom: '12px',
-                        padding: '8px 12px',
-                        backgroundColor: '#f8f9fa',
-                        border: '1px solid #e5e7eb',
-                        borderRadius: '6px',
-                      }}>
-                        {location.description}
-                      </div>
-                    )}
-
-                    <div style={{ display: 'none',
-                      fontSize: '11px',
-                      color: '#767676',
-                      borderTop: '1px solid #f0f0f0',
-                      paddingTop: '8px',
-                      marginTop: '8px',
-                    }}>
-                      坐标: {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                    </div>
-                    <PoiDetailContent location={location} />
-                  </div>
+                <Popup minWidth={260} maxWidth={300}>
+                  <MapLocationQuickView location={location} onClose={() => onSelectLocation('')} />
                 </Popup>
               </Marker>
             );
@@ -685,8 +619,8 @@ const MapComponent: React.FC<MapComponentProps> = ({
             当前底图: {currentTileProvider.name}
           </div>
         )}
-        {locations.length > 1 && (leafletRoutes.length === 0 || leafletRoutes.every((route) => route.status === 'unavailable')) && (
-          <div className="map-route-unavailable" role="status">{hasDomesticRoute && !baiduBrowserKey ? '百度地图浏览器凭证未配置，当前仅显示日程地点' : '真实路线暂不可用，当前仅显示日程地点'}</div>
+        {locations.length > 1 && leafletRouteAvailability !== 'ready' && (
+          <div className="map-route-unavailable" role="status">{routeAvailabilityMessage(leafletRouteAvailability)}</div>
         )}
       </div>
     </div>
