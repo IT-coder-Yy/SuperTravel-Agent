@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Alert, Empty, Spin, Tag } from 'antd';
 import { CalendarOutlined, CheckCircleOutlined, LinkOutlined } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
+import { legacyUnsplashCoverAsset, TravelImageAsset } from '../features/travel/conversation/TravelImageAsset';
 
 const SharedTripPage: React.FC = () => {
   const { token = '' } = useParams();
@@ -28,6 +29,7 @@ const SharedTripPage: React.FC = () => {
   const plan = snapshot.plan || {};
   const document = snapshot.document || {};
   const overview = document.destination_overview || {};
+  const coverImage = legacyUnsplashCoverAsset(overview.cover_image, overview.name_zh || '目的地封面');
   const outbound = document.outbound_transport || {};
   const hotels = document.hotel_recommendations || {};
   const returnTransport = document.return_transport || {};
@@ -63,10 +65,7 @@ const SharedTripPage: React.FC = () => {
       </header>
       {snapshot.document && <section className="shared-trip-section shared-destination-overview">
         <h2>1. 目的地介绍</h2>
-        {overview.cover_image && <figure className="shared-cover-image" tabIndex={0}>
-          <img src={overview.cover_image.url} alt={overview.cover_image.alt || overview.name_zh || '目的地'} />
-          <figcaption><a href={overview.cover_image.photographer_url} target="_blank" rel="noreferrer">{overview.cover_image.photographer_name}</a> / <a href={overview.cover_image.unsplash_url} target="_blank" rel="noreferrer">Unsplash</a></figcaption>
-        </figure>}
+        {coverImage && <TravelImageAsset image={coverImage} className="shared-cover-image" imageLabel={`${overview.name_zh || '目的地'}封面`} />}
         <p><strong>{overview.name_zh || '待确认'}{overview.name_en ? ` / ${overview.name_en}` : ''}</strong> · {overview.country_name || '国家/地区待确认'} · {overview.timezone || '时区待确认'}</p>
         <p>{overview.area_overview || overview.status_reason || '暂无可靠目的地介绍'}</p>
       </section>}

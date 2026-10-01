@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Button, Popconfirm, Tag, Typography } from 'antd';
+import { Button, Input, Popconfirm, Tag, Typography } from 'antd';
 import {
   CheckOutlined,
   CompassOutlined,
   DeleteOutlined,
+  EnvironmentOutlined,
   SaveOutlined,
   UserOutlined,
 } from '@ant-design/icons';
@@ -190,6 +191,7 @@ const comparableProfile = (profile: UserTravelProfile) => JSON.stringify({
 });
 
 const selectedValues = (profile: UserTravelProfile) => [
+  profile.home_city,
   ...profile.travel_style,
   profile.preferred_budget_level,
   profile.default_people_type,
@@ -270,6 +272,23 @@ const UserProfile: React.FC = () => {
         </div>
         <CompassOutlined className="profile-summary-mark" aria-hidden="true" />
       </div>
+
+      <fieldset className="profile-card profile-home-city-card">
+        <legend>常住地</legend>
+        <p>浏览器定位不可用或未授权时，新旅程会优先把这里作为出发地。</p>
+        <Input
+          className="profile-home-city-input"
+          prefix={<EnvironmentOutlined aria-hidden="true" />}
+          value={draft.home_city || ''}
+          placeholder="例如：杭州"
+          maxLength={40}
+          onChange={(event) => {
+            setDraft((previous) => ({ ...previous, home_city: event.target.value }));
+            setFeedback('');
+          }}
+          aria-label="常住地"
+        />
+      </fieldset>
 
       <div className="profile-grid">
         {profileGroups.map((group) => {

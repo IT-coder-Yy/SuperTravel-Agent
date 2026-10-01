@@ -1,14 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Button, Checkbox, Drawer, Empty, Input, Select, Tabs, Tag } from 'antd';
+import { Button, Checkbox, Drawer, Empty, Input, Modal, Select, Tabs, Tag } from 'antd';
 import {
-  CloseCircleOutlined,
   DeleteOutlined,
+  DownloadOutlined,
   ExportOutlined,
   FileTextOutlined,
-  ImportOutlined,
-  LinkOutlined,
   PlusOutlined,
-  ShareAltOutlined,
 } from '@ant-design/icons';
 import type { TripWorkspaceState } from './TripWorkspace';
 
@@ -82,21 +79,19 @@ export const buildTripNote = (
 };
 
 interface Props {
+  tripId?: string;
   plan: Record<string, unknown> | null;
   document?: Record<string, unknown> | null;
+  formalDocument?: Record<string, unknown> | null;
   workspace: TripWorkspaceState;
+  hasDraft?: boolean;
+  canApplyDraft?: boolean;
+  onApplyDraft?: () => Promise<Record<string, unknown> | null>;
   onUseTemplate?: (prompt: string) => void;
-  onImportDocument?: (document: Record<string, unknown>) => void;
   onDocumentChange?: (document: Record<string, unknown>) => void;
 }
 
-const SHARE_SCOPES = [
-  { label: '行程', value: 'itinerary' },
-  { label: '预算', value: 'budget' },
-  { label: '来源', value: 'sources' },
-  { label: '清单', value: 'checklist' },
-  { label: '便签', value: 'notes' },
-];
+type ExportFormat = 'markdown' | 'pdf';
 
 const downloadText = (filename: string, content: string, type: string) => {
   const url = URL.createObjectURL(new Blob([content], { type }));
@@ -105,6 +100,34 @@ const downloadText = (filename: string, content: string, type: string) => {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+};
+
+const downloadBlob = (filename: string, content: Blob) => {
+  const url = URL.createObjectURL(content);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+const responseFilename = (contentDisposition: string | null, fallback: string) => {
+  const encoded = contentDisposition?.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  if (!encoded) return fallback;
+  try {
+    return decodeURIComponent(encoded);
+  } catch {
+    return fallback;
+  }
+};
+
+const responseErrorMessage = async (response: Response) => {
+  try {
+    const payload = await response.json();
+    return String(payload?.detail?.message || payload?.detail || '导出失败');
+  } catch {
+    return '导出失败，请稍后重试。';
+  }
 };
 
 const readStored = <T,>(key: string, fallback: T): T => {
@@ -143,12 +166,24 @@ export const buildEffectiveTripPlan = (
   };
 };
 
-const TripProductTools: React.FC<Props> = ({ plan, document, workspace, onUseTemplate, onImportDocument, onDocumentChange }) => {
+const TripProductTools: React.FC<Props> = ({
+  tripId,
+  plan,
+  document,
+  formalDocument,
+  workspace,
+  hasDraft = false,
+  canApplyDraft = false,
+  onApplyDraft,
+  onUseTemplate,
+  onDocumentChange,
+}) => {
   const effectivePlan = useMemo(() => buildEffectiveTripPlan(plan, workspace), [plan, workspace]);
   const planId = String(effectivePlan?.plan_id || 'draft');
   const storageKey = `trip_product_${planId}`;
   const initial = readStored<{ checklist: ChecklistItem[]; notes: TripNote[] }>(storageKey, { checklist: [], notes: [] });
   const [open, setOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('templates');
   const [templates, setTemplates] = useState<TripTemplate[]>([]);
   const [checklist, setChecklist] = useState<ChecklistItem[]>(initial.checklist);
   const [notes, setNotes] = useState<TripNote[]>(initial.notes);
@@ -157,10 +192,9 @@ const TripProductTools: React.FC<Props> = ({ plan, document, workspace, onUseTem
   const [newNote, setNewNote] = useState('');
   const [noteTarget, setNoteTarget] = useState<TripNote['target_type']>('trip');
   const [noteTargetId, setNoteTargetId] = useState('');
-  const [shareScopes, setShareScopes] = useState<string[]>(['itinerary']);
-  const [shareLink, setShareLink] = useState('');
-  const [shareStatus, setShareStatus] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [exportStatus, setExportStatus] = useState('');
+  const [pendingExportFormat, setPendingExportFormat] = useState<ExportFormat | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
   const emittedDocumentSignatureRef = useRef('');
 
   useEffect(() => {
@@ -260,79 +294,69 @@ const TripProductTools: React.FC<Props> = ({ plan, document, workspace, onUseTem
     setNewNote('');
   };
 
-  const exportJson = async () => {
-    setShareStatus('正在生成 JSON');
-    const response = await fetch('/api/trips/import', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format: 'json', content: documentPayload }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload?.detail?.message || '导出失败');
-    const filename = String(payload?.delivery?.markdown_filename || 'trip-plan.md').replace(/\.md$/i, '.json');
-    downloadText(filename, JSON.stringify(payload, null, 2), 'application/json;charset=utf-8');
-    setShareStatus('JSON 已导出');
-  };
-  const exportMarkdown = async () => {
-    setShareStatus('正在生成 Markdown');
-    const response = await fetch('/api/trips/export/markdown', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ document: documentPayload }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload?.detail?.message || '导出失败');
-    downloadText(payload.filename || 'trip-plan.md', payload.content, 'text/markdown;charset=utf-8');
-    setShareStatus('Markdown 已导出');
-  };
-
-  const importFile = async (file: File) => {
-    const format = file.name.toLowerCase().endsWith('.md') ? 'markdown' : 'json';
-    const response = await fetch('/api/trips/import', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ format, content: await file.text() }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload?.detail?.message || '导入失败');
-    setChecklist(Array.isArray(payload.checklist) ? payload.checklist : []);
-    setNotes(Array.isArray(payload.notes) ? payload.notes : []);
-    onImportDocument?.(payload);
-    setShareStatus('导入完成，已重新执行结构校验');
-  };
-
-  const createShare = async () => {
-    if (!effectivePlan || shareScopes.length === 0) return;
-    setShareStatus('正在创建只读分享');
-    const response = await fetch('/api/shares', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ document: documentPayload, scopes: shareScopes }),
-    });
-    const payload = await response.json();
-    if (!response.ok) throw new Error(payload?.detail?.message || '创建分享失败');
-    const link = `${window.location.origin}/share/${payload.token}`;
-    localStorage.setItem(`trip_share_${planId}`, JSON.stringify({ token: payload.token, managementKey: payload.management_key, link }));
-    setShareLink(link);
-    setShareStatus('只读分享已创建');
-    if (document && onDocumentChange) {
-      onDocumentChange({ ...documentPayload, delivery: {
-        ...(document.delivery as Record<string, unknown> || {}), share_status: 'shared', share_scopes: shareScopes,
-      }});
+  const exportFormalDocument = async (format: ExportFormat, sourceDocument: Record<string, unknown>) => {
+    setIsExporting(true);
+    setExportStatus(format === 'pdf' ? '正在生成 PDF' : '正在生成 Markdown');
+    try {
+      const response = await fetch(`/api/trips/export/${format}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ trip_id: tripId, expected_revision: sourceDocument.revision }),
+      });
+      if (!response.ok) throw new Error(await responseErrorMessage(response));
+      if (format === 'markdown') {
+        const payload = await response.json();
+        downloadText(payload.filename || 'trip-plan.md', payload.content, 'text/markdown;charset=utf-8');
+        setExportStatus(payload.cache_hit ? 'Markdown 已导出（已使用 10 分钟缓存）' : 'Markdown 已导出');
+        return;
+      }
+      const payload = await response.blob();
+      const fallback = String((sourceDocument.delivery as Record<string, unknown> | undefined)?.pdf_filename || 'trip-plan.pdf');
+      downloadBlob(responseFilename(response.headers.get('content-disposition'), fallback), payload);
+      setExportStatus(response.headers.get('x-export-cache') === 'HIT' ? 'PDF 已导出（已使用 10 分钟缓存）' : 'PDF 已导出');
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const closeShare = async () => {
-    const saved = readStored<{ token?: string; managementKey?: string }>(`trip_share_${planId}`, {});
-    if (!saved.token || !saved.managementKey) return;
-    const response = await fetch(`/api/shares/${saved.token}`, { method: 'DELETE', headers: { 'X-Share-Management-Key': saved.managementKey } });
-    if (!response.ok) throw new Error('关闭分享失败');
-    localStorage.removeItem(`trip_share_${planId}`);
-    setShareLink('');
-    setShareStatus('分享已关闭');
-    if (document && onDocumentChange) {
-      onDocumentChange({ ...documentPayload, delivery: {
-        ...(document.delivery as Record<string, unknown> || {}), share_status: 'closed', share_scopes: [],
-      }});
+  const requestExport = (format: ExportFormat) => {
+    if (!formalDocument) {
+      setExportStatus('当前没有可下载的已保存正式方案。');
+      return;
+    }
+    if (hasDraft) {
+      setPendingExportFormat(format);
+      return;
+    }
+    run(() => exportFormalDocument(format, formalDocument));
+  };
+
+  const downloadSavedFormalVersion = async () => {
+    const format = pendingExportFormat;
+    if (!format || !formalDocument) return;
+    setPendingExportFormat(null);
+    await exportFormalDocument(format, formalDocument);
+  };
+
+  const applyDraftThenDownload = async () => {
+    const format = pendingExportFormat;
+    if (!format || !onApplyDraft) return;
+    setIsExporting(true);
+    setExportStatus('正在应用草稿');
+    try {
+      const appliedDocument = await onApplyDraft();
+      if (!appliedDocument) {
+        setExportStatus('草稿尚未应用；你仍可选择下载已保存版本。');
+        return;
+      }
+      setPendingExportFormat(null);
+      await exportFormalDocument(format, appliedDocument);
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const run = (action: () => Promise<void>) => void action().catch((error) => setShareStatus(error instanceof Error ? error.message : '操作失败'));
+  const run = (action: () => Promise<void>) => void action().catch((error) => setExportStatus(error instanceof Error ? error.message : '操作失败'));
   const dayOptions = (workspace.days || []).map((day) => ({ label: `Day ${day.day}`, value: String(day.day) }));
   const activityOptions = (workspace.days || []).flatMap((day) => day.activities.map((activity) => ({
     label: `Day ${day.day} · ${activity.title || activity.place?.name || '未命名活动'}`,
@@ -354,9 +378,10 @@ const TripProductTools: React.FC<Props> = ({ plan, document, workspace, onUseTem
 
   return (
     <>
-      <Button size="small" icon={<FileTextOutlined />} onClick={() => setOpen(true)}>行程工具</Button>
+      <Button size="small" icon={<FileTextOutlined />} onClick={() => { setActiveTab('templates'); setOpen(true); }}>行程工具</Button>
+      <Button size="small" icon={<DownloadOutlined />} onClick={() => { setActiveTab('downloads'); setOpen(true); }}>下载</Button>
       <Drawer title="行程工具" width={520} open={open} onClose={() => setOpen(false)} destroyOnClose={false}>
-        <Tabs items={[
+        <Tabs activeKey={activeTab} onChange={setActiveTab} items={[
           {
             key: 'templates', label: '模板', children: templates.length ? (
               <div className="trip-template-list">{templates.map((template) => (
@@ -382,25 +407,31 @@ const TripProductTools: React.FC<Props> = ({ plan, document, workspace, onUseTem
             </div>,
           },
           {
-            key: 'data', label: '导入导出', children: <div className="trip-data-actions">
-              <Button icon={<ImportOutlined />} onClick={() => fileInputRef.current?.click()}>导入 JSON/Markdown</Button>
-              <input ref={fileInputRef} hidden type="file" accept=".json,.md,.markdown,application/json,text/markdown" onChange={(event) => { const file = event.target.files?.[0]; if (file) run(() => importFile(file)); event.currentTarget.value = ''; }} />
-              <Button icon={<ExportOutlined />} disabled={!effectivePlan} onClick={() => run(exportJson)}>导出 JSON</Button>
-              <Button icon={<ExportOutlined />} disabled={!effectivePlan} onClick={() => run(exportMarkdown)}>导出 Markdown</Button>
-              <p>外部文件导入后会重新校验，无法确认的字段会标记为待确认。</p>
-            </div>,
-          },
-          {
-            key: 'share', label: '分享', children: <div className="trip-share-panel">
-              <p>行程默认私有。选择公开范围后创建只读快照。</p>
-              <Checkbox.Group options={SHARE_SCOPES} value={shareScopes} onChange={(values) => setShareScopes(values.map(String))} />
-              <div className="trip-share-actions"><Button type="primary" icon={<ShareAltOutlined />} disabled={!effectivePlan || shareScopes.length === 0} onClick={() => run(createShare)}>创建只读分享</Button><Button danger icon={<CloseCircleOutlined />} onClick={() => run(closeShare)}>关闭分享</Button></div>
-              {shareLink && <a href={shareLink} target="_blank" rel="noreferrer"><LinkOutlined /> {shareLink}</a>}
-              {shareStatus && <p role="status">{shareStatus}</p>}
+            key: 'downloads', label: '下载', children: <div className="trip-data-actions">
+              <Button icon={<ExportOutlined />} disabled={!formalDocument || isExporting} onClick={() => requestExport('markdown')}>导出 Markdown</Button>
+              <Button icon={<ExportOutlined />} disabled={!formalDocument || isExporting} onClick={() => requestExport('pdf')}>导出 PDF</Button>
+              <p>仅下载当前已保存的正式方案；存在未应用修改时可选择先应用，或继续下载已保存版本。</p>
+              {!formalDocument && <p className="trip-export-status" role="status">暂无可下载的已保存正式方案。</p>}
+              {exportStatus && <p className="trip-export-status" role="status">{exportStatus}</p>}
             </div>,
           },
         ]} />
       </Drawer>
+      <Modal
+        title="检测到未应用修改"
+        open={pendingExportFormat !== null}
+        onCancel={() => !isExporting && setPendingExportFormat(null)}
+        closable={!isExporting}
+        maskClosable={!isExporting}
+        footer={[
+          <Button key="cancel" disabled={isExporting} onClick={() => setPendingExportFormat(null)}>取消</Button>,
+          <Button key="saved" disabled={isExporting} onClick={() => run(downloadSavedFormalVersion)}>下载已保存版本</Button>,
+          <Button key="apply" type="primary" loading={isExporting} disabled={!canApplyDraft} onClick={() => run(applyDraftThenDownload)}>先应用再下载</Button>,
+        ]}
+      >
+        <p>未应用草稿不会混入下载文件。你可以先将草稿保存为新的正式版本，或继续下载当前已保存的正式方案。</p>
+        {!canApplyDraft && <p role="alert">当前草稿尚不能应用，请先修正提示的问题；仍可下载已保存版本。</p>}
+      </Modal>
     </>
   );
 };

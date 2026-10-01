@@ -194,7 +194,12 @@ const KnowledgeBase: React.FC = () => {
           <Select value={country} onChange={setCountry} options={countryOptions} />
           <Select value={knowledgeType} onChange={setKnowledgeType} options={knowledgeTypeOptions} />
         </div>
-        <span>{error ? `加载异常：${error}` : (searchLoading ? '正在检索知识库...' : resultHint)}</span>
+        <span
+          className={`knowledge-search-status${error ? ' is-error' : ''}`}
+          role={error ? 'alert' : 'status'}
+        >
+          {error ? '知识库暂时无法连接，请稍后重新加载。' : (searchLoading ? '正在检索知识库...' : resultHint)}
+        </span>
       </div>
 
       {query.trim() && (

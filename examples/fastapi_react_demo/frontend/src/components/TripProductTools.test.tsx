@@ -5,12 +5,17 @@ import TripProductTools, { buildChecklistItem, buildEffectiveTripPlan, buildTrip
 describe('TripProductTools', () => {
   beforeEach(() => {
     localStorage.clear();
+    Object.defineProperty(URL, 'createObjectURL', { configurable: true, value: vi.fn(() => 'blob:test-download') });
+    Object.defineProperty(URL, 'revokeObjectURL', { configurable: true, value: vi.fn() });
+    Object.defineProperty(HTMLAnchorElement.prototype, 'click', { configurable: true, value: vi.fn() });
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ templates: [{
         id: 'classic', name: '经典三日游', audience: ['首次到访'], budget_level: '中等', pace: 'balanced',
         default_days: 3, preferences: ['经典景点'], prompt: '使用模板并继续逐项澄清',
-      }] }),
+      }], content: '# 导出方案', filename: 'trip-plan.md' }),
+      blob: async () => new Blob(['pdf'], { type: 'application/pdf' }),
+      headers: { get: () => null },
     }));
   });
 
@@ -53,7 +58,7 @@ describe('TripProductTools', () => {
     });
   });
 
-  it('keeps export and share document aligned with the active plan version', async () => {
+  it('keeps the editable document aligned with the active plan version', async () => {
     const onDocumentChange = vi.fn();
     const workspace = {
       days: [{ id: 'day-1', day: 1, date: null, theme: '新版', revision: 2, estimated_cost: null,
@@ -82,5 +87,88 @@ describe('TripProductTools', () => {
     expect(emitted.itinerary.days[0].activities[0].title).toBe('新版景点');
     expect(emitted.map_guidance.location_ids).toEqual(['new-poi']);
     expect(emitted.delivery.markdown_filename).toBe('杭州新版行程-v2.md');
+  });
+
+  it('offers only the saved formal version when an unapplied draft cannot be committed', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const formalDocument = {
+      schema_version: '3.0', plan_id: 'plan-formal', revision: 2, status: 'formal',
+      title: '已保存方案', delivery: { markdown_filename: 'saved.md', pdf_filename: 'saved.pdf' },
+    };
+    render(<TripProductTools
+      tripId="export-trip"
+      plan={{ plan_id: 'plan-formal', version: 3 }}
+      document={{ ...formalDocument, revision: 3, title: '未应用草稿' }}
+      formalDocument={formalDocument}
+      hasDraft
+      canApplyDraft={false}
+      workspace={{ days: [], locations: [], sources: [], budget: null, validation: null, repair: null }}
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: /行程工具/ }));
+    fireEvent.click(screen.getByRole('tab', { name: '下载' }));
+    fireEvent.click(screen.getByRole('button', { name: /导出 Markdown/ }));
+
+    expect(screen.getByText('检测到未应用修改')).not.toBeNull();
+    expect(screen.getByRole('button', { name: '先应用再下载' }).hasAttribute('disabled')).toBe(true);
+    fireEvent.click(screen.getByRole('button', { name: '下载已保存版本' }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/trips/export/markdown',
+      expect.objectContaining({ body: JSON.stringify({ trip_id: "export-trip", expected_revision: formalDocument.revision }) }),
+    ));
+  });
+
+  it('applies a draft before downloading the resulting formal version', async () => {
+    const fetchMock = vi.mocked(fetch);
+    const appliedDocument = {
+      schema_version: '3.0', plan_id: 'plan-formal', revision: 3, status: 'formal',
+      title: '已应用方案', delivery: { markdown_filename: 'applied.md', pdf_filename: 'applied.pdf' },
+    };
+    const onApplyDraft = vi.fn().mockResolvedValue(appliedDocument);
+    render(<TripProductTools
+      tripId="export-trip"
+      plan={{ plan_id: 'plan-formal', version: 3 }}
+      document={{ ...appliedDocument, revision: 3 }}
+      formalDocument={{ ...appliedDocument, revision: 2 }}
+      hasDraft
+      canApplyDraft
+      onApplyDraft={onApplyDraft}
+      workspace={{ days: [], locations: [], sources: [], budget: null, validation: null, repair: null }}
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: /行程工具/ }));
+    fireEvent.click(screen.getByRole('tab', { name: '下载' }));
+    fireEvent.click(screen.getByRole('button', { name: /导出 PDF/ }));
+    fireEvent.click(screen.getByRole('button', { name: '先应用再下载' }));
+
+    await waitFor(() => expect(onApplyDraft).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      '/api/trips/export/pdf',
+      expect.objectContaining({ body: JSON.stringify({ trip_id: "export-trip", expected_revision: appliedDocument.revision }) }),
+    ));
+  });
+
+  it('keeps only formal Markdown and PDF downloads in the main tool panel', () => {
+    const formalDocument = {
+      schema_version: '3.0', plan_id: 'plan-formal', revision: 2, status: 'formal',
+      title: '已保存方案', delivery: { markdown_filename: 'saved.md', pdf_filename: 'saved.pdf' },
+    };
+    render(<TripProductTools
+      tripId="export-trip"
+      plan={{ plan_id: 'plan-formal', version: 2 }}
+      document={formalDocument}
+      formalDocument={formalDocument}
+      workspace={{ days: [], locations: [], sources: [], budget: null, validation: null, repair: null }}
+    />);
+
+    fireEvent.click(screen.getByRole('button', { name: /下载/ }));
+    expect(screen.getByRole('tab', { name: '下载' }).getAttribute('aria-selected')).toBe('true');
+    expect(screen.queryByRole('tab', { name: '分享' })).toBeNull();
+
+    expect(screen.getByRole('button', { name: /导出 Markdown/ })).not.toBeNull();
+    expect(screen.getByRole('button', { name: /导出 PDF/ })).not.toBeNull();
+    expect(screen.queryByText('导入 JSON/Markdown')).toBeNull();
+    expect(screen.queryByText('导出 JSON')).toBeNull();
   });
 });
