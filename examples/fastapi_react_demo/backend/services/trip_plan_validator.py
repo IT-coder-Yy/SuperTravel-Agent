@@ -29,6 +29,7 @@ HOTEL_CATEGORY_PATTERN = re.compile(r"(酒店|住宿|hotel|hostel)", re.IGNORECA
 FOOD_CATEGORY_PATTERN = re.compile(r"(餐厅|美食|小吃|restaurant|food|cafe)", re.IGNORECASE)
 WEATHER_PATTERN = re.compile(r"(天气|气温|降雨|下雨|雨具|防晒|防寒|季节|实时预报|weather)", re.IGNORECASE)
 RETURN_TRANSPORT_PATTERN = re.compile(r"(返程|回程|离开|返回|返航|回到|返校|返京|返沪|返深|返广)", re.IGNORECASE)
+MISSING_REQUIRED_MEAL_PATTERN = re.compile(r"第(?P<day>\d+)天缺少可核验的(?P<meal>早餐|午餐|晚餐)地点")
 DATA_CONFIDENCE_TYPES = {"confirmed_live_data", "reference_data", "estimated_data"}
 RELIABLE_COORDINATE_SOURCE_PATTERN = re.compile(
     r"(confirmed_live_data|verified|official|官方|地图|map|amap|高德|baidu|百度|google|openstreetmap|osm)",
@@ -255,11 +256,12 @@ def validate_trip_plan(plan: TripPlan) -> TripValidationResult:
         issues.append(TripValidationIssue(code="PREFERENCE_MISMATCH", message=f"行程未充分匹配用户偏好：{', '.join(missing[:5])}。", severity="warning", repair_hint="优先替换低价值候选，补入用户明确要求的地点或主题。"))
 
     for day, activities in sorted(_activities_by_day(plan).items()):
-        if len(activities) > limit:
+        sightseeing_activities = [activity for activity in activities if activity.activity_type != "food"]
+        if len(sightseeing_activities) > limit:
             issues.append(
                 TripValidationIssue(
                     code="DAY_OVERLOADED",
-                    message=f"第{day}天安排了{len(activities)}个活动，超过当前节奏建议的{limit}个。",
+                    message=f"第{day}天安排了{len(sightseeing_activities)}个游览活动，超过当前节奏建议的{limit}个。",
                     severity="warning",
                     repair_hint=f"减少到{limit}个以内，或把部分地点移动到其他日期。",
                 )
@@ -380,6 +382,21 @@ def validate_trip_plan(plan: TripPlan) -> TripValidationResult:
                 message=f"发现{len(unverified_claims)}处可能需要实时工具确认的价格、库存或预订表述。",
                 severity="error",
                 repair_hint="删除确定性库存/预订表述，或改为“需以官方/实时工具确认为准”。",
+            )
+        )
+
+    missing_required_meals = [
+        f"第{match.group('day')}天{match.group('meal')}"
+        for warning in plan.warnings
+        if (match := MISSING_REQUIRED_MEAL_PATTERN.search(str(warning or "")))
+    ]
+    if missing_required_meals:
+        issues.append(
+            TripValidationIssue(
+                code="MISSING_REQUIRED_MEAL",
+                message=f"完整旅行日缺少可核验餐饮安排：{'、'.join(missing_required_meals[:10])}。",
+                severity="error",
+                repair_hint="继续检索并核验真实餐厅 POI；不得只生成缺餐警告后发布正式方案。",
             )
         )
 

@@ -28,7 +28,9 @@ try:
     from backend.services.travel_document_service import (
         adapt_v2_to_v3,
         calculate_document_checksum,
+        export_travel_plan_v3_markdown,
     )
+    from backend.services.planning_errors import PlanningPipelineError
 except ModuleNotFoundError:
     from schemas.trip_v3_models import (
         AgentStagePayload,
@@ -42,7 +44,12 @@ except ModuleNotFoundError:
         SoftTimeoutPayload,
         TravelPlanDocumentV3,
     )
-    from services.travel_document_service import adapt_v2_to_v3, calculate_document_checksum
+    from services.travel_document_service import (
+        adapt_v2_to_v3,
+        calculate_document_checksum,
+        export_travel_plan_v3_markdown,
+    )
+    from services.planning_errors import PlanningPipelineError
 
 
 STAGE_ORDER = (
@@ -68,6 +75,17 @@ logger = logging.getLogger(__name__)
 
 def validation_diagnostics(error: BaseException) -> List[Dict[str, str]]:
     """Return field-level diagnostics without logging document inputs."""
+    explicit = getattr(error, "diagnostics", None)
+    if isinstance(explicit, list):
+        return [
+            {
+                "location": str(item.get("location") or "document"),
+                "type": str(item.get("type") or "validation_error"),
+                "message": str(item.get("message") or "文档字段校验失败"),
+            }
+            for item in explicit[:8]
+            if isinstance(item, dict)
+        ]
     if isinstance(error, ValidationError):
         return [
             {
@@ -139,6 +157,7 @@ class PlanningTaskGraph:
     async def execute(
         self,
         executors: Dict[str, Callable[[], Awaitable[Any]]],
+        on_event: Optional[Callable[..., Awaitable[None]]] = None,
     ) -> Dict[str, PlanningTaskResult]:
         pending = set(self.tasks)
         results: Dict[str, PlanningTaskResult] = {}
@@ -150,9 +169,14 @@ class PlanningTaskGraph:
             ]
             if not ready:
                 raise RuntimeError("任务图无法继续执行")
-            batch = await asyncio.gather(
-                *(self._execute_task(self.tasks[task_id], executors[task_id]) for task_id in ready)
-            )
+            running = [asyncio.create_task(self._execute_task(self.tasks[task_id], executors[task_id], on_event)) for task_id in ready]
+            try:
+                batch = await asyncio.gather(*running)
+            except BaseException:
+                for task in running:
+                    task.cancel()
+                await asyncio.gather(*running, return_exceptions=True)
+                raise
             for result in batch:
                 results[result.task_id] = result
                 pending.remove(result.task_id)
@@ -162,20 +186,30 @@ class PlanningTaskGraph:
     async def _execute_task(
         task: PlanningTask,
         executor: Callable[[], Awaitable[Any]],
+        on_event: Optional[Callable[..., Awaitable[None]]] = None,
     ) -> PlanningTaskResult:
         started = time.monotonic()
         last_error: Optional[BaseException] = None
         for attempt in range(1, task.max_attempts + 1):
             try:
+                if on_event:
+                    await on_event(task, "running" if attempt == 1 else "retrying", attempt, None)
                 value = await asyncio.wait_for(executor(), timeout=task.timeout_seconds)
-                return PlanningTaskResult(
+                result = PlanningTaskResult(
                     task_id=task.task_id,
                     value=value,
                     attempts=attempt,
                     duration_ms=round((time.monotonic() - started) * 1000),
                 )
-            except BaseException as error:
+                if on_event:
+                    await on_event(task, "completed", attempt, result)
+                return result
+            except asyncio.CancelledError:
+                raise
+            except Exception as error:
                 last_error = error
+        if on_event:
+            await on_event(task, "failed", task.max_attempts, None)
         assert last_error is not None
         raise last_error
 
@@ -379,6 +413,9 @@ class PlanningOrchestrator:
         active_stage = "requirements_analysis"
         soft_timeout_emitted = False
         formal_document_emitted = False
+        formal_answer_emitted = False
+        task_graph_mode = False
+        formal_markdown = ""
         clarification_finished = False
         buffered_structured: List[Dict[str, Any]] = []
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
@@ -421,7 +458,13 @@ class PlanningOrchestrator:
                 self._stage_payload(stage, status="running"),
             )
 
-        async def fail_run(code: str, user_message: str, retryable: bool = True) -> AsyncGenerator[str, None]:
+        async def fail_run(
+            code: str,
+            user_message: str,
+            retryable: bool = True,
+            details: Optional[List[Dict[str, str]]] = None,
+        ) -> AsyncGenerator[str, None]:
+            public_details = list(details or [])[:8]
             yield encode_sse(
                 factory.planning(
                     "error",
@@ -430,6 +473,7 @@ class PlanningOrchestrator:
                         user_message=user_message,
                         retryable=retryable,
                         actions=["retry"],
+                        details=public_details,
                     ),
                 )
             )
@@ -442,6 +486,7 @@ class PlanningOrchestrator:
                         "retryable": retryable,
                         "user_message": user_message,
                         "actions": ["retry"],
+                        "details": public_details,
                     }
                 )
             )
@@ -506,6 +551,22 @@ class PlanningOrchestrator:
                         )
                     continue
                 if item_type == "error":
+                    if isinstance(item, PlanningPipelineError):
+                        details = validation_diagnostics(item)
+                        logger.warning(
+                            "规划流水线失败 run_id=%s code=%s diagnostics=%s",
+                            run_id,
+                            item.code,
+                            json.dumps(details, ensure_ascii=False),
+                        )
+                        async for failed_event in fail_run(
+                            item.code,
+                            item.user_message,
+                            retryable=item.retryable,
+                            details=details,
+                        ):
+                            yield failed_event
+                        return
                     async for failed_event in fail_run(
                         "PLANNING_PIPELINE_FAILED",
                         "本次规划暂时中断，请重试。",
@@ -528,10 +589,33 @@ class PlanningOrchestrator:
                 if payload is None:
                     continue
                 event_type = str(payload.get("type") or "")
+                if event_type == "planning_task":
+                    task_graph_mode = True
+                    task_payload = AgentStagePayload.model_validate(payload["payload"])
+                    active_stage = task_payload.stage
+                    event_name = "agent_stage_started" if task_payload.status in {"running", "retrying"} else "agent_stage_completed"
+                    yield encode_sse(factory.planning(event_name, task_payload))
+                    continue
+
+                if (
+                    formal_document_emitted
+                    and event_type == "chat_chunk"
+                    and payload.get("step_type") == "final_answer"
+                ):
+                    if not formal_answer_emitted:
+                        formal_payload = dict(payload)
+                        formal_payload["content"] = formal_markdown
+                        formal_payload["show_content"] = formal_markdown
+                        formal_payload["replace"] = True
+                        yield encode_sse(factory.legacy(formal_payload))
+                        formal_answer_emitted = True
+                    continue
 
                 if event_type == "trip_intent" and active_stage == "requirements_analysis":
+                    task_graph_mode = bool(payload.get("task_graph"))
                     yield encode_sse(complete_stage("requirements_analysis", "已整理行程约束"))
-                    yield encode_sse(start_stage("research"))
+                    if not task_graph_mode:
+                        yield encode_sse(start_stage("research"))
                 if event_type == "clarification_required":
                     clarification_finished = True
                     if active_stage == "requirements_analysis":
@@ -539,10 +623,10 @@ class PlanningOrchestrator:
 
                 if event_type in STRUCTURED_EVENT_TYPES:
                     buffered_structured.append(payload)
-                    if active_stage == "requirements_analysis":
+                    if active_stage == "requirements_analysis" and not task_graph_mode:
                         yield encode_sse(complete_stage("requirements_analysis", "已整理行程约束"))
                         yield encode_sse(start_stage("research"))
-                    if active_stage == "research":
+                    if active_stage == "research" and not task_graph_mode:
                         yield encode_sse(complete_stage("research", "交通、住宿、美食与目的地资料已汇总"))
                         yield encode_sse(start_stage("route_planning"))
 
@@ -557,38 +641,52 @@ class PlanningOrchestrator:
                             yield failed_event
                         return
                     try:
-                        adapted = adapt_v2_to_v3(raw_document)
+                        adapted = (
+                            TravelPlanDocumentV3.model_validate(raw_document)
+                            if raw_document.get("schema_version") == "3.0"
+                            else adapt_v2_to_v3(raw_document)
+                        )
                         document_payload = adapted.model_dump(mode="json")
                         document_payload["revision"] = max(1, int(target_revision))
                         if existing_plan_id:
                             document_payload["plan_id"] = existing_plan_id
+                        from services.formal_consistency_service import finalize_initial_schedule, refresh_schedule_validation
+                        if not payload.get("task_graph_executed"):
+                            await finalize_initial_schedule(document_payload, dispatcher=self.baidu_dispatcher)
+                        refresh_schedule_validation(document_payload)
                         document = TravelPlanDocumentV3.model_validate(document_payload)
+                        if not document.validation.valid:
+                            raise ValueError("；".join(issue.message for issue in document.validation.issues if issue.severity == "error"))
+                        formal_markdown = export_travel_plan_v3_markdown(document)
                     except (ValidationError, ValueError, TypeError) as error:
+                        details = validation_diagnostics(error)
                         logger.warning(
                             "正式方案校验失败 run_id=%s revision=%s diagnostics=%s",
                             run_id,
                             target_revision,
-                            json.dumps(validation_diagnostics(error), ensure_ascii=False),
+                            json.dumps(details, ensure_ascii=False),
                         )
                         async for failed_event in fail_run(
                             "FORMAL_DOCUMENT_VALIDATION_FAILED",
                             "方案未通过完整校验，地图和工作台数据未发布。",
                             retryable=True,
+                            details=details,
                         ):
                             yield failed_event
                         return
 
-                    yield encode_sse(complete_stage("route_planning", "日程、餐饮、预算与路线编排完成"))
-                    yield encode_sse(start_stage("realtime_verification"))
                     verification_status = "degraded" if document.status == "degraded" else "completed"
-                    yield encode_sse(
-                        complete_stage(
-                            "realtime_verification",
-                            "正式地点、路线和强实时事实核验完成",
-                            status=verification_status,
+                    if not task_graph_mode:
+                        yield encode_sse(complete_stage("route_planning", "日程、餐饮、预算与路线编排完成"))
+                        yield encode_sse(start_stage("realtime_verification"))
+                        yield encode_sse(
+                            complete_stage(
+                                "realtime_verification",
+                                "正式地点、路线和强实时事实核验完成",
+                                status=verification_status,
+                            )
                         )
-                    )
-                    yield encode_sse(start_stage("validation_completed"))
+                        yield encode_sse(start_stage("validation_completed"))
                     validated_payload = document.model_dump(mode="json")
                     try:
                         await self._invoke_document_callback(on_validated_document, validated_payload)
@@ -600,13 +698,14 @@ class PlanningOrchestrator:
                         ):
                             yield failed_event
                         return
-                    yield encode_sse(
-                        complete_stage(
-                            "validation_completed",
-                            "完整 V3 Schema 与业务规则校验通过",
-                            status=verification_status,
+                    if not task_graph_mode:
+                        yield encode_sse(
+                            complete_stage(
+                                "validation_completed",
+                                "完整 V3 Schema 与业务规则校验通过",
+                                status=verification_status,
+                            )
                         )
-                    )
                     for section_name, content in self._document_sections(document):
                         yield encode_sse(
                             factory.planning(
@@ -636,8 +735,16 @@ class PlanningOrchestrator:
                         )
                     )
                     formal_document_emitted = True
-                    for buffered in buffered_structured:
-                        yield encode_sse(factory.legacy(buffered))
+                    yield encode_sse(
+                        factory.legacy(
+                            {
+                                "type": "trip_plan",
+                                "version": document.revision,
+                                "document": validated_payload,
+                                "plan": {},
+                            }
+                        )
+                    )
                     buffered_structured.clear()
                     continue
 
