@@ -1,16 +1,19 @@
-# SuperTravelAgent
+<h1 align="center">SuperTravelAgent</h1>
 
-规划一趟旅行，在地图上查看路线，在工作台里调整每一天。
+<p align="center">
+  <strong>规划一趟旅行，在地图上查看路线，调整每一天。</strong><br>
+  基于 FastAPI、React 和 TypeScript 的多 Agent 旅行规划应用。
+</p>
 
-基于 FastAPI、React 和 TypeScript 的多 Agent 旅行规划应用。
-
-[English](README.md) · 简体中文
+<p align="center">
+  <a href="README.md">English</a> · <strong>简体中文</strong>
+</p>
 
 ## 预览
 
-[![SuperTravelAgent：行程与地图工作台](assets/preview/supertravelagent-preview.gif)](assets/preview/supertravelagent-preview.mp4)
+![SuperTravelAgent：行程与地图工作台](assets/preview/supertravelagent-preview.gif)
 
-[观看预览视频（MP4）](assets/preview/supertravelagent-preview.mp4) · [动态预览](assets/preview/supertravelagent-preview.gif)
+[下载完整录屏（MP4，44 秒）](https://github.com/IT-coder-Yy/SuperTravel-Agent/raw/refs/heads/main/assets/preview/supertravelagent-preview.mp4)
 
 2026 年 10 月 2 日录制于实际运行的应用：回放内置杭州案例，在地图旁查看三天日程，浏览准备清单和提醒，再将案例转为新旅程模板。视频展示脱敏案例回放，不发起新的模型规划，案例中的信息不代表当前价格或库存。
 
