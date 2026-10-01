@@ -1,15 +1,20 @@
 import asyncio
+import copy
 import datetime
+import hashlib
 import json
+import math
 import os
 import re
 import threading
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Any, AsyncGenerator, Callable, Dict, List, Optional, Tuple
-from urllib.parse import quote
+from urllib.parse import quote, urlparse
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -48,14 +53,35 @@ from services.trip_plan_validator import validate_trip_plan
 from services.text_sanitizer_service import sanitize_user_visible_payload, sanitize_user_visible_text
 from services.poi_detail_service import normalize_poi_detail, PoiDetailError
 from services.destination_catalog_service import (
+    approximate_coordinates_for_place,
+    DESTINATION_APPROXIMATE_CENTERS,
     INTERNATIONAL_DESTINATIONS,
+    INTERNATIONAL_DESTINATION_META,
     canonical_destination,
     classic_places_for_city,
+    destination_aliases,
     domestic_city_names,
     is_invalid_poi_name,
 )
 from services.trip_product_service import adapt_v1_document_to_v2, export_trip_markdown
-from services.ticket_search_service import transport_section_from_bundle
+from services.planning_errors import PlanningPipelineError
+from services.ticket_search_service import transport_query_guidance, transport_section_from_bundle
+from services.budget_service import apply_reference_costs, calculate_budget_summary
+from services.meal_schedule_service import apply_meal_schedule, meal_targets_by_day, meal_window_for_opening_hours
+from services.international_restaurant_service import fetch_osm_restaurants
+from services.international_place_search_service import search_international_places
+from services.travel_date_service import (
+    canonicalize_planning_date_range,
+    is_flexible_date_range,
+    resolve_planning_date_contract,
+)
+from services.wikimedia_image_service import (
+    fetch_wikimedia_activity_images,
+    fetch_wikipedia_place_coordinates,
+)
+from services.image_asset_service import build_external_image_asset, build_unsplash_cover_asset
+from services.image_source_service import fetch_image_source_descriptions
+from services.route_geometry_service import build_day_route
 
 
 TRAIN_QUERY_REGEX = re.compile(
@@ -181,7 +207,8 @@ HOTEL_QUERY_REGEX = re.compile(r"(酒店|住宿|住哪|民宿|客栈|预订|订�
 FOOD_QUERY_REGEX = re.compile(r"(美食|餐厅|小吃|探店|吃什么|饭店|咖啡|夜市|food|restaurant)", re.IGNORECASE)
 
 ITINERARY_QUERY_REGEX = re.compile(
-    r"(行程|攻略|规划|旅行|旅游|之旅|游玩|路线|景点|打卡|citywalk|自由行|周末游|三天两夜|3天2夜|itinerary|trip)",
+    r"(行程|攻略|规划|旅行|旅游|之旅|游玩|路线|景点|打卡|citywalk|自由行|周末游|"
+    r"三天两夜|3天2夜|\d+\s*(?:天|日游)|[一二三四五六七八九十]+天|itinerary|trip)",
     re.IGNORECASE,
 )
 
@@ -227,6 +254,79 @@ DESTINATION_SEED_PLACES: Dict[str, List[Tuple[str, int]]] = {
         ("良渚博物院", 3),
         ("中国京杭大运河博物馆", 3),
     ],
+    "武汉": [
+        ("黄鹤楼", 1),
+        ("武汉长江大桥", 1),
+        ("昙华林", 1),
+        ("湖北省博物馆", 2),
+        ("东湖生态旅游风景区", 2),
+        ("武汉大学", 2),
+        ("汉口江滩", 3),
+    ],
+    "成都": [
+        ("武侯祠", 1),
+        ("杜甫草堂", 1),
+        ("金沙遗址博物馆", 1),
+        ("宽窄巷子", 1),
+        ("成都大熊猫繁育研究基地", 2),
+        ("成都博物馆", 2),
+        ("人民公园", 2),
+        ("都江堰景区", 3),
+        ("青城山景区", 3),
+    ],
+    "西安": [
+        ("陕西历史博物馆", 1),
+        ("大雁塔", 1),
+        ("西安碑林博物馆", 1),
+        ("西安城墙", 1),
+        ("秦始皇帝陵博物院", 2),
+        ("华清宫", 2),
+        ("西安博物院", 3),
+        ("大唐芙蓉园", 3),
+        ("大明宫国家遗址公园", 3),
+        ("回民街", 3),
+    ],
+    "南京": [
+        ("南京博物院", 1),
+        ("中山陵", 1),
+        ("明孝陵", 1),
+        ("玄武湖公园", 1),
+        ("南京城墙博物馆", 1),
+        ("鸡鸣汤包", 1),
+        ("南京大牌档", 1),
+        ("总统府", 2),
+        ("夫子庙秦淮风光带", 2),
+        ("中华门城堡", 2),
+        ("老门东历史文化街区", 2),
+        ("瞻园", 2),
+        ("夫子庙美食街", 2),
+        ("老门东美食街", 2),
+        ("侵华日军南京大屠杀遇难同胞纪念馆", 3),
+        ("阅江楼", 3),
+        ("鸡鸣寺", 3),
+        ("雨花台风景区", 3),
+        ("牛首山文化旅游区", 3),
+        ("狮子桥美食街", 3),
+        ("马祥兴菜馆", 3),
+    ],
+}
+
+DESTINATION_SEED_PLACE_SUMMARIES: Dict[str, str] = {
+    "南京博物院": "以六朝、明清与近现代藏品见长，适合作为南京历史线的开场。",
+    "中山陵": "钟山风景区的代表性纪念建筑，步行台阶较多，建议安排在上午。",
+    "明孝陵": "明代帝陵遗存与钟山林景相连，可与中山陵同日安排并预留步行时间。",
+    "鸡鸣汤包": "可作为本地小吃餐点候选，鸭血粉丝汤与汤包是常见搭配。",
+    "南京大牌档": "以金陵菜与小吃为主，适合作为朋友同行的晚餐候选。",
+    "总统府": "串联近代中国历史与民国建筑，可与新街口片区同日安排。",
+    "夫子庙秦淮风光带": "秦淮河沿线的人文街区，适合傍晚至夜间步行体验。",
+    "中华门城堡": "保存较完整的明城墙城门遗存，适合从城防建筑视角认识南京。",
+    "夫子庙美食街": "可集中体验鸭血粉丝汤、盐水鸭等南京小吃，具体店铺按当日排队情况选择。",
+    "老门东美食街": "老城南历史街区内餐饮选择集中，适合作为古城漫步后的用餐候选。",
+    "侵华日军南京大屠杀遇难同胞纪念馆": "主题严肃，建议预留完整参观时段并提前核验预约规则。",
+    "阅江楼": "登高可看长江与城北风景，适合作为第三天的城市景观节点。",
+    "鸡鸣寺": "位于玄武湖与城墙周边，可作为晨间人文散步的候选节点。",
+    "狮子桥美食街": "湖南路片区的餐饮聚集地，可作为晚餐和夜间小吃候选。",
+    "马祥兴菜馆": "金陵菜老字号参考，可作为盐水鸭等地方菜的正餐候选。",
 }
 
 INTERNAL_LEAK_REGEX = re.compile(
@@ -619,12 +719,19 @@ def _extract_first_value(item: Dict[str, Any], keys: List[str], default: str = "
 
 
 def _extract_destination_city(query_text: str) -> str:
-    catalog_match = canonical_destination(query_text)
-    if catalog_match:
-        return catalog_match
     text = _safe_text(query_text)
     if not text:
         return ""
+
+    route = _extract_route_from_query(text)
+    if route:
+        route_destination = canonical_destination(route[1]) or _clean_route_name(route[1])
+        if route_destination:
+            return route_destination
+
+    catalog_match = canonical_destination(text)
+    if catalog_match:
+        return catalog_match
 
     for city in sorted(COMMON_CHINESE_CITY_NAMES, key=len, reverse=True):
         if city and city in text:
@@ -641,6 +748,18 @@ def _extract_destination_city(query_text: str) -> str:
         return city[:4]
 
     return ""
+
+
+def _resolve_trip_destination(query_text: str) -> str:
+    """Use the structured intent as the single destination source when possible."""
+    try:
+        intent = extract_trip_intent(_safe_text(query_text))
+        destination = canonical_destination(_safe_text(intent.destination)) or _safe_text(intent.destination)
+        if destination:
+            return destination
+    except Exception:
+        pass
+    return _extract_destination_city(query_text)
 
 
 def _extract_city_from_payload(payload: Any) -> str:
@@ -1100,6 +1219,32 @@ def _pick_best_seat(prices: Any) -> Tuple[str, str, str]:
     return best_item["seat"], best_item["left"], best_item["price"]
 
 
+def _normalize_ticket_seat_options(prices: Any, fallback_seat: str = "-", fallback_left: str = "-", fallback_price: str = "-") -> List[Dict[str, str]]:
+    """Preserve every provider-returned class for the formal transport card."""
+    options: List[Dict[str, str]] = []
+    seen = set()
+    if isinstance(prices, list):
+        for entry in prices:
+            if not isinstance(entry, dict):
+                continue
+            seat_name = _extract_first_value(entry, ["seat_name", "seatName", "seat", "name"], default="-")
+            if not seat_name or seat_name == "-" or seat_name in seen:
+                continue
+            seen.add(seat_name)
+            options.append({
+                "name": seat_name,
+                "remaining_text": _extract_first_value(entry, ["num", "left", "left_num", "leftNum", "remaining"], default=""),
+                "price": _format_price(_extract_first_value(entry, ["price", "ticketPrice", "amount", "price_num"], default="")),
+            })
+    if not options and fallback_seat and fallback_seat != "-":
+        options.append({
+            "name": fallback_seat,
+            "remaining_text": "" if fallback_left == "-" else fallback_left,
+            "price": fallback_price,
+        })
+    return options[:12]
+
+
 def _pick_best_seat_from_availability(item: Dict[str, Any]) -> Tuple[str, str]:
     available_fallback: Optional[Tuple[str, str]] = None
 
@@ -1115,8 +1260,8 @@ def _pick_best_seat_from_availability(item: Dict[str, Any]) -> Tuple[str, str]:
     return available_fallback if available_fallback is not None else ("-", "-")
 
 
-def _normalize_direct_rows(payload: Any, from_station: str, to_station: str, travel_date: str) -> List[Dict[str, str]]:
-    rows: List[Dict[str, str]] = []
+def _normalize_direct_rows(payload: Any, from_station: str, to_station: str, travel_date: str) -> List[Dict[str, Any]]:
+    rows: List[Dict[str, Any]] = []
 
     data = _find_ticket_rows(
         payload,
@@ -1184,6 +1329,12 @@ def _normalize_direct_rows(payload: Any, from_station: str, to_station: str, tra
             "arrive": arrive,
             "duration": duration,
             "seat": seat,
+            "seat_options": _normalize_ticket_seat_options(
+                item.get("prices"),
+                fallback_seat=seat,
+                fallback_left=seat_left,
+                fallback_price=price,
+            ),
             "price": price,
             "note": (
                 f"余票:{seat_left}，跨天到达" if seat_left != "-" and is_cross_day else
@@ -1313,17 +1464,17 @@ def _normalize_interline_rows(payload: Any, from_station: str, to_station: str, 
         if is_cross_day:
             note_parts.append("跨天到达")
 
-        row = {
-            "type": "中转",
-            "trip_no": trip_no,
-            "route": route_text or f"{from_station} -> {to_station}",
-            "depart": depart,
-            "arrive": arrive,
-            "duration": duration,
-            "seat": seat,
-            "price": price,
-            "note": "，".join(note_parts) if note_parts else "-",
-        }
+            row = {
+                "type": "中转",
+                "trip_no": trip_no,
+                "route": route_text or f"{from_station} -> {to_station}",
+                "depart": depart,
+                "arrive": arrive,
+                "duration": duration,
+                "seat": seat,
+                "price": price,
+                "note": "，".join(note_parts) if note_parts else "-",
+            }
 
         dedupe_key = (row["type"], row["trip_no"], row["route"], row["depart"], row["arrive"], row["price"])
         if dedupe_key in dedupe:
@@ -2150,8 +2301,17 @@ def _extract_xhs_focus(query_text: str) -> str:
 
 
 def _is_tool_execution_error_payload(payload: Any) -> bool:
+    if isinstance(payload, str):
+        message = payload.strip().lower()
+        return any(
+            marker in message
+            for marker in (" failed:", "parameter invalid", "tool error", "unauthorized", "forbidden")
+        )
     if not isinstance(payload, dict):
         return False
+
+    if payload.get("isError") is True or payload.get("is_error") is True:
+        return True
 
     if payload.get("error") is True:
         return True
@@ -2161,6 +2321,23 @@ def _is_tool_execution_error_payload(payload: Any) -> bool:
 
     if _safe_text(payload.get("error_type")):
         return True
+
+    unwrapped = _unwrap_tool_output(payload)
+    if unwrapped is not payload and isinstance(unwrapped, str):
+        message = unwrapped.lower()
+        if any(
+            keyword in message
+            for keyword in (
+                "tool error",
+                "request failed",
+                "unauthorized",
+                "forbidden",
+                "invalid api key",
+                "服务调用失败",
+                "请求失败",
+            )
+        ):
+            return True
 
     message = _safe_text(payload.get("message")).lower()
     if message and any(
@@ -2566,7 +2743,10 @@ def _first_present_list(payload: Any, keys: List[str]) -> List[Any]:
 
 
 def _run_origin_city_lookup(tool_manager: Any, message_history: List[Dict[str, Any]], session_id: str) -> Tuple[str, str, str]:
-    tool_name = _first_available_tool_name(tool_manager, ["map_ip_location", "ip_location", "geo_ip_location"])
+    tool_name = _first_available_tool_name(
+        tool_manager,
+        ["maps_ip_location", "map_ip_location", "ip_location", "geo_ip_location"],
+    )
     if not tool_name:
         return "", "", "定位工具不可用"
     payload = _run_tool_with_arg_candidates(
@@ -2628,10 +2808,13 @@ def _run_weather_for_travel(
 ) -> Tuple[str, str, str]:
     if not destination_city:
         return "", "", "未识别目的地，无法查询天气"
-    tool_name = _first_available_tool_name(tool_manager, ["map_weather", "weather", "get_weather"])
+    tool_name = _first_available_tool_name(
+        tool_manager,
+        ["maps_weather", "map_weather", "weather", "get_weather"],
+    )
     if not tool_name:
         return "", "", "天气工具不可用"
-    if tool_name == "map_weather":
+    if tool_name in {"maps_weather", "map_weather"}:
         arg_candidates = [
             {"city": destination_city, "date": travel_date},
             {"district": destination_city, "date": travel_date},
@@ -2671,6 +2854,27 @@ def _normalize_web_rows(payload: Any, max_rows: int = 6) -> List[Dict[str, str]]
         if unwrapped_payload is not payload:
             payload = unwrapped_payload
 
+    # tavily-mcp 0.2.x returns a readable text block instead of a JSON result:
+    # ``Detailed Results:\n\nTitle: ...\nURL: ...\nContent: ...``.
+    # Keep the parser strict so arbitrary model prose is never treated as a source.
+    if isinstance(payload, str):
+        tavily_items: List[Dict[str, str]] = []
+        result_pattern = re.compile(
+            r"(?:^|\n)Title:\s*(?P<title>[^\r\n]+)\r?\n"
+            r"URL:\s*(?P<url>https?://[^\s]+)\r?\n"
+            r"(?:Content|Snippet):\s*(?P<content>[\s\S]*?)"
+            r"(?=\r?\n\r?\nTitle:|\Z)",
+            re.IGNORECASE,
+        )
+        for match in result_pattern.finditer(payload.strip()):
+            tavily_items.append({
+                "title": match.group("title").strip(),
+                "url": match.group("url").strip(),
+                "content": re.sub(r"\s+", " ", match.group("content")).strip(),
+            })
+        if tavily_items:
+            payload = {"results": tavily_items}
+
     raw_items = _first_present_list(payload, ["organic", "results", "items", "data", "resources"])
     rows: List[Dict[str, str]] = []
     seen = set()
@@ -2686,8 +2890,10 @@ def _normalize_web_rows(payload: Any, max_rows: int = 6) -> List[Dict[str, str]]
             url = _extract_url_from_text(snippet) or _extract_url_from_text(title) or _extract_url_from_text(item)
         if not url:
             url = "-"
-        if snippet != "-" and len(snippet) > 120:
-            snippet = f"{snippet[:117]}..."
+        if source == "-" and url != "-":
+            source = (urlparse(url).hostname or "").removeprefix("www.") or "-"
+        if snippet != "-" and len(snippet) > 320:
+            snippet = f"{snippet[:317]}..."
         key = (title, url)
         if key in seen:
             continue
@@ -2699,6 +2905,126 @@ def _normalize_web_rows(payload: Any, max_rows: int = 6) -> List[Dict[str, str]]
     return rows
 
 
+def _canonical_web_url(value: Any) -> str:
+    url = _safe_text(value)
+    if not url or url == "-":
+        return ""
+    parsed = urlparse(url)
+    if not parsed.netloc:
+        return url.casefold().rstrip("/")
+    path = parsed.path.rstrip("/") or "/"
+    return f"{parsed.netloc.casefold().removeprefix('www.')}{path.casefold()}"
+
+
+def _web_query_terms(value: Any) -> set[str]:
+    text = _safe_text(value).casefold()
+    terms = set(re.findall(r"[a-z0-9]{2,}", text))
+    for segment in re.findall(r"[\u4e00-\u9fff]{2,}", text):
+        terms.update(segment[index:index + 2] for index in range(len(segment) - 1))
+    return terms - {"帮我", "一下", "推荐", "攻略", "旅行", "旅游", "行程", "怎么", "如何"}
+
+
+def _web_row_quality_score(row: Dict[str, Any], query_terms: set[str]) -> float:
+    title = _safe_text(row.get("title")).casefold()
+    snippet = _safe_text(row.get("snippet")).casefold()
+    title_terms = _web_query_terms(title)
+    snippet_terms = _web_query_terms(snippet)
+    score = len(query_terms & title_terms) * 3.0 + len(query_terms & snippet_terms) * 0.8
+    url = _safe_text(row.get("url"))
+    hostname = (urlparse(url).hostname or "").casefold()
+    if url.startswith("https://"):
+        score += 0.5
+    if hostname.endswith(".gov.cn") or hostname == "gov.cn":
+        score += 3.0
+    elif hostname.endswith(".edu.cn") or hostname == "edu.cn":
+        score += 2.0
+    if 60 <= len(snippet) <= 320:
+        score += 1.0
+    providers = {
+        provider.strip()
+        for provider in _safe_text(row.get("search_providers")).split(",")
+        if provider.strip()
+    }
+    if len(providers) > 1:
+        score += 2.0
+    return score
+
+
+def _merge_web_search_rows(
+    rows_by_tool: List[Tuple[str, List[Dict[str, str]]]],
+    user_query: str,
+    max_rows: int = 8,
+) -> List[Dict[str, str]]:
+    """Deduplicate two search providers and keep the most relevant, diverse references."""
+    merged: List[Dict[str, str]] = []
+    for tool_name, rows in rows_by_tool:
+        provider = "Tavily" if "tavily" in tool_name.casefold() else "Serper"
+        for raw_row in rows:
+            row = dict(raw_row)
+            row["search_providers"] = provider
+            canonical_url = _canonical_web_url(row.get("url"))
+            normalized_title = re.sub(r"[^\w\u4e00-\u9fff]+", "", _safe_text(row.get("title"))).casefold()
+            existing = next(
+                (
+                    candidate
+                    for candidate in merged
+                    if (
+                        canonical_url
+                        and canonical_url == _canonical_web_url(candidate.get("url"))
+                    )
+                    or (
+                        normalized_title
+                        and SequenceMatcher(
+                            None,
+                            normalized_title,
+                            re.sub(r"[^\w\u4e00-\u9fff]+", "", _safe_text(candidate.get("title"))).casefold(),
+                        ).ratio() >= 0.9
+                    )
+                ),
+                None,
+            )
+            if existing is None:
+                merged.append(row)
+                continue
+            providers = list(dict.fromkeys([
+                *[item.strip() for item in _safe_text(existing.get("search_providers")).split(",") if item.strip()],
+                provider,
+            ]))
+            existing["search_providers"] = ", ".join(providers)
+            if len(_safe_text(row.get("snippet"))) > len(_safe_text(existing.get("snippet"))):
+                existing["snippet"] = row.get("snippet", "")
+            if _safe_text(existing.get("url")) in {"", "-"} and _safe_text(row.get("url")) not in {"", "-"}:
+                existing["url"] = row.get("url", "")
+                existing["source"] = row.get("source", "")
+
+    query_terms = _web_query_terms(user_query)
+    ranked = sorted(
+        merged,
+        key=lambda row: (
+            _web_row_quality_score(row, query_terms),
+            len(_safe_text(row.get("snippet"))),
+        ),
+        reverse=True,
+    )
+    selected = ranked[:max(1, max_rows)]
+    available_providers = {
+        provider.strip()
+        for row in ranked
+        for provider in _safe_text(row.get("search_providers")).split(",")
+        if provider.strip()
+    }
+    for provider in sorted(available_providers):
+        if any(provider in _safe_text(row.get("search_providers")) for row in selected):
+            continue
+        replacement = next(
+            (row for row in ranked if provider in _safe_text(row.get("search_providers"))),
+            None,
+        )
+        if replacement is not None and selected:
+            selected[-1] = replacement
+    return selected
+
+
 def _build_xhs_travel_query(query_text: str) -> str:
     destination = _extract_destination_city(query_text)
     if not destination:
@@ -2706,6 +3032,12 @@ def _build_xhs_travel_query(query_text: str) -> str:
     if XHS_TRAVEL_RELEVANCE_REGEX.search(query_text):
         return query_text
     return f"{destination} 旅行攻略"
+
+
+def _build_xhs_lodging_query(query_text: str, destination_city: str = "") -> str:
+    """Keep community research scoped to lodging area and stay experience."""
+    destination = canonical_destination(_safe_text(destination_city)) or _resolve_trip_destination(query_text)
+    return f"{destination} 住宿 酒店 民宿 区域 入住体验" if destination else "住宿 酒店 民宿 区域 入住体验"
 
 
 def _filter_xhs_travel_rows(rows: List[Dict[str, str]], query_text: str) -> Tuple[List[Dict[str, str]], int]:
@@ -2815,6 +3147,13 @@ def _extract_location_pair(item: Dict[str, Any]) -> Tuple[Optional[float], Optio
             lat = _extract_float(value[1])
             if lat is not None and lng is not None:
                 return lat, lng
+        elif isinstance(value, str):
+            numbers = re.findall(r"-?\d+(?:\.\d+)?", value.replace("，", ","))
+            if len(numbers) >= 2:
+                lng = _extract_float(numbers[0])
+                lat = _extract_float(numbers[1])
+                if lat is not None and lng is not None and -90 <= lat <= 90:
+                    return lat, lng
 
     for container in candidate_containers:
         lat = _extract_float(
@@ -2834,19 +3173,66 @@ def _extract_location_pair(item: Dict[str, Any]) -> Tuple[Optional[float], Optio
     return None, None
 
 
+def _is_amap_tool(tool_name: str) -> bool:
+    return _safe_text(tool_name).lower().startswith("maps_")
+
+
+def _gcj02_to_bd09(longitude: float, latitude: float) -> Tuple[float, float]:
+    """Convert a mainland AMap GCJ-02 point for the existing Baidu map renderer."""
+    x_pi = math.pi * 3000.0 / 180.0
+    z = math.sqrt(longitude * longitude + latitude * latitude) + 0.00002 * math.sin(latitude * x_pi)
+    theta = math.atan2(latitude, longitude) + 0.000003 * math.cos(longitude * x_pi)
+    return z * math.cos(theta) + 0.0065, z * math.sin(theta) + 0.006
+
+
+def _available_tool_names(tool_manager: Any, candidates: List[str]) -> List[str]:
+    available: List[str] = []
+    for candidate in candidates:
+        try:
+            if tool_manager.get_tool(candidate) is not None:
+                available.append(candidate)
+        except Exception:
+            continue
+    return available
+
+
+def _order_map_provider_tools(tool_names: List[str], destination_city: str) -> List[str]:
+    canonical = canonical_destination(_safe_text(destination_city))
+    prefer_amap = canonical not in INTERNATIONAL_DESTINATIONS
+    return sorted(tool_names, key=lambda tool_name: _is_amap_tool(tool_name) != prefer_amap)
+
+
 def _normalize_map_locations(
     payload: Any,
     max_rows: int = 10,
     require_coordinates: bool = True,
+    source_tool: str = "",
 ) -> List[Dict[str, Any]]:
-    raw_items = _first_present_list(payload, ["places", "pois", "results", "items", "data", "content"])
+    payload = _unwrap_tool_output(payload)
+    raw_items = _first_present_list(
+        payload,
+        ["places", "pois", "geocodes", "results", "items", "data", "content"],
+    )
+    # AMap ``maps_search_detail`` returns one POI object, not a list.
+    if (
+        not raw_items
+        and isinstance(payload, dict)
+        and _safe_text(payload.get("name") or payload.get("title"))
+        and any(payload.get(key) not in (None, "", [], {}) for key in ("id", "uid", "location", "address"))
+    ):
+        raw_items = [payload]
     rows: List[Dict[str, Any]] = []
     seen = set()
+    source_is_amap = _is_amap_tool(source_tool)
 
     for item in raw_items:
         if not isinstance(item, dict):
             continue
-        name = _extract_first_value(item, ["name", "title", "address", "uid"], default="")
+        name = _extract_first_value(
+            item,
+            ["name", "title", "formatted_address", "address", "uid", "id"],
+            default="",
+        )
         lat, lng = _extract_location_pair(item)
         has_valid_coordinates = (
             lat is not None
@@ -2858,9 +3244,35 @@ def _normalize_map_locations(
             continue
         if not has_valid_coordinates:
             lat, lng = None, None
-        address = _extract_first_value(item, ["address", "formatted_address", "area", "city"], default="")
+        address = _extract_first_value(
+            item,
+            ["formatted_address", "address", "area", "district", "adname", "city", "cityname"],
+            default="",
+        )
         category = _extract_first_value(item, ["category", "type", "tag"], default="")
-        place_id = _safe_text(item.get("uid") or item.get("place_id") or item.get("id"))
+        provider_place_id = _safe_text(item.get("uid") or item.get("place_id") or item.get("id"))
+        place_id = provider_place_id
+        raw_coordinate_system = _safe_text(
+            item.get("coordinate_system")
+            or item.get("coord_type")
+            or item.get("coords_type")
+        ).upper()
+        provider_coordinate_system = (
+            raw_coordinate_system
+            if raw_coordinate_system in {"WGS84", "BD09LL", "GCJ02", "GCJ-02"}
+            else ("GCJ02" if source_is_amap and has_valid_coordinates else "BD09LL" if has_valid_coordinates else "")
+        )
+        provider_latitude = lat
+        provider_longitude = lng
+        if has_valid_coordinates and provider_coordinate_system in {"GCJ02", "GCJ-02"}:
+            lng, lat = _gcj02_to_bd09(lng, lat)
+            coordinate_system = "BD09LL"
+        else:
+            coordinate_system = provider_coordinate_system or None
+        if not place_id and has_valid_coordinates:
+            coordinate_identity = f"{name}|{lat:.6f}|{lng:.6f}"
+            prefix = "amap_geo" if source_is_amap else "baidu_geo"
+            place_id = f"{prefix}_{hashlib.sha1(coordinate_identity.encode('utf-8')).hexdigest()[:20]}"
         key = (
             place_id or re.sub(r"[^\w\u4e00-\u9fff]+", "", name).casefold(),
             round(lat, 6) if lat is not None else None,
@@ -2870,25 +3282,60 @@ def _normalize_map_locations(
             continue
         seen.add(key)
         detail_info = item.get("detail_info") if isinstance(item.get("detail_info"), dict) else {}
-        images = item.get("images") or item.get("image_urls") or detail_info.get("image") or detail_info.get("images") or []
+        business = item.get("business") if isinstance(item.get("business"), dict) else {}
+        biz_ext = item.get("biz_ext") if isinstance(item.get("biz_ext"), dict) else {}
+        images = (
+            item.get("images")
+            or item.get("image_urls")
+            or item.get("photos")
+            or detail_info.get("image")
+            or detail_info.get("images")
+            or []
+        )
         if isinstance(images, str):
             images = [images]
+        elif isinstance(images, dict):
+            images = [images]
+        if isinstance(images, list):
+            images = [
+                _safe_text(image.get("url") or image.get("image_url")) if isinstance(image, dict) else _safe_text(image)
+                for image in images
+            ]
+            images = [image for image in images if image.startswith(("http://", "https://"))]
+        city = _extract_first_value(item, ["city", "cityname"], default="")
+        province = _extract_first_value(item, ["province", "pname"], default="")
+        district = _extract_first_value(item, ["district", "adname"], default="")
         rows.append(
             {
                 "id": f"travel_place_{len(rows) + 1}",
                 "place_id": place_id,
+                "provider_place_id": provider_place_id or None,
+                "identity_source": (
+                    "provider_uid"
+                    if provider_place_id
+                    else ("provider_coordinates" if has_valid_coordinates else "unresolved")
+                ),
                 "name": name,
                 "lat": round(lat, 6) if lat is not None else None,
                 "lng": round(lng, 6) if lng is not None else None,
-                "coordinates_trusted": bool(place_id and has_valid_coordinates),
+                "coordinate_system": coordinate_system,
+                "provider_coordinate_system": provider_coordinate_system or None,
+                "provider_latitude": round(provider_latitude, 6) if provider_latitude is not None else None,
+                "provider_longitude": round(provider_longitude, 6) if provider_longitude is not None else None,
+                "source_provider": "amap" if source_is_amap else "baidu",
+                "coordinates_trusted": has_valid_coordinates,
+                "address": address or None,
+                "city": city or None,
+                "province": province or None,
+                "area": district or None,
                 "description": address or "地图检索命中地点",
                 "category": category or "景点",
-                "rating": item.get("rating") or detail_info.get("overall_rating"),
+                "rating": item.get("rating") or business.get("rating") or biz_ext.get("rating") or detail_info.get("overall_rating"),
                 "images": images if isinstance(images, list) else [],
                 "summary": _safe_text(item.get("summary") or item.get("description") or detail_info.get("description")),
-                "opening_hours": item.get("opening_hours") or detail_info.get("opening_hours") or detail_info.get("shop_hours"),
-                "price": item.get("price") or detail_info.get("price"),
-                "telephone": item.get("telephone") or detail_info.get("telephone"),
+                "opening_hours": item.get("opening_hours") or item.get("opentime2") or item.get("open_time") or business.get("opentime2") or business.get("opentime_today") or detail_info.get("opening_hours") or detail_info.get("shop_hours"),
+                "price": item.get("price") or business.get("cost") or biz_ext.get("cost") or detail_info.get("price"),
+                "telephone": item.get("telephone") or item.get("tel") or business.get("tel") or detail_info.get("telephone"),
                 "order": len(rows) + 1,
             }
         )
@@ -2896,6 +3343,36 @@ def _normalize_map_locations(
             break
 
     return rows
+
+
+def _normalized_travel_location_category(location: Dict[str, Any]) -> str:
+    """Prefer an explicit lodging/dining name over a generic search category."""
+    current = _safe_text(location.get("category")) or "景点"
+    search_category = _safe_text(location.get("search_category"))
+    text = f"{current} {_safe_text(location.get('name'))}"
+    if re.search(r"酒店|宾馆|住宿|民宿|客栈|hotel|hostel", text, re.IGNORECASE):
+        return "酒店"
+    if re.search(
+        r"餐厅|餐馆|酒家|饭店|茶楼|茶餐厅|美食|小吃|咖啡|甜品|面包|烘焙|"
+        r"火锅|烧烤|粤菜|川菜|湘菜|杭帮菜|本帮菜|江浙菜|中餐|西餐|料理|菜馆|"
+        r"restaurant|food|cafe|bakery|cuisine",
+        text,
+        re.IGNORECASE,
+    ):
+        return "餐厅"
+    if re.search(r"车站|机场|地铁|交通|station|airport|transport", text, re.IGNORECASE):
+        return "交通"
+    if search_category in {"酒店", "餐厅", "交通"}:
+        return search_category
+    return current
+
+
+def _normalize_travel_location_categories(locations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    return [
+        {**location, "category": _normalized_travel_location_category(location)}
+        for location in locations
+        if isinstance(location, dict)
+    ]
 
 
 def _normalize_place_detail_payload(payload: Any) -> Dict[str, Any]:
@@ -2917,35 +3394,58 @@ def _enrich_map_locations_with_details(
     message_history: List[Dict[str, Any]],
     session_id: str,
 ) -> List[Dict[str, Any]]:
-    detail_tool = _first_available_tool_name(tool_manager, ["map_place_details"])
-    image_tool = _first_available_tool_name(tool_manager, ["search_image_from_web"])
+    detail_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_search_detail", "map_place_details", "map_place_detail"],
+    ), destination_city)
     fetched_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
     enriched: List[Dict[str, Any]] = []
     for index, location in enumerate(locations):
         current = dict(location)
         detail_fetched = False
-        image_fetched = False
         place_id = _safe_text(current.get("place_id"))
         has_rich_detail = any(current.get(key) not in (None, "", [], {}) for key in ("rating", "images", "opening_hours", "price", "summary"))
-        # The search response already carries scope=2 details. Only the first two
-        # final POIs may trigger a separate detail lookup when those fields are absent.
-        if detail_tool and index < 2 and not has_rich_detail:
+        should_fetch_detail = (index < 48 and not current.get("opening_hours")
+                               and current.get("source_provider") not in {"wikidata", "wikipedia", "openstreetmap"})
+        preferred_detail_tools = sorted(
+            detail_tools,
+            key=lambda tool: _is_amap_tool(tool) != (_safe_text(current.get("source_provider")) == "amap"),
+        )
+        # Search responses usually carry coordinates. Keep extra detail calls
+        # bounded to the first two POIs; candidates without provider-backed
+        # opening hours remain in the pool with an explicit unavailable reason.
+        if preferred_detail_tools and should_fetch_detail:
+            detail_tool = preferred_detail_tools[0]
+            provider_key = "amap" if _is_amap_tool(detail_tool) else "baidu"
+            provider_ids = current.get("provider_place_ids") if isinstance(current.get("provider_place_ids"), dict) else {}
+            detail_place_id = _safe_text(provider_ids.get(provider_key))
+            if not detail_place_id and _safe_text(current.get("source_provider")) == provider_key:
+                detail_place_id = place_id
+            if not detail_place_id and not provider_ids:
+                detail_place_id = place_id
             detail_payload = _run_tool_with_arg_candidates(
                 tool_manager=tool_manager,
                 tool_name=detail_tool,
                 message_history=message_history,
                 session_id=session_id,
                 arg_candidates=[
-                    {"uid": place_id} if place_id else {"query": current.get("name"), "region": destination_city},
-                    {"id": place_id} if place_id else {"place_name": current.get("name"), "city": destination_city},
+                    {"id": detail_place_id} if detail_place_id else {"query": current.get("name"), "region": destination_city},
+                    {"uid": detail_place_id} if detail_place_id else {"query": current.get("name"), "region": destination_city},
+                    {"id": detail_place_id} if detail_place_id else {"place_name": current.get("name"), "city": destination_city},
                     {"query": current.get("name"), "region": destination_city},
                 ],
                 request_priority="supplemental",
             )
             if not _is_tool_execution_error_payload(detail_payload):
                 detail = _normalize_place_detail_payload(detail_payload)
-                detail_rows = _normalize_map_locations({"items": [detail]}, max_rows=1)
-                if detail_rows:
+                detail_rows = _normalize_map_locations(
+                    {"items": [detail]},
+                    max_rows=1,
+                    source_tool=detail_tool,
+                )
+                if (detail_rows
+                    and _has_positive_destination_signal(detail_rows[0], destination_city)
+                    and _map_locations_represent_same_place(current, detail_rows[0])):
                     detail_fetched = True
                     detail_row = detail_rows[0]
                     for key, value in detail_row.items():
@@ -2954,24 +3454,15 @@ def _enrich_map_locations_with_details(
                         if value not in (None, "", [], {}):
                             current[key] = value
 
-        if image_tool and index < 2 and not current.get("images") and _safe_text(current.get("category")) not in {"酒店", "餐厅"}:
-            image_payload = _run_tool_with_arg_candidates(
-                tool_manager=tool_manager,
-                tool_name=image_tool,
-                message_history=message_history,
-                session_id=session_id,
-                arg_candidates=[{"query": f"{destination_city} {current.get('name')} 官方 旅游", "count": 3}],
-            )
-            image_rows = _first_present_list(image_payload, ["images", "results", "items", "data"])
-            image_urls = [
-                _safe_text(item.get("image_url") or item.get("imageUrl") or item.get("url"))
-                for item in image_rows if isinstance(item, dict)
-            ]
-            current["images"] = [url for url in image_urls if url.startswith(("http://", "https://"))][:3]
-            image_fetched = bool(current["images"])
+        # images 只保留地图接口返回的 POI 图片。网页图片由正式活动图片
+        # 管道匹配具体地点后附加，不能继承地点的地图来源而被直接信任。
 
+        current["category"] = _normalized_travel_location_category(current)
         current["updated_at"] = fetched_at
-        current["source"] = _safe_text(current.get("source")) or ("百度地图地点详情" if detail_fetched else "百度地图地点检索")
+        provider_label = "高德地图" if _safe_text(current.get("source_provider")) == "amap" else "百度地图"
+        current["source"] = _safe_text(current.get("source")) or (
+            f"{provider_label}地点详情" if detail_fetched else f"{provider_label}地点检索"
+        )
         map_source_id = f"map_{index + 1}"
         sources = [{
             "source_reference_id": map_source_id,
@@ -2986,18 +3477,6 @@ def _enrich_map_locations_with_details(
             key: {"source_reference_id": map_source_id, "updated_at": fetched_at, "data_type": sources[0]["data_type"]}
             for key in sources[0]["related_fields"]
         }
-        if image_fetched:
-            image_source_id = f"image_{index + 1}"
-            sources.append({
-                "source_reference_id": image_source_id,
-                "title": "公开图片检索",
-                "source": "公开图片检索",
-                "type": "image_search",
-                "data_type": "reference_data",
-                "updated_at": fetched_at,
-                "related_fields": ["images"],
-            })
-            field_evidence["images"] = {"source_reference_id": image_source_id, "updated_at": fetched_at, "data_type": "reference_data"}
         current["sources"] = sources
         current["field_evidence"] = field_evidence
         enriched.append(current)
@@ -3027,12 +3506,16 @@ def _apply_default_map_category(locations: List[Dict[str, Any]], query_text: str
 
 
 def _travel_seed_places(destination_city: str, query_text: str) -> List[Tuple[str, int]]:
-    city = _safe_text(destination_city)
-    seeds = list(DESTINATION_SEED_PLACES.get(city, [])) or classic_places_for_city(city)
-    text = _safe_text(query_text)
-    for city_name, city_seeds in DESTINATION_SEED_PLACES.items():
-        if city_name in text and city_name != city:
-            seeds.extend(city_seeds)
+    city = canonical_destination(_safe_text(destination_city)) or _safe_text(destination_city)
+    explicit_seeds = list(DESTINATION_SEED_PLACES.get(city, []))
+    seeds = explicit_seeds or classic_places_for_city(city)
+
+    if seeds and not explicit_seeds:
+        requested_days = max(1, extract_trip_intent(query_text).days or 1)
+        seeds = [
+            (name, (index % requested_days) + 1)
+            for index, (name, _day) in enumerate(seeds)
+        ]
 
     seen = set()
     deduped: List[Tuple[str, int]] = []
@@ -3042,6 +3525,332 @@ def _travel_seed_places(destination_city: str, query_text: str) -> List[Tuple[st
         seen.add(name)
         deduped.append((name, day))
     return deduped
+
+
+def _seed_place_category(place_name: str) -> str:
+    if re.search(r"美食街|汤包|大牌档|菜馆|餐厅|餐馆|小吃|咖啡", _safe_text(place_name), re.IGNORECASE):
+        return "餐厅"
+    return "景点"
+
+
+def _catalog_seed_location(destination_city: str, place_name: str, day: int) -> Dict[str, Any]:
+    category = _seed_place_category(place_name)
+    summary = _safe_text(DESTINATION_SEED_PLACE_SUMMARIES.get(place_name))
+    if not summary:
+        summary = f"{place_name}是{destination_city}的{('本地餐饮' if category == '餐厅' else '代表性游览')}候选；具体开放信息需在出发前复核。"
+    catalog_id = f"catalog_{hashlib.sha1(f'{destination_city}|{place_name}'.encode('utf-8')).hexdigest()[:16]}"
+    location = {
+        "id": catalog_id,
+        "poi_id": catalog_id,
+        "name": place_name,
+        "category": category,
+        "city": destination_city,
+        "day": day,
+        "summary": summary,
+        "description": summary,
+        "source": "destination_catalog",
+        "data_type": "reference_data",
+        "requested_destination": destination_city,
+        "destination_bound": True,
+        "coordinates_trusted": False,
+    }
+    approximate = approximate_coordinates_for_place(destination_city, place_name)
+    if approximate is not None:
+        location.update({
+            "lat": approximate[0],
+            "lng": approximate[1],
+            "coordinate_system": approximate[2],
+            "coordinate_source": "catalog_city_approximate",
+        })
+    return location
+
+
+def _daily_activity_targets(pace: Optional[str]) -> Tuple[int, int]:
+    """Return (sightseeing, meals) targets without exceeding validator capacity."""
+    if pace == "intensive":
+        return 5, 2
+    if pace == "relaxed":
+        return 4, 2
+    return 4, 2
+
+
+def _lodging_breakfast_included(travel_bundle: Dict[str, Any]) -> Optional[bool]:
+    candidates = travel_bundle.get("lodging_candidates")
+    if not isinstance(candidates, list):
+        return None
+    for candidate in candidates:
+        if not isinstance(candidate, dict):
+            continue
+        value = candidate.get("breakfast_included")
+        if isinstance(value, bool):
+            return value
+    return None
+
+
+def _meal_transport_context(
+    intent: TripIntent,
+    *,
+    destination_city: str,
+    travel_bundle: Dict[str, Any],
+) -> Tuple[str, Optional[str], Optional[str]]:
+    try:
+        date_mode, start_date, end_date, _ = resolve_planning_date_contract(intent.date_range, intent.days)
+    except Exception:
+        return ("flexible" if is_flexible_date_range(intent.date_range) else "fixed", None, None)
+    if date_mode != "fixed" or start_date is None or end_date is None:
+        return date_mode, None, None
+
+    scope = "international" if canonical_destination(destination_city) in INTERNATIONAL_DESTINATIONS else "domestic"
+    outbound = transport_section_from_bundle(
+        travel_bundle.get("ticket_bundle"),
+        "outbound",
+        scope,
+        start_date.isoformat(),
+    )
+    returning = transport_section_from_bundle(
+        travel_bundle.get("return_ticket_bundle"),
+        "return",
+        scope,
+        end_date.isoformat(),
+    )
+
+    def selected_clock(section: Dict[str, Any], field: str) -> Optional[str]:
+        if section.get("status") != "ready":
+            return None
+        options = section.get("options")
+        if not isinstance(options, list) or not options:
+            return None
+        option = options[0]
+        if not isinstance(option, dict) or option.get("data_type") != "confirmed_live_data":
+            return None
+        value = _safe_text(option.get(field))
+        return value or None
+
+    return date_mode, selected_clock(outbound, "arrival_time"), selected_clock(returning, "departure_time")
+
+
+def _ensure_daily_activity_coverage(
+    locations: List[Dict[str, Any]],
+    *,
+    destination_city: str,
+    query_text: str,
+    days: int,
+    pace: Optional[str],
+    meal_targets_by_day: Optional[Dict[int, List[str]]] = None,
+) -> List[Dict[str, Any]]:
+    """Create a readable formal agenda even when map verification is partial.
+
+    Catalog entries remain reference data. When all map lookups fail, they carry a
+    clearly marked city-level approximate point so the workbench can still display
+    them and offer name-based navigation without claiming an exact POI coordinate.
+    """
+    target_attractions, default_target_food = _daily_activity_targets(pace)
+    normalized = [
+        {**location, "category": _normalized_travel_location_category(location)}
+        for location in locations
+        if isinstance(location, dict)
+        and _normalized_travel_location_category(location) not in {"酒店", "交通"}
+    ]
+    city = canonical_destination(destination_city) or _safe_text(destination_city)
+    city_name_key = _normalized_poi_match_text(city)
+
+    def itinerary_name_key(value: Any) -> str:
+        key = _normalized_poi_match_text(value)
+        if city_name_key and key.startswith(city_name_key) and len(key) > len(city_name_key) + 1:
+            key = key[len(city_name_key):]
+        return key
+
+    seen_name_keys = {itinerary_name_key(location.get("name")) for location in normalized}
+    seed_locations = [
+        _catalog_seed_location(destination_city, name, day)
+        for name, day in _travel_seed_places(destination_city, query_text)
+        if itinerary_name_key(name) not in seen_name_keys
+    ]
+
+    center = DESTINATION_APPROXIMATE_CENTERS.get(city)
+    explicit_seed_days = {
+        _normalized_poi_match_text(name): day
+        for name, day in DESTINATION_SEED_PLACES.get(city, [])
+    }
+    explicit_seed_order = {
+        _normalized_poi_match_text(name): index
+        for index, (name, _day) in enumerate(DESTINATION_SEED_PLACES.get(city, []))
+    }
+
+    def coordinates(location: Dict[str, Any]) -> Optional[Tuple[float, float]]:
+        lat = _optional_float(location.get("lat"))
+        lng = _optional_float(location.get("lng"))
+        return (lat, lng) if lat is not None and lng is not None else None
+
+    def distance_km(left: Tuple[float, float], right: Tuple[float, float]) -> float:
+        lat1, lng1 = left
+        lat2, lng2 = right
+        lat_delta = math.radians(lat2 - lat1)
+        lng_delta = math.radians(lng2 - lng1)
+        value = (
+            math.sin(lat_delta / 2) ** 2
+            + math.cos(math.radians(lat1))
+            * math.cos(math.radians(lat2))
+            * math.sin(lng_delta / 2) ** 2
+        )
+        return 2 * 6371.0 * math.asin(math.sqrt(value))
+
+    def distance_to(location: Dict[str, Any], target: Optional[Tuple[float, float]]) -> float:
+        point = coordinates(location)
+        return distance_km(point, target) if point is not None and target is not None else math.inf
+
+    def day_hint(location: Dict[str, Any]) -> Optional[int]:
+        return (
+            explicit_seed_days.get(_normalized_poi_match_text(location.get("name")))
+            or _optional_int(location.get("day"))
+        )
+
+    def seed_order(location: Dict[str, Any]) -> int:
+        return explicit_seed_order.get(
+            _normalized_poi_match_text(location.get("name")),
+            len(explicit_seed_order) + 1,
+        )
+
+    available = {"景点": [], "餐厅": []}
+    for location in normalized:
+        category = "餐厅" if _normalized_travel_location_category(location) == "餐厅" else "景点"
+        if category == "餐厅" and not (
+            _safe_text(location.get("poi_id") or location.get("place_id") or location.get("uid") or location.get("id"))
+            and _optional_float(location.get("lat")) is not None
+            and _optional_float(location.get("lng")) is not None
+        ):
+            continue
+        available[category].append(location)
+    available["景点"].sort(
+        key=lambda location: (
+            0 if day_hint(location) is not None else 1,
+            day_hint(location) or days + 1,
+            seed_order(location),
+            distance_to(location, center),
+            _safe_text(location.get("name")),
+        )
+    )
+    seed_by_day = {day: {"景点": [], "餐厅": []} for day in range(1, days + 1)}
+    for location in seed_locations:
+        day = _optional_int(location.get("day")) or 1
+        if 1 <= day <= days:
+            seed_by_day[day][location["category"]].append(location)
+
+    final_locations: List[Dict[str, Any]] = []
+    used_name_keys = set()
+
+    def take_next(
+        pool: List[Dict[str, Any]],
+        wanted: int,
+        day: int,
+        predicate: Optional[Callable[[Dict[str, Any]], bool]] = None,
+    ) -> List[Dict[str, Any]]:
+        selected: List[Dict[str, Any]] = []
+        for location in pool:
+            name = _safe_text(location.get("name"))
+            name_key = itinerary_name_key(name)
+            if (
+                not name
+                or not name_key
+                or name_key in used_name_keys
+                or len(selected) >= wanted
+                or (predicate is not None and not predicate(location))
+            ):
+                continue
+            used_name_keys.add(name_key)
+            selected.append({**location, "day": day})
+        return selected
+
+    for day in range(1, days + 1):
+        preferred_pool = [
+            location for location in available["景点"]
+            if day_hint(location) == day
+        ]
+        day_attractions = take_next(preferred_pool, target_attractions, day)
+        selected_points = [
+            point
+            for item in day_attractions
+            if item.get("coordinates_trusted") is not False
+            and (point := coordinates(item)) is not None
+        ]
+        day_center = (
+            (
+                sum(point[0] for point in selected_points) / len(selected_points),
+                sum(point[1] for point in selected_points) / len(selected_points),
+            )
+            if selected_points
+            else center
+        )
+        if len(day_attractions) < target_attractions:
+            fill_pool = sorted(
+                available["景点"],
+                key=lambda location: (
+                    0 if day_hint(location) in {None, day} else 1,
+                    distance_to(location, day_center),
+                    distance_to(location, center),
+                    _safe_text(location.get("name")),
+                ),
+            )
+            day_attractions.extend(take_next(fill_pool, target_attractions - len(day_attractions), day))
+        if len(day_attractions) < target_attractions:
+            day_attractions.extend(take_next(seed_by_day[day]["景点"], target_attractions - len(day_attractions), day))
+
+        selected_points = [
+            point
+            for item in day_attractions
+            if item.get("coordinates_trusted") is not False
+            and (point := coordinates(item)) is not None
+        ]
+        meal_center = (
+            (
+                sum(point[0] for point in selected_points) / len(selected_points),
+                sum(point[1] for point in selected_points) / len(selected_points),
+            )
+            if selected_points
+            else center
+        )
+        meal_targets = (meal_targets_by_day or {}).get(day)
+        target_meal_types = list(meal_targets) if meal_targets is not None else ["lunch", "dinner"][:default_target_food]
+        domestic = canonical_destination(destination_city) not in INTERNATIONAL_DESTINATIONS
+        day_food: List[Dict[str, Any]] = []
+        for meal_type in target_meal_types:
+            if meal_type == "breakfast" and selected_points:
+                meal_target = selected_points[0]
+            elif meal_type == "dinner" and selected_points:
+                meal_target = selected_points[-1]
+            elif selected_points:
+                middle_index = max(0, len(selected_points) // 2 - 1)
+                nearby_points = selected_points[middle_index:middle_index + 2]
+                meal_target = (
+                    sum(point[0] for point in nearby_points) / len(nearby_points),
+                    sum(point[1] for point in nearby_points) / len(nearby_points),
+                )
+            else:
+                meal_target = meal_center
+            meal_pool = sorted(
+                available["餐厅"],
+                key=lambda location: (
+                    distance_to(location, meal_target),
+                    distance_to(location, center),
+                    _safe_text(location.get("name")),
+                ),
+            )
+            selected = take_next(
+                meal_pool,
+                1,
+                day,
+                predicate=lambda location, current_meal=meal_type: meal_window_for_opening_hours(
+                    location.get("opening_hours"),
+                    current_meal,
+                    domestic=domestic,
+                ) is not None,
+            )
+            if selected:
+                selected[0]["meal_type"] = meal_type
+                day_food.extend(selected)
+
+        final_locations.extend([*day_attractions, *day_food])
+    return final_locations
 
 
 def _select_final_map_candidates(
@@ -3057,6 +3866,7 @@ def _select_final_map_candidates(
         require_coordinates=False,
     )
     wants_itinerary = bool(ITINERARY_QUERY_REGEX.search(_safe_text(query_text)))
+    requested_days = max(1, extract_trip_intent(_safe_text(query_text)).days or 1)
     wants_hotel = wants_itinerary or bool(HOTEL_QUERY_REGEX.search(_safe_text(query_text)))
     wants_food = wants_itinerary or bool(FOOD_QUERY_REGEX.search(_safe_text(query_text)))
 
@@ -3071,11 +3881,18 @@ def _select_final_map_candidates(
             buckets["attraction"].append(location)
 
     selected: List[Dict[str, Any]] = []
-    if wants_hotel and buckets["hotel"]:
+    # Lodging is rendered in its own formal section.  It becomes a map/workbench
+    # anchor in the later map phase, not a sightseeing activity in daily cards.
+    if wants_hotel and not wants_itinerary and buckets["hotel"]:
         selected.append(buckets["hotel"].pop(0))
-    if wants_food and buckets["food"]:
+    if wants_itinerary:
+        food_quota = min(len(buckets["food"]), requested_days * 2 + 4, max_rows)
+        selected.extend(buckets["food"][:food_quota])
+        buckets["food"] = buckets["food"][food_quota:]
+    elif wants_food and buckets["food"]:
         selected.append(buckets["food"].pop(0))
-    for bucket_name in ("attraction", "hotel", "food"):
+    bucket_order = ("attraction", "food") if wants_itinerary else ("attraction", "hotel", "food")
+    for bucket_name in bucket_order:
         for location in buckets[bucket_name]:
             if len(selected) >= max_rows:
                 break
@@ -3088,9 +3905,97 @@ def _select_final_map_candidates(
     )
 
 
+UNSUITABLE_TRAVEL_POI_REGEX = re.compile(
+    r"公墓|墓园|殡仪|旅行社|旅游服务(?:中心|公司)?|(?:有限|股份)?公司|"
+    r"文化创意|充电站|写字楼|办公楼|营业厅|停车场|公共厕所|卫生间|"
+    r"售票处|游客服务中心|购物服务|生活服务|礼品店|纪念品店|服装店|"
+    r"汉服(?:体验|妆造|租赁)?|妆造馆|写真馆|摄影工作室|影楼|旅拍|"
+    r"柱础|门墩|石构件|圆雕卧狮",
+    re.IGNORECASE,
+)
+UNAVAILABLE_TRAVEL_POI_REGEX = re.compile(
+    r"暂停开放|暂停营业|永久关闭|已关闭|已停业|停止营业|尚未开放|暂不开放",
+    re.IGNORECASE,
+)
+
+
+def _is_unsuitable_travel_poi(location: Dict[str, Any]) -> bool:
+    """Do not turn generic map search noise into a formal sightseeing activity."""
+    text = " ".join(
+        _safe_text(location.get(key))
+        for key in ("name", "category", "description", "address", "type", "status", "business_status")
+    )
+    return bool(
+        UNSUITABLE_TRAVEL_POI_REGEX.search(text)
+        or UNAVAILABLE_TRAVEL_POI_REGEX.search(text)
+    )
+
+
+def _mentioned_destinations(value: Any) -> set[str]:
+    """Return every catalog destination explicitly present in POI text."""
+    text = _safe_text(value).casefold()
+    if not text:
+        return set()
+    return {
+        city
+        for alias, city in destination_aliases().items()
+        if alias and alias in text
+    }
+
+
+def _explicit_city_mentions(value: Any) -> set[str]:
+    """Identify city names that appear as locality names rather than street names."""
+    text = _safe_text(value).casefold()
+    if not text:
+        return set()
+    return {
+        city
+        for alias, city in destination_aliases().items()
+        if alias and re.search(f"{re.escape(alias)}(?:市|地区|特别行政区)", text)
+    }
+
+
+def _has_positive_destination_signal(location: Dict[str, Any], destination_city: str) -> bool:
+    """Require locality evidence before a POI becomes a formal destination item.
+
+    A search result containing only a street named after another city (for example,
+    Shanghai's Nanjing West Road) must not enter a Nanjing itinerary.
+    """
+    canonical_city = canonical_destination(destination_city)
+    destination = canonical_city or _safe_text(destination_city)
+    if not destination:
+        return False
+    declared_locality = " ".join(
+        _safe_text(location.get(key))
+        for key in ("city", "province", "area")
+    )
+    locality = " ".join([
+        declared_locality,
+        _safe_text(location.get("address")),
+        _safe_text(location.get("description")),
+    ])
+    local_mentions = _mentioned_destinations(declared_locality) | _explicit_city_mentions(locality)
+    requested_destination = (
+        canonical_destination(_safe_text(location.get("requested_destination")))
+        or _safe_text(location.get("requested_destination"))
+    )
+    destination_bound = (
+        bool(location.get("destination_bound"))
+        and requested_destination == destination
+    )
+    if not canonical_city:
+        return destination_bound or destination in local_mentions
+    return (
+        (destination in local_mentions or destination_bound)
+        and not any(city != destination for city in local_mentions)
+    )
+
+
 def _filter_quality_map_locations(
     locations: List[Dict[str, Any]],
     destination_city: str,
+    *,
+    require_positive_destination: bool = False,
 ) -> List[Dict[str, Any]]:
     destination = canonical_destination(destination_city) or _safe_text(destination_city)
     kept: List[Dict[str, Any]] = []
@@ -3099,7 +4004,7 @@ def _filter_quality_map_locations(
         if not isinstance(location, dict):
             continue
         name = _safe_text(location.get("name"))
-        if is_invalid_poi_name(name):
+        if is_invalid_poi_name(name) or _is_unsuitable_travel_poi(location):
             continue
         normalized_name = re.sub(r"[^\w\u4e00-\u9fff]+", "", name).casefold()
         if normalized_name in seen_names:
@@ -3109,11 +4014,64 @@ def _filter_quality_map_locations(
         explicit_city = canonical_destination(address_city)
         if destination and explicit_city and explicit_city != destination:
             continue
+        if require_positive_destination and not _has_positive_destination_signal(location, destination):
+            continue
         if destination and address_city and not explicit_city and len(address_city) <= 12 and destination not in f"{address_city}{address}":
             location = {**location, "quality_warning": "地点所属城市待确认"}
         seen_names.add(normalized_name)
         kept.append(location)
     return kept
+
+
+def _filter_destination_lodging_locations(
+    locations: List[Dict[str, Any]],
+    destination_city: str,
+) -> List[Dict[str, Any]]:
+    """A lodging POI must positively identify the destination; region hints are not enough."""
+    destination = canonical_destination(destination_city) or _safe_text(destination_city)
+    if not destination:
+        return []
+    verified: List[Dict[str, Any]] = []
+    for location in _filter_quality_map_locations(locations, destination):
+        if not _has_positive_destination_signal(location, destination):
+            continue
+        verified.append(location)
+    return verified
+
+
+def _is_destination_scoped_reference(row: Dict[str, Any], destination_city: str) -> bool:
+    """Reject a web/community result only when it explicitly belongs to another city."""
+    destination = canonical_destination(destination_city) or _safe_text(destination_city)
+    if not destination:
+        return False
+    text = " ".join(
+        _safe_text(row.get(key))
+        for key in ("title", "summary", "snippet", "url", "city", "address")
+    )
+    mentions = _mentioned_destinations(text) | _explicit_city_mentions(text)
+    return not any(city != destination for city in mentions)
+
+
+def _filter_destination_reference_rows(
+    rows: List[Dict[str, Any]],
+    destination_city: str,
+) -> List[Dict[str, Any]]:
+    return [
+        dict(row)
+        for row in rows
+        if isinstance(row, dict) and _is_destination_scoped_reference(row, destination_city)
+    ]
+
+
+def _is_destination_formal_location(location: Dict[str, Any], destination_city: str) -> bool:
+    destination = canonical_destination(destination_city) or _safe_text(destination_city)
+    if not destination:
+        return False
+    if location.get("coordinates_trusted") is False:
+        return False
+    if _safe_text(location.get("source")).startswith("destination_catalog"):
+        return False
+    return _has_positive_destination_signal(location, destination)
 
 
 def _merge_map_locations(
@@ -3123,7 +4081,6 @@ def _merge_map_locations(
     require_coordinates: bool = True,
 ) -> List[Dict[str, Any]]:
     merged: List[Dict[str, Any]] = []
-    seen = set()
     for location in [*primary, *secondary]:
         if not isinstance(location, dict):
             continue
@@ -3133,16 +4090,19 @@ def _merge_map_locations(
         has_coordinates = lat is not None and lng is not None
         if not name or (require_coordinates and not has_coordinates):
             continue
-        place_id = _safe_text(location.get("place_id") or location.get("uid"))
-        key = (
-            place_id or re.sub(r"[^\w\u4e00-\u9fff]+", "", name).casefold(),
-            round(lat, 5) if lat is not None else None,
-            round(lng, 5) if lng is not None else None,
+        existing = next(
+            (
+                candidate
+                for candidate in merged
+                if _map_locations_represent_same_place(candidate, location)
+            ),
+            None,
         )
-        if key in seen:
+        if existing is not None:
+            _merge_map_location_fields(existing, location)
             continue
-        seen.add(key)
         updated = dict(location)
+        _initialize_map_provider_evidence(updated)
         updated["id"] = updated.get("id") or f"travel_place_{len(merged) + 1}"
         updated["order"] = updated.get("order") or len(merged) + 1
         merged.append(updated)
@@ -3152,13 +4112,172 @@ def _merge_map_locations(
     return merged[: max(1, max_rows)]
 
 
+def _map_location_distance_meters(first: Dict[str, Any], second: Dict[str, Any]) -> Optional[float]:
+    first_lat = _extract_float(first.get("lat"))
+    first_lng = _extract_float(first.get("lng"))
+    second_lat = _extract_float(second.get("lat"))
+    second_lng = _extract_float(second.get("lng"))
+    if None in {first_lat, first_lng, second_lat, second_lng}:
+        return None
+    lat1, lat2 = math.radians(first_lat), math.radians(second_lat)
+    delta_lat = lat2 - lat1
+    delta_lng = math.radians(second_lng - first_lng)
+    value = (
+        math.sin(delta_lat / 2) ** 2
+        + math.cos(lat1) * math.cos(lat2) * math.sin(delta_lng / 2) ** 2
+    )
+    return 6371000.0 * 2 * math.atan2(math.sqrt(value), math.sqrt(max(0.0, 1.0 - value)))
+
+
+def _map_locations_represent_same_place(first: Dict[str, Any], second: Dict[str, Any]) -> bool:
+    first_provider = _safe_text(first.get("source_provider"))
+    second_provider = _safe_text(second.get("source_provider"))
+    first_id = _safe_text(first.get("provider_place_id") or first.get("place_id") or first.get("uid"))
+    second_id = _safe_text(second.get("provider_place_id") or second.get("place_id") or second.get("uid"))
+    if first_id and second_id and first_provider == second_provider and first_id == second_id:
+        return True
+
+    first_name = _normalized_poi_match_text(first.get("name"))
+    second_name = _normalized_poi_match_text(second.get("name"))
+    if not first_name or not second_name:
+        return False
+    name_matches = (
+        first_name == second_name
+        or (
+            min(len(first_name), len(second_name)) >= 3
+            and (
+                first_name in second_name
+                or second_name in first_name
+                or SequenceMatcher(None, first_name, second_name).ratio() >= 0.86
+            )
+        )
+    )
+    if not name_matches:
+        return False
+
+    first_address = re.sub(r"[^\w\u4e00-\u9fff]+", "", _safe_text(first.get("address"))).casefold()
+    second_address = re.sub(r"[^\w\u4e00-\u9fff]+", "", _safe_text(second.get("address"))).casefold()
+    address_matches = bool(
+        first_address
+        and second_address
+        and (
+            first_address in second_address
+            or second_address in first_address
+            or SequenceMatcher(None, first_address, second_address).ratio() >= 0.72
+        )
+    )
+    distance = _map_location_distance_meters(first, second)
+    if distance is not None:
+        return distance <= 500.0 or (address_matches and distance <= 2000.0)
+    if first_address and second_address:
+        return address_matches
+    first_city = canonical_destination(_safe_text(first.get("city") or first.get("requested_destination")))
+    second_city = canonical_destination(_safe_text(second.get("city") or second.get("requested_destination")))
+    return bool(first_city and first_city == second_city and first_name == second_name)
+
+
+def _initialize_map_provider_evidence(location: Dict[str, Any]) -> None:
+    provider = _safe_text(location.get("source_provider"))
+    providers = location.get("source_providers") if isinstance(location.get("source_providers"), list) else []
+    location["source_providers"] = list(dict.fromkeys([*providers, *([provider] if provider else [])]))
+    provider_ids = location.get("provider_place_ids") if isinstance(location.get("provider_place_ids"), dict) else {}
+    provider_id = _safe_text(location.get("provider_place_id") or location.get("place_id"))
+    if provider and provider_id:
+        provider_ids[provider] = provider_id
+    location["provider_place_ids"] = provider_ids
+    provider_images = location.get("provider_images") if isinstance(location.get("provider_images"), dict) else {}
+    images = [url for url in location.get("images", []) if _safe_text(url)]
+    if provider and images:
+        provider_images[provider] = list(dict.fromkeys(images))
+    location["provider_images"] = provider_images
+    evidence = location.get("provider_evidence") if isinstance(location.get("provider_evidence"), dict) else {}
+    if provider:
+        evidence[provider] = {
+            key: location.get(key)
+            for key in ("rating", "address", "opening_hours", "price", "telephone")
+            if location.get(key) not in (None, "", [], {})
+        }
+    location["provider_evidence"] = evidence
+
+
+def _merge_map_location_fields(target: Dict[str, Any], incoming: Dict[str, Any]) -> None:
+    _initialize_map_provider_evidence(target)
+    incoming_copy = dict(incoming)
+    _initialize_map_provider_evidence(incoming_copy)
+    target["source_providers"] = list(dict.fromkeys([
+        *target.get("source_providers", []),
+        *incoming_copy.get("source_providers", []),
+    ]))
+    target["provider_place_ids"] = {
+        **target.get("provider_place_ids", {}),
+        **incoming_copy.get("provider_place_ids", {}),
+    }
+    target["provider_images"] = {
+        **target.get("provider_images", {}),
+        **incoming_copy.get("provider_images", {}),
+    }
+    target["provider_evidence"] = {
+        **target.get("provider_evidence", {}),
+        **incoming_copy.get("provider_evidence", {}),
+    }
+    target["images"] = list(dict.fromkeys([
+        *[url for url in target.get("images", []) if _safe_text(url)],
+        *[url for url in incoming_copy.get("images", []) if _safe_text(url)],
+    ]))[:8]
+    for key, value in incoming_copy.items():
+        if key in {"id", "order", "place_id", "provider_place_id", "source_provider", "source_providers", "provider_place_ids", "provider_images", "provider_evidence", "images"}:
+            continue
+        current = target.get(key)
+        if current in (None, "", [], {}) and value not in (None, "", [], {}):
+            target[key] = value
+        elif key in {"summary", "description", "address", "opening_hours"} and len(_safe_text(value)) > len(_safe_text(current)):
+            target[key] = value
+
+
+def _map_location_quality_score(location: Dict[str, Any], query: str) -> float:
+    query_terms = _web_query_terms(query)
+    name_terms = _web_query_terms(location.get("name"))
+    score = len(query_terms & name_terms) * 2.0
+    score += sum(
+        location.get(key) not in (None, "", [], {})
+        for key in ("address", "rating", "opening_hours", "price", "telephone", "images", "summary")
+    )
+    if _has_reusable_poi_coordinates(location):
+        score += 2.0
+    if len(location.get("source_providers") or []) > 1:
+        score += 3.0
+    category_text = " ".join(
+        _safe_text(location.get(key))
+        for key in ("name", "category", "type", "description")
+    )
+    if re.search(
+        r"风景名胜|旅游景点|博物馆|纪念馆|美术馆|科技馆|公园|寺|庙|塔|古镇|"
+        r"古城|古迹|遗址|历史街区|步行街|江滩|湖|山|桥|园林|故居|书院|宫|城墙",
+        category_text,
+        re.IGNORECASE,
+    ):
+        score += 6.0
+    destination = canonical_destination(query)
+    if destination:
+        candidate_name = _normalized_poi_match_text(location.get("name"))
+        if any(
+            candidate_name == _normalized_poi_match_text(classic_name)
+            for classic_name, _day in classic_places_for_city(destination)
+        ):
+            score += 20.0
+    if _is_unsuitable_travel_poi(location):
+        score -= 100.0
+    rating = _extract_float(location.get("rating"))
+    if rating is not None and 0 <= rating <= 5:
+        score += rating / 2
+    return score
+
+
 def _has_reusable_poi_coordinates(location: Dict[str, Any]) -> bool:
-    place_id = _safe_text(location.get("place_id") or location.get("uid"))
     lat = _extract_float(location.get("lat"))
     lng = _extract_float(location.get("lng"))
     return bool(
-        place_id
-        and lat is not None
+        lat is not None
         and lng is not None
         and -90 <= lat <= 90
         and -180 <= lng <= 180
@@ -3189,75 +4308,190 @@ def _verify_selected_map_candidates(
     session_id: str,
 ) -> Tuple[List[Dict[str, Any]], List[str], List[str]]:
     """Reuse trusted search coordinates and verify only selected unresolved POIs."""
-    detail_tool = _first_available_tool_name(tool_manager, ["map_place_details"])
-    search_tool = _first_available_tool_name(tool_manager, ["map_search_places", "map_poi_extract"])
-    geocode_tool = _first_available_tool_name(tool_manager, ["map_geocode"])
+    detail_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_search_detail", "map_place_details", "map_place_detail"],
+    ), destination_city)
+    search_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_text_search", "map_search_places", "map_place_search", "map_poi_extract"],
+    ), destination_city)
+    geocode_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_geo", "map_geocode", "map_geocoding"],
+    ), destination_city)
     verified: List[Dict[str, Any]] = []
     used_tools: List[str] = []
     errors: List[str] = []
+    canonical_destination_city = canonical_destination(destination_city) or _safe_text(destination_city)
+    wikipedia_coordinates = (
+        fetch_wikipedia_place_coordinates(
+            [(_safe_text(location.get("name")), canonical_destination_city) for location in locations]
+        )
+        if canonical_destination_city in INTERNATIONAL_DESTINATIONS
+        else {}
+    )
 
     for location in locations:
         current = dict(location)
         if _has_reusable_poi_coordinates(current):
+            if not _has_positive_destination_signal(current, destination_city):
+                errors.append(f"{_safe_text(current.get('name'))}: 地点不属于目的地，已拒绝写入正式行程")
+                continue
             current["coordinate_source"] = current.get("coordinate_source") or "search_reused"
             verified.append(current)
             continue
 
         name = _safe_text(current.get("name"))
+        wikipedia_match = wikipedia_coordinates.get(name)
+        if wikipedia_match:
+            current.update(wikipedia_match)
+            current["requested_destination"] = canonical_destination_city
+            current["destination_bound"] = True
+            current["evidence_refs"] = [wikipedia_match["source_reference_id"]]
+            if _has_positive_destination_signal(current, canonical_destination_city):
+                used_tools.append("wikipedia_coordinates")
+                verified.append(current)
+                continue
         place_id = _safe_text(current.get("place_id") or current.get("uid"))
         priority = _map_request_priority_for_location(current)
         resolved_row: Dict[str, Any] = {}
         resolved_by = ""
 
-        if place_id and detail_tool:
-            detail_payload = _run_tool_with_arg_candidates(
-                tool_manager=tool_manager,
-                tool_name=detail_tool,
-                message_history=message_history,
-                session_id=session_id,
-                arg_candidates=[{"uid": place_id}, {"id": place_id}],
-                request_priority=priority,
+        if place_id:
+            preferred_detail_tools = sorted(
+                detail_tools,
+                key=lambda tool: _is_amap_tool(tool) != (_safe_text(current.get("source_provider")) == "amap"),
             )
-            detail_rows = _normalize_map_locations(detail_payload, max_rows=1)
-            if detail_rows:
-                resolved_row = detail_rows[0]
-                resolved_by = detail_tool
+            for detail_tool in preferred_detail_tools:
+                provider_key = "amap" if _is_amap_tool(detail_tool) else "baidu"
+                provider_ids = current.get("provider_place_ids") if isinstance(current.get("provider_place_ids"), dict) else {}
+                detail_place_id = _safe_text(provider_ids.get(provider_key))
+                if not detail_place_id and _safe_text(current.get("source_provider")) == provider_key:
+                    detail_place_id = place_id
+                if not detail_place_id and not _safe_text(current.get("source_provider")) and not provider_ids:
+                    detail_place_id = place_id
+                if not detail_place_id:
+                    continue
+                detail_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=detail_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=[{"id": detail_place_id}, {"uid": detail_place_id}],
+                    request_priority=priority,
+                )
+                detail_rows = _normalize_map_locations(
+                    detail_payload,
+                    max_rows=1,
+                    source_tool=detail_tool,
+                )
+                if detail_rows:
+                    resolved_row = detail_rows[0]
+                    resolved_by = detail_tool
+                    break
 
-        if not resolved_row and not place_id and search_tool:
-            search_payload = _run_tool_with_arg_candidates(
-                tool_manager=tool_manager,
-                tool_name=search_tool,
-                message_history=message_history,
-                session_id=session_id,
-                arg_candidates=[
-                    {"query": name, "region": destination_city, "scope": 2},
-                    {"keywords": name, "region": destination_city, "scope": 2},
-                    {"query": f"{destination_city}{name}"},
-                ],
-                request_priority=priority,
+        if not resolved_row:
+            for search_tool in search_tools:
+                search_args = (
+                    [{"keywords": name, "city": destination_city}]
+                    if search_tool == "maps_text_search"
+                    else [
+                        {"query": name, "region": destination_city},
+                        {"keywords": name, "region": destination_city},
+                        {"query": f"{destination_city}{name}"},
+                    ]
+                )
+                search_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=search_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=search_args,
+                    request_priority=priority,
+                )
+                search_rows = _normalize_map_locations(
+                    search_payload,
+                    max_rows=1,
+                    source_tool=search_tool,
+                )
+                if search_rows:
+                    resolved_row = search_rows[0]
+                    resolved_by = search_tool
+                    break
+
+        # AMap text search commonly returns a stable POI id but omits coordinates.
+        # Resolve that id through the matching provider detail tool before falling
+        # back to address geocoding so the formal activity keeps the real POI id.
+        if resolved_row and not _has_reusable_poi_coordinates(resolved_row):
+            provider_place_id = _safe_text(
+                resolved_row.get("provider_place_id")
+                or resolved_row.get("place_id")
+                or resolved_row.get("uid")
             )
-            search_rows = _normalize_map_locations(search_payload, max_rows=1)
-            if search_rows:
-                resolved_row = search_rows[0]
-                resolved_by = search_tool
+            preferred_detail_tools = sorted(
+                detail_tools,
+                key=lambda tool: _is_amap_tool(tool) != (_safe_text(resolved_row.get("source_provider")) == "amap"),
+            )
+            for detail_tool in preferred_detail_tools:
+                expected_provider = "amap" if _is_amap_tool(detail_tool) else "baidu"
+                if (
+                    provider_place_id
+                    and _safe_text(resolved_row.get("source_provider"))
+                    and _safe_text(resolved_row.get("source_provider")) != expected_provider
+                ):
+                    continue
+                if not provider_place_id:
+                    continue
+                detail_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=detail_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=[{"id": provider_place_id}, {"uid": provider_place_id}],
+                    request_priority=priority,
+                )
+                detail_rows = _normalize_map_locations(
+                    detail_payload,
+                    max_rows=1,
+                    require_coordinates=False,
+                    source_tool=detail_tool,
+                )
+                if not detail_rows:
+                    continue
+                _merge_map_location_fields(resolved_row, detail_rows[0])
+                if _has_reusable_poi_coordinates(resolved_row):
+                    resolved_by = detail_tool
+                    break
 
-        if not resolved_row and geocode_tool:
+        if (not resolved_row or not _has_reusable_poi_coordinates(resolved_row)) and geocode_tools:
             query = f"{destination_city}{name}" if destination_city and destination_city not in name else name
-            geocode_payload = _run_tool_with_arg_candidates(
-                tool_manager=tool_manager,
-                tool_name=geocode_tool,
-                message_history=message_history,
-                session_id=session_id,
-                arg_candidates=[
-                    {"address": query, "city": destination_city},
-                    {"address": query},
-                ],
-                request_priority=priority,
-            )
-            geocode_rows = _normalize_map_locations(geocode_payload, max_rows=1)
-            if geocode_rows:
-                resolved_row = geocode_rows[0]
-                resolved_by = geocode_tool
+            for geocode_tool in geocode_tools:
+                geocode_args = (
+                    [{"address": query, "city": destination_city}]
+                    if geocode_tool == "maps_geo"
+                    else [{"address": query, "city": destination_city}, {"address": query}]
+                )
+                geocode_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=geocode_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=geocode_args,
+                    request_priority=priority,
+                )
+                geocode_rows = _normalize_map_locations(
+                    geocode_payload,
+                    max_rows=1,
+                    source_tool=geocode_tool,
+                )
+                if geocode_rows:
+                    if resolved_row:
+                        _merge_map_location_fields(resolved_row, geocode_rows[0])
+                    else:
+                        resolved_row = geocode_rows[0]
+                    resolved_by = geocode_tool
+                    break
 
         if not resolved_row:
             errors.append(f"{name}: 地点坐标核验失败")
@@ -3269,8 +4503,13 @@ def _verify_selected_map_candidates(
                 merged[key] = value
         merged["name"] = name or _safe_text(resolved_row.get("name"))
         merged["place_id"] = place_id or _safe_text(resolved_row.get("place_id"))
-        merged["coordinates_trusted"] = bool(merged.get("place_id"))
-        merged["coordinate_source"] = "poi_detail" if resolved_by == detail_tool else "verification"
+        merged["coordinates_trusted"] = _has_reusable_poi_coordinates(resolved_row)
+        merged["coordinate_source"] = "poi_detail" if resolved_by in detail_tools else "verification"
+        merged["requested_destination"] = destination_city
+        merged["destination_bound"] = False
+        if not _has_positive_destination_signal(merged, destination_city):
+            errors.append(f"{name}: 地点不属于目的地，已拒绝写入正式行程")
+            continue
         if not _has_reusable_poi_coordinates(merged):
             errors.append(f"{name}: 未获得稳定 POI 与可信坐标")
             continue
@@ -3278,6 +4517,152 @@ def _verify_selected_map_candidates(
         verified.append(merged)
 
     return verified, used_tools, errors
+
+
+def _normalized_poi_match_text(value: Any) -> str:
+    text = re.sub(r"[^\w\u4e00-\u9fff]+", "", _safe_text(value)).casefold()
+    for suffix in ("风景名胜区", "生态旅游风景区", "旅游风景区", "风景区", "景区"):
+        if text.endswith(suffix) and len(text) > len(suffix) + 1:
+            text = text[: -len(suffix)]
+            break
+    return text
+
+
+def _select_matching_seed_location(
+    rows: List[Dict[str, Any]],
+    place_name: str,
+    destination_city: str,
+) -> Optional[Dict[str, Any]]:
+    """Select an exact-enough attraction hit and reject unrelated provider rows."""
+    expected = _normalized_poi_match_text(place_name)
+    destination = canonical_destination(destination_city) or _safe_text(destination_city)
+    ranked: List[Tuple[int, Dict[str, Any]]] = []
+    for row in rows:
+        if not isinstance(row, dict):
+            continue
+        if _is_unsuitable_travel_poi(row):
+            continue
+        candidate = _normalized_poi_match_text(row.get("name"))
+        if not expected or not candidate:
+            continue
+        if expected == candidate:
+            name_score = 100
+        elif expected in candidate or candidate in expected:
+            name_score = 80
+        else:
+            continue
+        if (
+            _seed_place_category(place_name) == "景点"
+            and _normalized_travel_location_category(row) in {"酒店", "餐厅", "交通"}
+        ):
+            continue
+        row_destination = " ".join(
+            _safe_text(row.get(key))
+            for key in ("city", "area", "address", "description")
+        )
+        scoped_row = {
+            **row,
+            "requested_destination": destination,
+            "destination_bound": bool(destination),
+        }
+        if destination and not _has_positive_destination_signal(scoped_row, destination):
+            continue
+        city_score = 10 if destination and destination in row_destination else 0
+        coordinate_score = 5 if _has_reusable_poi_coordinates(row) else 0
+        uid_score = 3 if _safe_text(row.get("provider_place_id")) else 0
+        ranked.append((name_score + city_score + coordinate_score + uid_score, row))
+    if not ranked:
+        return None
+    return dict(max(ranked, key=lambda item: item[0])[1])
+
+
+def _resolve_seed_location_from_payload(
+    payload: Any,
+    place_name: str,
+    destination_city: str,
+    *,
+    max_rows: int = 8,
+    source_tool: str = "",
+) -> Optional[Dict[str, Any]]:
+    rows = _normalize_map_locations(
+        payload,
+        max_rows=max_rows,
+        require_coordinates=False,
+        source_tool=source_tool,
+    )
+    return _select_matching_seed_location(rows, place_name, destination_city)
+
+
+def _direct_baidu_place_search(
+    query: str,
+    destination_city: str,
+    *,
+    max_rows: int = 20,
+    category: str = "",
+) -> List[Dict[str, Any]]:
+    """Use the official Place API as a bounded fallback for a sparse MCP result."""
+    if os.getenv("BAIDU_DIRECT_PLACE_FALLBACK_ENABLED", "true").strip().lower() in {"0", "false", "off", "no"}:
+        return []
+    api_key = os.getenv("BAIDU_MAP_API_KEY", "").strip()
+    if not api_key:
+        return []
+    try:
+        response = requests.get(
+            "https://api.map.baidu.com/place/v2/search",
+            params={
+                "query": query,
+                "region": destination_city,
+                "city_limit": "true",
+                "output": "json",
+                "scope": 2,
+                "page_size": min(20, max(1, max_rows)),
+                "page_num": 0,
+                "ak": api_key,
+            },
+            timeout=max(10.0, float(os.getenv("BAIDU_MAP_NETWORK_TIMEOUT_SECONDS", "35"))),
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if not isinstance(payload, dict) or int(payload.get("status", -1)) != 0:
+            return []
+        rows = _normalize_map_locations(
+            payload,
+            max_rows=min(20, max(1, max_rows)),
+            require_coordinates=True,
+        )
+        normalized: List[Dict[str, Any]] = []
+        for row in rows:
+            current = dict(row)
+            current_category = _normalized_travel_location_category(current)
+            if category and (
+                not _safe_text(current.get("category"))
+                or current_category in {category, "景点"}
+            ):
+                current["category"] = category
+            current["requested_destination"] = destination_city
+            current["destination_bound"] = False
+            current["source"] = "百度地图地点检索"
+            current["data_type"] = "reference_data"
+            current["coordinates_trusted"] = _has_reusable_poi_coordinates(current)
+            current["coordinate_source"] = (
+                "provider_poi"
+                if _safe_text(current.get("provider_place_id") or current.get("place_id") or current.get("uid"))
+                else "provider_coordinates"
+            )
+            normalized.append(current)
+        return normalized
+    except (requests.RequestException, ValueError, TypeError):
+        return []
+
+
+def _direct_baidu_place_lookup(place_name: str, destination_city: str) -> Optional[Dict[str, Any]]:
+    """Use Baidu Place Search only after the configured MCP lookup chain failed."""
+    rows = _direct_baidu_place_search(
+        place_name,
+        destination_city,
+        max_rows=10,
+    )
+    return _select_matching_seed_location(rows, place_name, destination_city)
 
 
 def _run_map_geocode_for_places(
@@ -3290,47 +4675,293 @@ def _run_map_geocode_for_places(
 ) -> Tuple[List[Dict[str, Any]], str, str]:
     if not place_seeds:
         return [], "", ""
-    tool_name = _first_available_tool_name(tool_manager, ["map_geocode", "map_search_places", "map_poi_extract"])
-    if not tool_name:
-        return [], "", "地图地理编码工具不可用"
+    canonical_destination_city = canonical_destination(destination_city) or _safe_text(destination_city)
+    wikipedia_coordinates = (
+        fetch_wikipedia_place_coordinates(
+            [(place_name, canonical_destination_city) for place_name, _day in place_seeds]
+        )
+        if canonical_destination_city in INTERNATIONAL_DESTINATIONS
+        else {}
+    )
+
+    def wikipedia_seed(place_name: str, day: int) -> Optional[Dict[str, Any]]:
+        match = wikipedia_coordinates.get(place_name)
+        if not match:
+            return None
+        location = _catalog_seed_location(canonical_destination_city, place_name, day)
+        location.update(match)
+        location.update({
+            "id": match["poi_id"],
+            "day": day,
+            "category": _seed_place_category(place_name),
+            "requested_destination": canonical_destination_city,
+            "destination_bound": True,
+            "evidence_refs": [match["source_reference_id"]],
+            "sources": [{"source_reference_id": match["source_reference_id"]}],
+            "field_evidence": {
+                "coordinates": {"source_reference_id": match["source_reference_id"]},
+            },
+        })
+        return location
+
+    search_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_text_search", "map_search_places", "map_place_search", "map_poi_extract"],
+    ), destination_city)
+    geocode_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_geo", "map_geocode", "map_geocoding"],
+    ), destination_city)
+    nearby_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_around_search", "map_nearby_search", "map_search_nearby"],
+    ), destination_city)
+    detail_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_search_detail", "map_place_details", "map_place_detail"],
+    ), destination_city)
+    if not search_tools and not geocode_tools and canonical_destination(destination_city) not in INTERNATIONAL_DESTINATIONS:
+        locations = [
+            wikipedia_seed(place_name, day)
+            or _catalog_seed_location(destination_city, place_name, day)
+            for place_name, day in place_seeds
+        ]
+        unresolved = sum(not _has_reusable_poi_coordinates(location) for location in locations)
+        error = (
+            f"地图地理编码工具不可用，{unresolved} 个地点已保留为无坐标目录候选"
+            if unresolved
+            else ""
+        )
+        used_tool = "wikipedia_coordinates" if unresolved < len(locations) else ""
+        return locations, used_tool, error
 
     locations: List[Dict[str, Any]] = []
     errors: List[str] = []
+    used_tools: List[str] = []
     for place_name, day in place_seeds:
+        resolved_wikipedia_seed = wikipedia_seed(place_name, day)
+        if resolved_wikipedia_seed:
+            locations.append(resolved_wikipedia_seed)
+            used_tools.append("wikipedia_coordinates")
+            continue
         query = f"{destination_city}{place_name}" if destination_city and destination_city not in place_name else place_name
-        payload = _run_tool_with_arg_candidates(
-            tool_manager=tool_manager,
-            tool_name=tool_name,
-            message_history=message_history,
-            session_id=session_id,
-            arg_candidates=[
-                {"address": query, "city": destination_city},
-                {"address": query},
-                {"query": query, "region": destination_city},
-                {"keywords": query, "region": destination_city},
-                {"keyword": query, "region": destination_city},
-                {"text": query},
-            ],
-            request_priority="formal",
-        )
-        if _is_tool_execution_error_payload(payload):
-            errors.append(f"{place_name}: {_tool_error_reason(payload, '地图地理编码失败')}")
+        row: Optional[Dict[str, Any]] = None
+        resolved_by = ""
+        resolved_tools: List[str] = []
+
+        # A named POI search has the best chance of returning both Baidu uid and
+        # coordinates. Geocoding is the second choice because it may only return
+        # an approximate point for the address string.
+        def search_seed_provider(search_tool: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+            search_args = (
+                [{"keywords": place_name, "city": destination_city}]
+                if search_tool == "maps_text_search"
+                else [
+                    {"query": place_name, "region": destination_city, "count": 8},
+                    {"keywords": place_name, "region": destination_city, "count": 8},
+                    {"keyword": place_name, "region": destination_city},
+                    {"query": query, "region": destination_city},
+                    {"text": query},
+                ]
+            )
+            search_payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=search_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=search_args,
+                request_priority="formal",
+            )
+            if _is_tool_execution_error_payload(search_payload):
+                return search_tool, None
+            matched = _resolve_seed_location_from_payload(
+                search_payload,
+                place_name,
+                destination_city,
+                source_tool=search_tool,
+            )
+            return search_tool, matched
+
+        if search_tools:
+            with ThreadPoolExecutor(max_workers=len(search_tools), thread_name_prefix="map-seed") as executor:
+                search_results = [
+                    future.result()
+                    for future in [executor.submit(search_seed_provider, tool) for tool in search_tools]
+                ]
+            matched_rows = [
+                (tool_name, matched)
+                for tool_name, matched in search_results
+                if matched is not None
+            ]
+            if matched_rows:
+                fused_rows = _merge_map_locations(
+                    [matched for _tool_name, matched in matched_rows],
+                    [],
+                    max_rows=len(matched_rows),
+                    require_coordinates=False,
+                )
+                row = fused_rows[0] if fused_rows else matched_rows[0][1]
+                resolved_tools.extend(tool_name for tool_name, _matched in matched_rows)
+                resolved_by = matched_rows[0][0]
+
+        provider_uid = _safe_text(row.get("provider_place_id")) if row else ""
+        if row and provider_uid and not _has_reusable_poi_coordinates(row):
+            preferred_detail_tools = sorted(
+                detail_tools,
+                key=lambda tool: _is_amap_tool(tool) != (_safe_text(row.get("source_provider")) == "amap"),
+            )
+            for detail_tool in preferred_detail_tools:
+                detail_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=detail_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=[{"id": provider_uid}, {"uid": provider_uid}],
+                    request_priority="formal",
+                )
+                detail_row = _resolve_seed_location_from_payload(
+                    detail_payload,
+                    place_name,
+                    destination_city,
+                    max_rows=3,
+                    source_tool=detail_tool,
+                )
+                if detail_row:
+                    row = {**row, **{key: value for key, value in detail_row.items() if value not in (None, "", [], {})}}
+                    resolved_by = detail_tool
+                    break
+
+        if not row or not _has_reusable_poi_coordinates(row):
+            def geocode_seed_provider(geocode_tool: str) -> Tuple[str, Optional[Dict[str, Any]]]:
+                geocode_args = (
+                    [{"address": query, "city": destination_city}]
+                    if geocode_tool == "maps_geo"
+                    else [{"address": query, "city": destination_city}, {"address": query}]
+                )
+                geocode_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=geocode_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=geocode_args,
+                    request_priority="formal",
+                )
+                if _is_tool_execution_error_payload(geocode_payload):
+                    return geocode_tool, None
+                geocode_row = _resolve_seed_location_from_payload(
+                    geocode_payload,
+                    place_name,
+                    destination_city,
+                    max_rows=3,
+                    source_tool=geocode_tool,
+                )
+                return geocode_tool, geocode_row
+
+            if geocode_tools:
+                with ThreadPoolExecutor(max_workers=len(geocode_tools), thread_name_prefix="map-geocode") as executor:
+                    geocode_results = [
+                        future.result()
+                        for future in [executor.submit(geocode_seed_provider, tool) for tool in geocode_tools]
+                    ]
+                matched_geocodes = [
+                    (tool_name, matched)
+                    for tool_name, matched in geocode_results
+                    if matched is not None
+                ]
+                if matched_geocodes:
+                    fused_geocodes = _merge_map_locations(
+                        [matched for _tool_name, matched in matched_geocodes],
+                        [],
+                        max_rows=len(matched_geocodes),
+                        require_coordinates=False,
+                    )
+                    row = fused_geocodes[0] if fused_geocodes else matched_geocodes[0][1]
+                    resolved_tools.extend(tool_name for tool_name, _matched in matched_geocodes)
+                    resolved_by = matched_geocodes[0][0]
+
+        # Some geocoders return a point but no uid. Prefer a nearby exact-name
+        # POI when available; otherwise keep the provider-returned point and its
+        # deterministic identity so the navigation entry remains usable.
+        if (
+            row
+            and _has_reusable_poi_coordinates(row)
+            and not _safe_text(row.get("provider_place_id"))
+            and nearby_tools
+        ):
+            for nearby_tool in nearby_tools:
+                nearby_args = (
+                    [{
+                        "location": (
+                            f"{row.get('provider_longitude')},{row.get('provider_latitude')}"
+                            if row.get("provider_longitude") is not None and row.get("provider_latitude") is not None
+                            else f"{row.get('lng')},{row.get('lat')}"
+                        ),
+                        "radius": "1200",
+                        "keywords": place_name,
+                    }]
+                    if nearby_tool == "maps_around_search"
+                    else [
+                        {
+                            "location": f"{row.get('lng')},{row.get('lat')}",
+                            "radius": 1200,
+                            "query": place_name,
+                        },
+                        {
+                            "location": f"{row.get('lng')},{row.get('lat')}",
+                            "radius": 1200,
+                            "keyword": place_name,
+                        },
+                    ]
+                )
+                nearby_payload = _run_tool_with_arg_candidates(
+                    tool_manager=tool_manager,
+                    tool_name=nearby_tool,
+                    message_history=message_history,
+                    session_id=session_id,
+                    arg_candidates=nearby_args,
+                    request_priority="formal",
+                )
+                nearby_row = _resolve_seed_location_from_payload(
+                    nearby_payload,
+                    place_name,
+                    destination_city,
+                    max_rows=8,
+                    source_tool=nearby_tool,
+                )
+                if nearby_row and _has_reusable_poi_coordinates(nearby_row):
+                    row = nearby_row
+                    resolved_by = nearby_tool
+                    break
+
+        if not row or not _has_reusable_poi_coordinates(row):
+            direct_row = _direct_baidu_place_lookup(place_name, destination_city)
+            if direct_row and _has_reusable_poi_coordinates(direct_row):
+                row = direct_row
+                resolved_by = "baidu_place_api"
+
+        if not row or not _has_reusable_poi_coordinates(row):
+            errors.append(f"{place_name}: 未获得可导航坐标，已降级为目录候选")
+            locations.append(_catalog_seed_location(destination_city, place_name, day))
             continue
-        rows = _normalize_map_locations(payload, max_rows=1)
-        if not rows:
-            continue
-        row = dict(rows[0])
+
         row["name"] = place_name
-        row["category"] = row.get("category") or _default_map_category_for_query(query_text)
+        row["category"] = _seed_place_category(place_name)
         row["day"] = day
-        row["description"] = _safe_text(row.get("description")) or f"{destination_city}{place_name}"
-        row["source"] = "seed_fallback"
+        row["summary"] = _safe_text(row.get("summary")) or _safe_text(DESTINATION_SEED_PLACE_SUMMARIES.get(place_name))
+        row["description"] = _safe_text(row.get("description")) or row["summary"] or f"{destination_city}{place_name}"
+        row["source"] = "高德地图地点检索" if _safe_text(row.get("source_provider")) == "amap" else "百度地图地点检索"
+        row["requested_destination"] = destination_city
+        row["destination_bound"] = True
         row["data_type"] = "reference_data"
-        row["coordinates_trusted"] = bool(row.get("place_id"))
-        row["coordinate_source"] = "verification"
+        row["coordinates_trusted"] = True
+        row["coordinate_source"] = "provider_poi" if _safe_text(row.get("provider_place_id")) else "provider_coordinates"
+        if resolved_tools:
+            used_tools.extend(resolved_tools)
+        elif resolved_by:
+            used_tools.append(resolved_by)
         locations.append(row)
 
-    return locations, tool_name, "；".join(errors)
+    return locations, ", ".join(dict.fromkeys(used_tools)), "；".join(errors)
 
 
 def _build_map_markdown_table(locations: List[Dict[str, Any]], max_rows: int = 10) -> str:
@@ -3440,24 +5071,76 @@ def _run_web_search_for_travel(
     message_history: List[Dict[str, Any]],
     session_id: str,
 ) -> Tuple[List[Dict[str, str]], str, str]:
-    tool_name = _first_available_tool_name(tool_manager, ["search_web_page", "web_search", "search"])
-    if not tool_name:
+    provider_candidates = [
+        ["tavily_search", "tavily-search"],
+        ["search_web_page", "serper_web_search", "serper_site_search", "web_search", "search"],
+    ]
+    available_tools: List[str] = []
+    for candidates in provider_candidates:
+        tool_name = _first_available_tool_name(tool_manager, candidates)
+        if tool_name:
+            available_tools.append(tool_name)
+    if not available_tools:
         return [], "", "网络搜索工具不可用"
 
-    payload = _run_tool_with_arg_candidates(
-        tool_manager=tool_manager,
-        tool_name=tool_name,
-        message_history=message_history,
-        session_id=session_id,
-        arg_candidates=[
-            {"query": user_query, "count": 6, "language": "zh-cn", "country": "cn"},
-            {"query": user_query, "count": 6},
-            {"query": user_query},
-        ],
-    )
-    if _is_tool_execution_error_payload(payload):
-        return [], tool_name, _tool_error_reason(payload, "网络搜索失败")
-    return _normalize_web_rows(payload, max_rows=6), tool_name, ""
+    def run_provider(tool_name: str) -> Tuple[str, List[Dict[str, str]], str]:
+        if tool_name in {"tavily_search", "tavily-search"}:
+            tavily_args = {
+                "query": user_query,
+                "search_depth": "basic",
+                "max_results": 8,
+                "topic": "general",
+                "include_answer": False,
+                "include_images": False,
+                "include_raw_content": False,
+            }
+            try:
+                parameter_names = set(getattr(tool_manager.get_tool(tool_name), "parameters", {}).keys())
+            except Exception:
+                parameter_names = set()
+            if parameter_names:
+                tavily_args = {
+                    key: value for key, value in tavily_args.items()
+                    if key in parameter_names
+                }
+            arg_candidates = [tavily_args]
+        else:
+            arg_candidates = [
+                {"query": user_query, "count": 6, "language": "zh-cn", "country": "cn"},
+                {"query": user_query, "count": 6},
+                {"query": user_query},
+            ]
+        payload = _run_tool_with_arg_candidates(
+            tool_manager=tool_manager,
+            tool_name=tool_name,
+            message_history=message_history,
+            session_id=session_id,
+            arg_candidates=arg_candidates,
+        )
+        if _is_tool_execution_error_payload(payload):
+            return tool_name, [], _tool_error_reason(payload, "网络搜索失败")
+        rows = _normalize_web_rows(payload, max_rows=8)
+        if rows:
+            return tool_name, rows, ""
+        return tool_name, [], "未返回可引用结果"
+
+    with ThreadPoolExecutor(max_workers=len(available_tools), thread_name_prefix="web-search") as executor:
+        futures = [executor.submit(run_provider, tool_name) for tool_name in available_tools]
+        provider_results = [future.result() for future in futures]
+
+    successful_rows = [
+        (tool_name, rows)
+        for tool_name, rows, _error in provider_results
+        if rows
+    ]
+    if successful_rows:
+        return (
+            _merge_web_search_rows(successful_rows, user_query, max_rows=8),
+            ", ".join(tool_name for tool_name, _rows in successful_rows),
+            "",
+        )
+    errors = [f"{tool_name}: {error}" for tool_name, _rows, error in provider_results if error]
+    return [], ", ".join(available_tools), "；".join(errors) or "网络搜索失败"
 
 
 def _run_map_search_for_travel(
@@ -3466,71 +5149,277 @@ def _run_map_search_for_travel(
     tool_manager: Any,
     message_history: List[Dict[str, Any]],
     session_id: str,
-) -> Tuple[List[Dict[str, Any]], str, str]:
-    tool_name = _first_available_tool_name(
+    research_role: Optional[str] = None,
+) -> Tuple[List[Dict[str, Any]], str, str, List[Dict[str, Any]]]:
+    search_tools = _order_map_provider_tools(_available_tool_names(
         tool_manager,
-        ["map_search_places", "map_poi_extract", "map_geocode"],
-    )
-    if not tool_name:
-        return [], "", "地图工具不可用"
+        ["maps_text_search", "map_search_places", "map_place_search", "map_poi_extract"],
+    ), destination_city)
+    geocode_tools = _order_map_provider_tools(_available_tool_names(
+        tool_manager,
+        ["maps_geo", "map_geocode", "map_geocoding"],
+    ), destination_city)
+    if not search_tools and not geocode_tools and canonical_destination(destination_city) not in INTERNATIONAL_DESTINATIONS:
+        return [], "", "地图工具不可用", []
 
     region = _safe_text(destination_city)
     query_text = _safe_text(user_query)
+    used_search_tools: List[str] = []
 
     def run_search(query: str, max_rows: int, category: str = "") -> Tuple[List[Dict[str, Any]], str]:
+        if not search_tools:
+            return [], ""
         request_priority = _map_request_priority_for_location({"category": category})
         if not wants_itinerary and request_priority == "formal":
             request_priority = "candidate"
-        payload = _run_tool_with_arg_candidates(
-            tool_manager=tool_manager,
-            tool_name=tool_name,
-            message_history=message_history,
-            session_id=session_id,
-            arg_candidates=[
-                {"query": query, "region": region, "scope": 2},
-                {"keywords": query, "region": region, "scope": 2},
-                {"keyword": query, "region": region},
-                {"text": query},
-                {"address": query},
-                {"query": query},
-            ],
-            request_priority=request_priority,
-        )
-        if _is_tool_execution_error_payload(payload):
-            return [], _tool_error_reason(payload, "地图检索失败")
-        rows = _normalize_map_locations(
-            payload,
-            max_rows=max_rows,
-            require_coordinates=False,
-        )
-        if category:
+
+        def run_provider(search_tool: str) -> Tuple[str, List[Dict[str, Any]], str]:
+            arg_candidates = (
+                [{"keywords": query, "city": region}]
+                if search_tool == "maps_text_search"
+                else [
+                    {"query": query, "region": region, "count": max_rows},
+                    {"keywords": query, "region": region, "count": max_rows},
+                    {"keyword": query, "region": region, "count": max_rows},
+                    {"query": query, "region": region},
+                    {"keywords": query, "region": region},
+                    {"keyword": query, "region": region},
+                    {"text": query},
+                    {"address": query},
+                    {"query": query},
+                ]
+            )
+            payload = _run_tool_with_arg_candidates(
+                tool_manager=tool_manager,
+                tool_name=search_tool,
+                message_history=message_history,
+                session_id=session_id,
+                arg_candidates=arg_candidates,
+                request_priority=request_priority,
+            )
+            if _is_tool_execution_error_payload(payload):
+                return search_tool, [], _tool_error_reason(payload, "地图检索失败")
+            rows = _normalize_map_locations(
+                payload,
+                max_rows=max_rows,
+                require_coordinates=False,
+                source_tool=search_tool,
+            )
             for row in rows:
-                current_category = _safe_text(row.get("category"))
-                if not current_category or (current_category == "景点" and category != "景点"):
-                    row["category"] = category
-        return rows, ""
+                row["requested_destination"] = destination_city
+                # The requested region is query context, not locality evidence.
+                row["destination_bound"] = False
+            if category:
+                for row in rows:
+                    current_category = _safe_text(row.get("category"))
+                    if not current_category or (current_category == "景点" and category != "景点"):
+                        row["category"] = category
+                    row["search_category"] = category
+            if category == "景点":
+                rows = [
+                    row for row in rows
+                    if _normalized_travel_location_category(row) == "景点"
+                ]
+            if rows:
+                return search_tool, rows, ""
+            return search_tool, [], "未返回匹配地点"
+
+        with ThreadPoolExecutor(max_workers=len(search_tools), thread_name_prefix="map-search") as executor:
+            futures = [executor.submit(run_provider, search_tool) for search_tool in search_tools]
+            provider_results = [future.result() for future in futures]
+        successful = [
+            (tool_name, rows)
+            for tool_name, rows, _error in provider_results
+            if rows
+        ]
+        if successful:
+            used_search_tools.extend(tool_name for tool_name, _rows in successful)
+            combined = [row for _tool_name, rows in successful for row in rows]
+            fused = _merge_map_locations(
+                combined,
+                [],
+                max_rows=max_rows * max(1, len(successful)),
+                require_coordinates=False,
+            )
+            fused.sort(
+                key=lambda location: _map_location_quality_score(location, query),
+                reverse=True,
+            )
+            return fused[:max_rows], ""
+        provider_errors = [
+            f"{tool_name}: {error}"
+            for tool_name, _rows, error in provider_results
+            if error
+        ]
+        return [], "；".join(provider_errors)
 
     wants_itinerary = bool(ITINERARY_QUERY_REGEX.search(query_text))
+    requested_days = max(1, extract_trip_intent(query_text).days or 1)
+    # Reserve enough verified POIs for the formal daily plan plus 7–15 candidates.
+    # The provider may return fewer items; we never pad this pool with guessed places.
+    # Formal schedules consume about six verified places per day once meals are
+    # included.  Keep a small verification-loss margin as provider fusion can
+    # remove duplicates or off-destination rows before the 7–15 item candidate
+    # pool is built.
+    poi_source_limit = min(65, max(42, requested_days * 6 + 18))
     batch_queries: List[Tuple[str, int, str]] = []
     if wants_itinerary:
-        batch_queries.append((f"{region} 热门景点".strip(), 8, "景点"))
+        # A single broad Baidu query commonly returns only one page (about 7–10
+        # distinct POIs).  Query complementary attraction families so a
+        # multi-day plan can fill every day and still retain 7–15 candidates.
+        batch_queries.extend([
+            (f"{region} 热门景点".strip(), min(25, poi_source_limit), "景点"),
+            (f"{region} 博物馆 公园 人文景观".strip(), min(20, poi_source_limit), "景点"),
+            (f"{region} 古迹 寺庙 古镇 历史街区".strip(), min(20, poi_source_limit), "景点"),
+        ])
     else:
         batch_queries.append((query_text, 8, _default_map_category_for_query(query_text)))
     if wants_itinerary or HOTEL_QUERY_REGEX.search(query_text):
         batch_queries.append((f"{region} 住宿 酒店".strip(), 4, "酒店"))
     if wants_itinerary or FOOD_QUERY_REGEX.search(query_text):
-        batch_queries.append((f"{region} 美食 餐厅".strip(), 4, "餐厅"))
+        batch_queries.append((f"{region} 美食 餐厅".strip(), min(15, max(10, poi_source_limit // 3)), "餐厅"))
+        if wants_itinerary:
+            batch_queries.append((f"{region} 特色餐厅 老字号 本地菜".strip(), 15, "餐厅"))
+
+    role_category = {"research": "景点", "lodging": "酒店", "dining": "餐厅"}.get(research_role)
+    if role_category:
+        batch_queries = [item for item in batch_queries if item[2] == role_category]
 
     candidate_locations: List[Dict[str, Any]] = []
+    lodging_rows: List[Dict[str, Any]] = []
     batch_errors: List[str] = []
     for batch_query, max_rows, category in batch_queries:
         rows, batch_error = run_search(batch_query, max_rows=max_rows, category=category)
         candidate_locations.extend(rows)
+        if category == "酒店":
+            lodging_rows.extend(dict(row) for row in rows if isinstance(row, dict))
         if batch_error:
             batch_errors.append(batch_error)
 
-    candidate_locations = _filter_quality_map_locations(candidate_locations, destination_city)
-    final_candidates = _select_final_map_candidates(candidate_locations, query_text, max_rows=8)
+    if (
+        canonical_destination(destination_city) in INTERNATIONAL_DESTINATIONS
+        and research_role in {None, "lodging"}
+        and (wants_itinerary or HOTEL_QUERY_REGEX.search(query_text))
+        and not _filter_destination_lodging_locations(lodging_rows, destination_city)
+    ):
+        international_lodging = search_international_places("hotel", destination_city, "hotel")
+        lodging_rows.extend(international_lodging)
+        candidate_locations.extend(international_lodging)
+        if international_lodging:
+            used_search_tools.append("openstreetmap_nominatim")
+
+    if wants_itinerary:
+        density_preview = _merge_map_locations(
+            candidate_locations,
+            [],
+            max_rows=max(40, poi_source_limit * 3),
+            require_coordinates=False,
+        )
+        food_count = sum(
+            _normalized_travel_location_category(location) == "餐厅"
+            and _has_reusable_poi_coordinates(location)
+            for location in _filter_quality_map_locations(
+                density_preview, destination_city, require_positive_destination=True,
+            )
+        )
+        attraction_count = sum(
+            _normalized_travel_location_category(location) == "景点"
+            for location in density_preview
+        )
+        if candidate_locations and research_role in {None, "research"}:
+            for supplemental_query in (
+                f"{region} 城市地标 夜游 步行街".strip(),
+                f"{region} 美术馆 科技馆 动物园 植物园".strip(),
+            ):
+                rows, supplemental_error = run_search(
+                    supplemental_query,
+                    max_rows=min(20, poi_source_limit),
+                    category="景点",
+                )
+                candidate_locations.extend(rows)
+                if supplemental_error:
+                    batch_errors.append(supplemental_error)
+            density_preview = _merge_map_locations(
+                candidate_locations,
+                [],
+                max_rows=max(40, poi_source_limit * 3),
+                require_coordinates=False,
+            )
+            attraction_count = sum(
+                _normalized_travel_location_category(location) == "景点"
+                for location in density_preview
+            )
+        if food_count < requested_days * 2 + 4 and research_role in {None, "dining"}:
+            candidate_locations.extend(
+                _direct_baidu_place_search(
+                    "特色餐厅",
+                    destination_city,
+                    max_rows=20,
+                    category="餐厅",
+                )
+            )
+            if canonical_destination(destination_city) in INTERNATIONAL_DESTINATIONS:
+                osm_restaurants = fetch_osm_restaurants(
+                    destination_city,
+                    limit=min(20, requested_days * 2 + 4),
+                )
+                candidate_locations.extend(osm_restaurants)
+                if osm_restaurants:
+                    used_search_tools.append("openstreetmap_nominatim")
+        if attraction_count < requested_days * 4 + 7 and research_role in {None, "research"}:
+            candidate_locations.extend(
+                _direct_baidu_place_search(
+                    "热门景点",
+                    destination_city,
+                    max_rows=20,
+                    category="景点",
+                )
+            )
+
+    candidate_locations = _merge_map_locations(
+        candidate_locations,
+        [],
+        max_rows=max(80, poi_source_limit * 4),
+        require_coordinates=False,
+    )
+    candidate_locations = _normalize_travel_location_categories(
+        _filter_quality_map_locations(
+            candidate_locations,
+            destination_city,
+            require_positive_destination=wants_itinerary,
+        )
+    )
+    lodging_rows = _merge_map_locations(
+        lodging_rows,
+        [],
+        max_rows=12,
+        require_coordinates=False,
+    )
+    lodging_preselected = [
+        dict(location)
+        for location in _normalize_travel_location_categories(
+            _filter_destination_lodging_locations(lodging_rows, destination_city)
+        )
+        if re.search(
+            r"酒店|宾馆|住宿|民宿|客栈|hotel|hostel",
+            f"{_safe_text(location.get('category'))} {_safe_text(location.get('name'))}",
+            re.IGNORECASE,
+        )
+    ][:3]
+    lodging_candidates, lodging_verification_tools, lodging_verification_errors = _verify_selected_map_candidates(
+        lodging_preselected,
+        destination_city,
+        tool_manager,
+        message_history,
+        session_id,
+    )
+    lodging_candidates = [
+        location
+        for location in _normalize_travel_location_categories(lodging_candidates)
+        if _normalized_travel_location_category(location) == "酒店"
+        and _has_reusable_poi_coordinates(location)
+    ][:3]
+    final_candidates = _select_final_map_candidates(candidate_locations, query_text, max_rows=poi_source_limit)
     verified_candidates, verification_tools, verification_errors = _verify_selected_map_candidates(
         final_candidates,
         destination_city,
@@ -3541,14 +5430,31 @@ def _run_map_search_for_travel(
     seed_locations: List[Dict[str, Any]] = []
     seed_tool = ""
     seed_error = ""
-    existing_names = {_safe_text(item.get("name")) for item in verified_candidates}
-    seed_candidates = [item for item in _travel_seed_places(destination_city, user_query) if item[0] not in existing_names]
-    target_count = 8 if wants_itinerary else max(1, len(final_candidates))
-    missing_count = max(0, target_count - len(verified_candidates))
-    if missing_count:
-        # Fallback geocoding runs only after selection and only for missing formal slots.
+    existing_names = {
+        _normalized_poi_match_text(item.get("name"))
+        for item in verified_candidates
+    }
+    all_seed_candidates = [
+        item
+        for item in _travel_seed_places(destination_city, user_query)
+        if _normalized_poi_match_text(item[0]) not in existing_names
+    ]
+    # Named classics are acceptance anchors, not merely padding for an empty
+    # generic search. Resolve enough of them for every itinerary and merge them
+    # before provider-discovered candidates so they reach the formal schedule.
+    if wants_itinerary and canonical_destination(destination_city) in INTERNATIONAL_DESTINATIONS:
+        attraction_target, _food_target = _daily_activity_targets(extract_trip_intent(query_text).pace)
+        classic_target = min(len(all_seed_candidates), requested_days * attraction_target + 15)
+    else:
+        classic_target = min(
+            len(all_seed_candidates),
+            max(4, min(8, requested_days * 2 + 1)),
+        ) if wants_itinerary else min(2, len(all_seed_candidates))
+    if research_role in {"lodging", "dining"}:
+        classic_target = 0
+    if classic_target:
         seed_locations, seed_tool, seed_error = _run_map_geocode_for_places(
-            seed_candidates[:missing_count],
+            all_seed_candidates[:classic_target],
             destination_city,
             user_query,
             tool_manager,
@@ -3556,8 +5462,56 @@ def _run_map_search_for_travel(
             session_id,
         )
         seed_locations = [item for item in seed_locations if _has_reusable_poi_coordinates(item)]
-    merged = _merge_map_locations(verified_candidates, seed_locations, max_rows=8)
-    merged = _filter_quality_map_locations(merged, destination_city)
+    merged = _merge_map_locations(seed_locations, verified_candidates, max_rows=poi_source_limit)
+    if wants_itinerary and research_role in {None, "research"}:
+        attraction_target, food_target = _daily_activity_targets(extract_trip_intent(query_text).pace)
+        minimum_location_count = requested_days * (attraction_target + food_target) + 7
+        if len(merged) < minimum_location_count:
+            existing_names = {
+                _normalized_poi_match_text(location.get("name"))
+                for location in merged
+            }
+            catalog_fallbacks: List[Dict[str, Any]] = []
+            for unresolved in final_candidates:
+                unresolved_name = _safe_text(unresolved.get("name"))
+                normalized_name = _normalized_poi_match_text(unresolved_name)
+                if (
+                    not unresolved_name
+                    or normalized_name in existing_names
+                    or _normalized_travel_location_category(unresolved) != "景点"
+                    or _is_unsuitable_travel_poi(unresolved)
+                ):
+                    continue
+                fallback = _catalog_seed_location(
+                    destination_city,
+                    unresolved_name,
+                    (len(catalog_fallbacks) % requested_days) + 1,
+                )
+                fallback.update({
+                    "address": _safe_text(unresolved.get("address") or unresolved.get("description")) or fallback.get("address"),
+                    "summary": _safe_text(unresolved.get("summary")) or fallback.get("summary"),
+                    "requested_destination": destination_city,
+                    "destination_bound": True,
+                    "source": "destination_catalog_after_provider_failure",
+                    "data_type": "reference_data",
+                })
+                catalog_fallbacks.append(fallback)
+                existing_names.add(normalized_name)
+                if len(merged) + len(catalog_fallbacks) >= minimum_location_count:
+                    break
+            if catalog_fallbacks:
+                merged = _merge_map_locations(
+                    merged,
+                    catalog_fallbacks,
+                    max_rows=poi_source_limit,
+                )
+    merged = _normalize_travel_location_categories(
+        _filter_quality_map_locations(
+            merged,
+            destination_city,
+            require_positive_destination=wants_itinerary,
+        )
+    )
     merged = _enrich_map_locations_with_details(
         merged,
         destination_city,
@@ -3567,15 +5521,22 @@ def _run_map_search_for_travel(
     )
     used_tools = ", ".join([
         item for item in [
-            tool_name if candidate_locations else "",
+            *dict.fromkeys(used_search_tools),
             *verification_tools,
+            *lodging_verification_tools,
             seed_tool if seed_locations else "",
         ] if item
     ])
     errors = "；".join([
-        item for item in [*batch_errors, *verification_errors, seed_error] if item
+        item for item in [
+            *batch_errors,
+            *verification_errors,
+            *lodging_verification_errors,
+            seed_error,
+        ] if item
     ])
-    return merged, used_tools or tool_name or seed_tool, errors
+    fallback_tool = next(iter(search_tools or geocode_tools), "")
+    return merged, used_tools or fallback_tool or seed_tool, errors, lodging_candidates
 
 
 def _build_travel_output_contract(
@@ -3613,38 +5574,61 @@ def maybe_prepare_travel_experience_bundle(
     selected_skill_ids: Optional[List[str]] = None,
     xhs_bundle: Optional[Dict[str, Any]] = None,
     allow_web_search: bool = True,
+    allow_date_sensitive: bool = True,
 ) -> Optional[Dict[str, Any]]:
     query_text = _safe_text(user_query)
     skill_triggered = _has_selected_skill(
         selected_skill_ids,
         ["travel_planner", "map_route", "destination_research", "local_discovery"],
     )
-    if not skill_triggered and not _is_travel_experience_query(query_text):
+    full_trip_plan = is_trip_planning_query(query_text)
+    if not skill_triggered and not _is_travel_experience_query(query_text) and not full_trip_plan:
         return None
-    if _is_train_ticket_query(query_text):
+    if _is_train_ticket_query(query_text) and not full_trip_plan:
         return None
 
     kinds = _travel_experience_kinds(query_text)
-    travel_date = _extract_travel_date(query_text)
-    destination_city = _extract_destination_city(query_text)
+    travel_date = _extract_travel_date(query_text) if allow_date_sensitive else "日期暂未确定"
+    destination_city = _resolve_trip_destination(query_text)
     origin_city, origin_tool, origin_error = _run_origin_city_lookup(tool_manager, message_history, session_id)
-    weather_summary, weather_tool, weather_error = _run_weather_for_travel(
-        destination_city,
-        travel_date,
-        tool_manager,
-        message_history,
-        session_id,
-    )
+    if allow_date_sensitive:
+        weather_summary, weather_tool, weather_error = _run_weather_for_travel(
+            destination_city,
+            travel_date,
+            tool_manager,
+            message_history,
+            session_id,
+        )
+    else:
+        weather_summary, weather_tool = "", ""
+        weather_error = "日期暂未确定，已跳过具体日期天气查询"
     if allow_web_search:
+        research_query = (
+            f"{destination_city} 旅行攻略 景点 美食 住宿" if full_trip_plan and destination_city else query_text
+        )
         web_rows, web_tool, web_error = _run_web_search_for_travel(
-            user_query=query_text,
+            user_query=research_query,
             tool_manager=tool_manager,
             message_history=message_history,
             session_id=session_id,
         )
+        lodging_web_rows, lodging_web_tool, lodging_web_error = (
+            _run_web_search_for_travel(
+                user_query=f"{destination_city} 住宿 酒店 民宿 区域 入住体验 房型 价格参考",
+                tool_manager=tool_manager,
+                message_history=message_history,
+                session_id=session_id,
+            )
+            if full_trip_plan and destination_city
+            else ([], "", "")
+        )
     else:
         web_rows, web_tool, web_error = [], "", "已按用户设置关闭网页与社区检索"
-    map_locations, map_tool, map_error = _run_map_search_for_travel(
+        lodging_web_rows, lodging_web_tool, lodging_web_error = [], "", "已按用户设置关闭网页与社区检索"
+    if destination_city:
+        web_rows = _filter_destination_reference_rows(web_rows, destination_city)
+        lodging_web_rows = _filter_destination_reference_rows(lodging_web_rows, destination_city)
+    map_locations, map_tool, map_error, lodging_candidates = _run_map_search_for_travel(
         user_query=query_text,
         destination_city=destination_city,
         tool_manager=tool_manager,
@@ -3656,14 +5640,20 @@ def maybe_prepare_travel_experience_bundle(
 
     web_table = _build_web_markdown_table(web_rows)
     map_table = _build_map_markdown_table(map_locations)
-    xhs_table = _safe_text(xhs_bundle.get("append_markdown")) if isinstance(xhs_bundle, dict) else ""
     xhs_rows = xhs_bundle.get("rows") if isinstance(xhs_bundle, dict) and isinstance(xhs_bundle.get("rows"), list) else []
+    if destination_city:
+        xhs_rows = _filter_destination_reference_rows(xhs_rows, destination_city)
+    xhs_table = (
+        _build_xhs_markdown_table(xhs_rows)
+        if destination_city
+        else _safe_text(xhs_bundle.get("append_markdown")) if isinstance(xhs_bundle, dict) else ""
+    )
 
     context_lines = [
         _build_travel_output_contract(query_text, kinds, map_locations),
         "",
         "【工具增强结果】",
-        f"默认出行日期: {travel_date}",
+        f"出行日期: {travel_date}",
         f"默认出发地: {origin_city or '未获取'}；定位工具: {origin_tool or '未使用'}；问题: {origin_error or '无'}",
         f"识别目的地: {destination_city or '未识别'}",
         f"天气工具: {weather_tool or '未使用'}；天气摘要: {weather_summary or '未获取'}；问题: {weather_error or '无'}",
@@ -3672,8 +5662,10 @@ def maybe_prepare_travel_experience_bundle(
     ]
     if rag_context:
         context_lines.extend(["", rag_context])
-    if xhs_bundle and xhs_bundle.get("context_message"):
+    if not destination_city and xhs_bundle and xhs_bundle.get("context_message"):
         context_lines.extend(["", _safe_text(xhs_bundle.get("context_message"))])
+    elif xhs_table:
+        context_lines.extend(["", xhs_table])
     if web_table:
         context_lines.extend(["", web_table])
     if map_table:
@@ -3687,6 +5679,7 @@ def maybe_prepare_travel_experience_bundle(
         "origin_tool": origin_tool,
         "origin_error": origin_error,
         "destination_city": destination_city,
+        "trip_intent": extract_trip_intent(query_text).model_dump(),
         "weather_summary": weather_summary,
         "weather_tool": weather_tool,
         "weather_error": weather_error,
@@ -3694,13 +5687,35 @@ def maybe_prepare_travel_experience_bundle(
         "web_rows": web_rows,
         "web_tool": web_tool,
         "web_error": web_error,
+        "lodging_web_rows": lodging_web_rows,
+        "lodging_web_tool": lodging_web_tool,
+        "lodging_web_error": lodging_web_error,
         "map_locations": map_locations,
+        "lodging_candidates": lodging_candidates,
         "map_tool": map_tool,
         "map_error": map_error,
         "rag_context": rag_context,
         "xhs_table": xhs_table,
         "xhs_rows": xhs_rows,
+        "lodging_reference_rows": [
+            *[
+                {**row, "reference_type": "xhs"}
+                for row in xhs_rows
+                if isinstance(row, dict)
+                and re.search(
+                    r"酒店|住宿|住哪|民宿|客栈|入住|房间|区域",
+                    f"{_safe_text(row.get('title'))} {_safe_text(row.get('summary'))}",
+                    re.IGNORECASE,
+                )
+            ],
+            *[
+                {**row, "reference_type": "web"}
+                for row in lodging_web_rows
+                if isinstance(row, dict)
+            ],
+        ][:3],
         "append_markdown": "\n\n".join(append_parts),
+        "date_sensitive": allow_date_sensitive,
     }
     bundle["fallback_answer"] = _build_travel_fallback_answer(bundle)
     return bundle
@@ -3876,11 +5891,12 @@ def _build_travel_context_advice_section(travel_bundle: Dict[str, Any]) -> str:
     weather_summary = _safe_text(travel_bundle.get("weather_summary"))
     origin_error = _safe_text(travel_bundle.get("origin_error"))
     weather_error = _safe_text(travel_bundle.get("weather_error"))
+    date_sensitive = bool(travel_bundle.get("date_sensitive", True))
 
     lines = [
         "## 出行基础信息",
         "",
-        f"- 默认出行日期：{travel_date}",
+        f"- 出行日期：{travel_date}",
         f"- 默认出发地：{origin_city or '未获取到地级市定位'}",
         f"- 目的地：{destination_city or '未识别'}",
         "",
@@ -3888,7 +5904,9 @@ def _build_travel_context_advice_section(travel_bundle: Dict[str, Any]) -> str:
         "",
     ]
 
-    if origin_city and destination_city:
+    if not date_sensitive:
+        lines.append("- 日期暂未确定：本次只规划城际交通方式与到达逻辑，不推荐具体班次、票价或余票。")
+    elif origin_city and destination_city:
         if origin_city == destination_city:
             lines.append(f"- 城际交通：当前定位与目的地同为{destination_city}，优先按市内交通规划，核心景点之间建议打车、公交或步行串联。")
         else:
@@ -3898,7 +5916,9 @@ def _build_travel_context_advice_section(travel_bundle: Dict[str, Any]) -> str:
     else:
         lines.append("- 城际交通：未识别目的地，需补充目的地后才能给出准确交通建议。")
 
-    if weather_summary:
+    if not date_sensitive:
+        lines.append("- 天气建议：未查询具体日期天气；日期确定后再补充天气和穿衣建议。")
+    elif weather_summary:
         lines.append(f"- 天气建议：{travel_date} 前后{destination_city or '目的地'}天气参考为{weather_summary}，建议按实时预报调整衣物、雨具和室内外景点比例。")
     else:
         lines.append(f"- 天气建议：天气工具暂未返回可用结果（{weather_error or '原因未知'}），出发前请再次核对目的地实时天气。")
@@ -4208,10 +6228,12 @@ def maybe_prepare_train_ticket_bundle(
                 direct_payload = _unwrap_tool_output(direct_raw)
             except Exception as direct_error:
                 train_errors.append(f"直达票查询失败: {direct_error}")
-                continue
+                break
             if _is_tool_execution_error_payload(direct_payload):
                 train_errors.append(_tool_error_reason(direct_payload, "直达票查询失败"))
-                continue
+                # Provider/network execution failures are route-wide; only a
+                # successful empty result should continue with station aliases.
+                break
             try:
                 candidate_rows = _normalize_direct_rows(direct_payload, candidate_from, candidate_to, travel_date)
             except Exception as normalize_error:
@@ -4246,10 +6268,10 @@ def maybe_prepare_train_ticket_bundle(
                 direct_payload = _unwrap_tool_output(direct_raw)
             except Exception as direct_error:
                 train_errors.append(f"直达票查询失败: {direct_error}")
-                continue
+                break
             if _is_tool_execution_error_payload(direct_payload):
                 train_errors.append(_tool_error_reason(direct_payload, "直达票查询失败"))
-                continue
+                break
             try:
                 candidate_rows = _normalize_direct_rows(direct_payload, candidate_from, candidate_to, travel_date)
             except Exception as normalize_error:
@@ -4511,6 +6533,7 @@ def maybe_prepare_xhs_search_bundle(
     message_history: List[Dict[str, Any]],
     session_id: str,
     selected_skill_ids: Optional[List[str]] = None,
+    accommodation_reference: bool = False,
 ) -> Optional[Dict[str, Any]]:
     query_text = _safe_text(user_query)
     skill_triggered = _has_selected_skill(
@@ -4545,8 +6568,12 @@ def maybe_prepare_xhs_search_bundle(
     if not selected_tool:
         return None
 
-    focus = _extract_xhs_focus(query_text)
-    tool_query = _build_xhs_travel_query(query_text) if travel_triggered else query_text
+    focus = "住宿区域与入住体验" if accommodation_reference else _extract_xhs_focus(query_text)
+    tool_query = (
+        _build_xhs_lodging_query(query_text)
+        if accommodation_reference
+        else _build_xhs_travel_query(query_text) if travel_triggered else query_text
+    )
     if summary_tool_name:
         arg_candidates = [
             {"query": tool_query, "limit": 8, "focus": focus},
@@ -4613,6 +6640,7 @@ def maybe_prepare_xhs_search_bundle(
         f"数据来源: {source or '未知'}",
         f"命中资源数: {len(rows)}",
         f"工具摘要: {summary_text}",
+        "小红书内容仅可作为区域与入住体验的参考；不得将其表述为酒店库存、价格、房型或可预订状态。",
         "请严格基于上述小红书资源先给3-5条建议，再给简短总结；不得编造不存在的链接、作者和点赞数据。",
         "在回答前请按需继续调用其他MCP工具（如地图、网页搜索、票务）做交叉验证，并将多源结果整合后输出给用户。",
     ]
@@ -4649,8 +6677,10 @@ def maybe_prepare_xhs_search_bundle(
     return bundle
 
 
-ONLINE_SEARCH_SERVER_NAMES = {"serper_web_search", "xhs-mcp", "fetch"}
+ONLINE_SEARCH_SERVER_NAMES = {"tavily-mcp", "serper_web_search", "xhs-mcp", "fetch"}
 ONLINE_SEARCH_TOOL_MARKERS = (
+    "tavily_",
+    "tavily-",
     "search_web",
     "web_search",
     "xhs_",
@@ -4675,18 +6705,15 @@ def _build_filtered_tool_manager(
     selected_mcp_servers: Optional[List[str]],
     allow_web_search: bool = True,
 ) -> Any:
-    """Create a tool manager containing the allowed MCP and local tools."""
+    """Create a filtered view while sharing the original MCP runtime and processes."""
     try:
-        from agents.tool.tool_manager import ToolManager
         from agents.tool.tool_base import McpToolSpec
 
-        filtered_manager = ToolManager(
-            is_auto_discover=False,
-            map_request_governor=getattr(original_tool_manager, "map_request_governor", None),
-            provider_gateway=getattr(original_tool_manager, "provider_gateway", None),
-        )
-        if hasattr(original_tool_manager, "_run_mcp_tool_async"):
-            filtered_manager._run_mcp_tool_async = original_tool_manager._run_mcp_tool_async
+        # A fresh ToolManager owns a fresh stdio runtime and starts another copy of
+        # every selected MCP server. A shallow view keeps filtering request-local
+        # while all connection/session/process state remains application-scoped.
+        filtered_manager = copy.copy(original_tool_manager)
+        filtered_manager.tools = {}
 
         for tool_name, tool_spec in original_tool_manager.tools.items():
             if not allow_web_search and _is_online_search_tool(tool_name, tool_spec):
@@ -4985,6 +7012,45 @@ def append_trip_intent_context_message(
     )
 
 
+def _trip_intent_from_structured_request(structured_trip_request: Optional[Any]) -> Optional[TripIntent]:
+    if structured_trip_request is None:
+        return None
+    if hasattr(structured_trip_request, "model_dump"):
+        payload = structured_trip_request.model_dump()
+    elif isinstance(structured_trip_request, dict):
+        payload = structured_trip_request
+    else:
+        return None
+
+    try:
+        start_date = datetime.date.fromisoformat(str(payload.get("start_date")))
+        end_date = datetime.date.fromisoformat(str(payload.get("end_date")))
+        people_count = sum(int(payload.get(field) or 0) for field in ("adults", "children", "seniors"))
+        preferences = [
+            _safe_text(item).strip()
+            for item in (payload.get("preferences") or [])
+            if _safe_text(item).strip()
+        ]
+        return TripIntent(
+            origin=_safe_text(payload.get("origin")).strip(),
+            destination=_safe_text(payload.get("destination")).strip(),
+            date_range=f"{start_date.isoformat()} 至 {end_date.isoformat()}",
+            days=(end_date - start_date).days + 1,
+            people_count=people_count,
+            adult_count=int(payload.get("adults") or 0),
+            child_count=int(payload.get("children") or 0),
+            senior_count=int(payload.get("seniors") or 0),
+            people_type=_safe_text(payload.get("party_type")).strip() or None,
+            budget_total=float(payload.get("budget")),
+            travel_style="、".join(preferences) or None,
+            pace="relaxed" if "轻松慢游" in preferences else "balanced",
+            interests=preferences,
+            confidence=1.0,
+        )
+    except (TypeError, ValueError):
+        return None
+
+
 def append_selected_knowledge_context_message(
     message_history: List[Dict[str, Any]],
     selected_knowledge_context: Optional[List[Dict[str, Any]]],
@@ -5092,7 +7158,85 @@ def _structured_map_locations(travel_bundle: Dict[str, Any]) -> List[Dict[str, A
             location.setdefault("field_evidence", {})
             location.setdefault("sources", [])
         locations.append(location)
-    return locations
+    destination_city = _safe_text(travel_bundle.get("destination_city"))
+    return _filter_quality_map_locations(
+        locations,
+        destination_city,
+        require_positive_destination=bool(destination_city),
+    )
+
+
+def _candidate_places_for_document(
+    travel_bundle: Dict[str, Any],
+    plan: TripPlan,
+) -> List[Dict[str, Any]]:
+    """Keep unused, verified map POIs for the V3 candidate pool.
+
+    The formal agenda remains the only source of V2 map locations.  Candidate
+    places travel beside it as explicit data so V2 validation cannot accidentally
+    put them on the formal route layer.
+    """
+    scheduled_poi_ids = {
+        _safe_text(activity.place.poi_id)
+        for activity in plan.activities
+        if activity.place and _safe_text(activity.place.poi_id)
+    }
+    scheduled_names = {
+        _safe_text(activity.place.name if activity.place else activity.title)
+        for activity in plan.activities
+        if activity.place or _safe_text(activity.title)
+    }
+    candidates: List[Dict[str, Any]] = []
+    seen_poi_ids: set[str] = set()
+    raw_candidate_locations = travel_bundle.get("candidate_map_locations")
+    candidate_bundle = (
+        {**travel_bundle, "map_locations": raw_candidate_locations}
+        if isinstance(raw_candidate_locations, list)
+        else travel_bundle
+    )
+    # 有营业证据的地点优先进入有上限的候选池，避免检索顺序挤掉可排程候选。
+    candidate_locations = sorted(_structured_map_locations(candidate_bundle),
+        key=lambda location: not bool(location.get("opening_hours")))
+    for location in candidate_locations:
+        poi_id = _safe_text(location.get("poi_id") or location.get("place_id") or location.get("uid"))
+        name = _safe_text(location.get("name"))
+        category = _normalized_travel_location_category(location)
+        coordinates_trusted = location.get("coordinates_trusted") is not False
+        latitude = _optional_float(location.get("lat")) if coordinates_trusted else None
+        longitude = _optional_float(location.get("lng")) if coordinates_trusted else None
+        if (
+            not poi_id
+            or not name
+            or poi_id in scheduled_poi_ids
+            or poi_id in seen_poi_ids
+            or name in scheduled_names
+            or category in {"酒店", "交通"}
+        ):
+            continue
+        seen_poi_ids.add(poi_id)
+        candidates.append({
+            "name": name,
+            "category": category,
+            "poi_id": poi_id,
+            "lat": latitude,
+            "lng": longitude,
+            "address": _safe_text(location.get("address") or location.get("description")) or None,
+            "city": _safe_text(location.get("city") or travel_bundle.get("destination_city")) or None,
+            "summary": _safe_text(location.get("summary")) or None,
+            "opening_hours": location.get("opening_hours"),
+            "suggested_duration_minutes": _optional_int(location.get("duration_minutes")),
+            "price": location.get("estimated_cost") if location.get("estimated_cost") is not None else location.get("price"),
+            "source": _safe_text(location.get("source") or travel_bundle.get("map_tool")) or "地图地点核验",
+            "data_type": location.get("data_type") or "reference_data",
+            "sources": location.get("sources") if isinstance(location.get("sources"), list) else [],
+            "field_evidence": location.get("field_evidence") if isinstance(location.get("field_evidence"), dict) else {},
+            "coordinate_system": location.get("coordinate_system"),
+            "coordinate_source": location.get("coordinate_source"),
+            "coordinates_trusted": location.get("coordinates_trusted"),
+        })
+        if len(candidates) >= 15:
+            break
+    return candidates
 
 
 def _trip_plan_source_references(travel_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -5132,6 +7276,7 @@ def _trip_plan_source_references(travel_bundle: Dict[str, Any]) -> List[Dict[str
 
     rag_context = _safe_text(travel_bundle.get("rag_context"))
     if rag_context:
+        destination_summary = _build_destination_overview_summary(travel_bundle)
         sources.append(
             {
                 "type": "local_knowledge",
@@ -5139,7 +7284,7 @@ def _trip_plan_source_references(travel_bundle: Dict[str, Any]) -> List[Dict[str
                 "title": "本地旅行知识库",
                 "source": "travel_knowledge_base",
                 "url": "",
-                "snippet": rag_context[:320],
+                "snippet": destination_summary or rag_context[:320],
             }
         )
 
@@ -5162,7 +7307,56 @@ def _trip_plan_source_references(travel_bundle: Dict[str, Any]) -> List[Dict[str
             }
         )
 
+    activity_image_sources = (
+        travel_bundle.get("activity_image_sources")
+        if isinstance(travel_bundle.get("activity_image_sources"), list)
+        else []
+    )
+    sources.extend(dict(source) for source in activity_image_sources if isinstance(source, dict))
+
     map_locations = _structured_map_locations(travel_bundle)
+    seen_wikimedia_sources: set[str] = set()
+    for location in map_locations:
+        provider = _safe_text(location.get("source_provider")) if isinstance(location, dict) else ""
+        if provider not in {"wikipedia", "wikidata"}:
+            continue
+        reference_id = _safe_text(location.get("source_reference_id"))
+        if not reference_id or reference_id in seen_wikimedia_sources:
+            continue
+        seen_wikimedia_sources.add(reference_id)
+        place_name = _safe_text(location.get("name")) or "目的地地点"
+        source_name = "Wikidata" if provider == "wikidata" else "Wikipedia"
+        sources.append({
+            "reference_id": reference_id,
+            "type": "map",
+            "data_type": "reference_data",
+            "title": f"{place_name}地点坐标",
+            "source": source_name,
+            "url": _safe_text(location.get("source_url")),
+            "snippet": f"地点名称与 WGS84 坐标来自对应 {source_name} 条目；开放时间、票价与营业状态仍需出发前核验。",
+            "related_fields": ["coordinates", "address"],
+            "related_places": [place_name],
+        })
+    seen_osm_sources: set[str] = set()
+    for location in map_locations:
+        if not isinstance(location, dict) or _safe_text(location.get("source_provider")) != "openstreetmap":
+            continue
+        reference_id = _safe_text(location.get("source_reference_id"))
+        if not reference_id or reference_id in seen_osm_sources:
+            continue
+        seen_osm_sources.add(reference_id)
+        place_name = _safe_text(location.get("name")) or "目的地餐厅"
+        sources.append({
+            "reference_id": reference_id,
+            "type": "map",
+            "data_type": "reference_data",
+            "title": f"{place_name}地点坐标",
+            "source": "OpenStreetMap Nominatim",
+            "url": _safe_text(location.get("source_url")),
+            "snippet": "餐厅名称与 WGS84 坐标来自 OpenStreetMap；营业时间、菜单、价格和营业状态需在出发前复核。",
+            "related_fields": ["coordinates", "address", "category"],
+            "related_places": [place_name],
+        })
     map_tool = _safe_text(travel_bundle.get("map_tool"))
     confirmed_map_count = sum(
         location.get("data_type") == "confirmed_live_data" for location in map_locations
@@ -5198,6 +7392,59 @@ def _trip_plan_source_references(travel_bundle: Dict[str, Any]) -> List[Dict[str
     return sources
 
 
+def _clean_destination_research_text(value: Any) -> str:
+    """Turn a RAG record into a short user-facing destination description.
+
+    The raw RAG envelope contains retrieval rules, ids and multiple entries.  It
+    is useful to the model but must never leak into the formal plan overview.
+    """
+    text = _safe_text(value)
+    if not text:
+        return ""
+    text = re.sub(r"(?s)^.*?\]\s*", "", text, count=1)
+    text = re.split(r"\n\s*\d+\.\s*\[", text, maxsplit=1)[0]
+    text = re.sub(r"\s+", " ", text).strip()
+    if text.startswith("旅行知识库检索结果") or text.startswith("使用规则"):
+        return ""
+    # Research guides describe generic itineraries, not this trip's final schedule.
+    # Keep destination facts without promising activities on an arrival/departure day.
+    schedule_pattern = re.compile(
+        r"第\s*[一二三四五六七八九十百\d]+\s*[天日]|"
+        r"\bday\s*\d+\b|"
+        r"(?:建议|推荐|适合)\s*(?:安排|游玩|停留)?\s*"
+        r"[一二三四五六七八九十\d]+\s*(?:[到至~～—-]\s*[一二三四五六七八九十\d]+\s*)?[天日]",
+        re.IGNORECASE,
+    )
+    text = "".join(
+        sentence for sentence in re.findall(r"[^。！？.!?]+[。！？.!?]?", text)
+        if not schedule_pattern.search(sentence)
+    ).strip()
+    bounded = text[:260].rstrip("，。；; ")
+    return bounded + ("。" if bounded else "")
+
+
+def _build_destination_overview_summary(travel_bundle: Dict[str, Any]) -> str:
+    """Choose a bounded destination description and never reuse trip metadata."""
+    selected_context = travel_bundle.get("selected_knowledge_context")
+    if isinstance(selected_context, list):
+        for row in selected_context:
+            if isinstance(row, dict):
+                summary = _clean_destination_research_text(row.get("snippet") or row.get("summary"))
+                if summary:
+                    return summary
+
+    summary = _clean_destination_research_text(travel_bundle.get("rag_context"))
+    if summary:
+        return summary
+
+    for row in travel_bundle.get("web_rows") or []:
+        if isinstance(row, dict):
+            summary = _clean_destination_research_text(row.get("snippet"))
+            if summary:
+                return summary
+    return ""
+
+
 def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
     query_text = _safe_text(travel_bundle.get("query")) or "旅行方案"
     raw_intent = travel_bundle.get("trip_intent")
@@ -5205,20 +7452,87 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
         intent = TripIntent.model_validate(raw_intent) if raw_intent else extract_trip_intent(query_text)
     except Exception:
         intent = extract_trip_intent(query_text)
+    date_sensitive = bool(travel_bundle.get("date_sensitive", True))
+    destination_city = (
+        canonical_destination(_safe_text(intent.destination))
+        or canonical_destination(_safe_text(travel_bundle.get("destination_city")))
+        or _safe_text(intent.destination)
+        or _safe_text(travel_bundle.get("destination_city"))
+    )
     map_locations = _structured_map_locations(travel_bundle)
+    map_locations = [
+        {
+            **location,
+            **(
+                {
+                    "requested_destination": destination_city,
+                    "destination_bound": True,
+                }
+                if destination_city and not _safe_text(location.get("requested_destination"))
+                else {}
+            ),
+        }
+        for location in map_locations
+        if isinstance(location, dict)
+    ]
     max_day = max(
         [_optional_int(location.get("day")) or 1 for location in map_locations if isinstance(location, dict)]
         or [1]
     )
     days = max(1, intent.days or max_day)
+    meal_date_mode, outbound_arrival, return_departure = _meal_transport_context(
+        intent,
+        destination_city=destination_city,
+        travel_bundle=travel_bundle,
+    )
+    meal_targets = meal_targets_by_day(
+        days=days,
+        date_mode=meal_date_mode,
+        outbound_arrival=outbound_arrival,
+        return_departure=return_departure,
+        breakfast_requested=bool(re.search(r"(?:早餐|早饭|breakfast)", query_text, re.IGNORECASE)),
+        lodging_breakfast_included=_lodging_breakfast_included(travel_bundle),
+    )
+    if ITINERARY_QUERY_REGEX.search(query_text):
+        discovered_locations = list(map_locations)
+        covered_locations = _ensure_daily_activity_coverage(
+            map_locations,
+            destination_city=destination_city,
+            query_text=query_text,
+            days=days,
+            pace=intent.pace,
+            meal_targets_by_day=meal_targets,
+        )
+        travel_bundle["candidate_map_locations"] = [*discovered_locations, *covered_locations]
+        map_locations = covered_locations
+    map_locations = [
+        location
+        for location in map_locations
+        if isinstance(location, dict) and _is_destination_formal_location(location, destination_city)
+    ]
     activities: List[TripActivity] = []
     locations_per_day = max(1, (len(map_locations) + days - 1) // days)
+    activities_per_day: Dict[int, int] = {}
+    activity_type_counts_by_day: Dict[Tuple[int, str], int] = {}
+
+    def suggested_window(activity_type: str, position: int) -> Tuple[str, str, int]:
+        """Provide a clearly labelled planning window, never a claimed opening time."""
+        if activity_type == "food":
+            return ("11:30", "13:00", 90) if position < 2 else ("17:30", "19:00", 90)
+        windows = [
+            ("09:00", "10:15", 75),
+            ("10:30", "11:30", 60),
+            ("13:15", "14:45", 90),
+            ("15:15", "16:45", 90),
+            ("19:15", "20:30", 75),
+        ]
+        return windows[min(position, len(windows) - 1)]
 
     for index, location in enumerate(map_locations, start=1):
         if not isinstance(location, dict):
             continue
         name = _safe_text(location.get("name")) or f"地点 {index}"
-        category = _safe_text(location.get("category")) or "地点"
+        category = _normalized_travel_location_category(location)
         activity_type = "attraction"
         if re.search(r"餐厅|美食|小吃|restaurant|food|cafe", category, re.IGNORECASE):
             activity_type = "food"
@@ -5230,32 +7544,86 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
             **location,
             "name": name,
             "category": category,
+            "poi_id": _safe_text(
+                location.get("poi_id") or location.get("place_id") or location.get("uid") or location.get("id")
+            ) or None,
+            "city": _safe_text(location.get("city")) or destination_city,
+            "address": _safe_text(location.get("address") or location.get("description")) or None,
             "lat": _optional_float(location.get("lat")),
             "lng": _optional_float(location.get("lng")),
             "source": _safe_text(location.get("source")) or "地图地点核验",
             "data_type": location.get("data_type", "reference_data"),
         })
-        notes = [_safe_text(location.get("description"))]
+        summary = _safe_text(location.get("summary"))
+        address = _safe_text(location.get("description") or location.get("address"))
+        notes = [summary] if summary and summary != address else []
+        if not notes:
+            if activity_type == "food":
+                notes = ["已纳入当天用餐候选；菜品特色、排队情况和营业时间需在出发前按地图详情复核。"]
+            elif activity_type == "hotel":
+                notes = ["作为住宿候选参与行程衔接；房型、价格、库存和入住政策需以预订页面为准。"]
+            else:
+                notes = ["地点已进入当日规划；具体特色与开放信息待地图详情补全后确认。"]
         explicit_day = _optional_int(location.get("day"))
         activity_day = explicit_day if explicit_day and 1 <= explicit_day <= days else min(
             days,
             ((index - 1) // locations_per_day) + 1,
         )
+        day_position = activities_per_day.get(activity_day, 0)
+        activities_per_day[activity_day] = day_position + 1
+        type_position_key = (activity_day, activity_type)
+        type_position = activity_type_counts_by_day.get(type_position_key, 0)
+        activity_type_counts_by_day[type_position_key] = type_position + 1
+        suggested_start, suggested_end, suggested_duration = suggested_window(activity_type, type_position)
+        start_time = _safe_text(location.get("start_time")) or suggested_start
+        end_time = _safe_text(location.get("end_time")) or suggested_end
+        duration_minutes = _optional_int(location.get("duration_minutes")) or suggested_duration
+        raw_official_traveler_prices = location.get("official_traveler_prices")
+        official_traveler_prices = {
+            traveler_type: price
+            for traveler_type in ("adult", "child", "senior")
+            if isinstance(raw_official_traveler_prices, dict)
+            and (price := _optional_float(raw_official_traveler_prices.get(traveler_type))) is not None
+        }
+        raw_cost_unit = _safe_text(location.get("estimated_cost_unit"))
+        raw_meal_type = _safe_text(location.get("meal_type"))
         activities.append(
             TripActivity(
                 activity_id=_safe_text(location.get("activity_id") or location.get("id"))
                 or f"act_{uuid.uuid4().hex}",
                 day=activity_day,
-                start_time=_safe_text(location.get("start_time")) or None,
-                end_time=_safe_text(location.get("end_time")) or None,
-                duration_minutes=_optional_int(location.get("duration_minutes")),
+                start_time=start_time,
+                end_time=end_time,
+                duration_minutes=duration_minutes,
                 title=name,
                 activity_type=activity_type,
+                meal_type=(
+                    raw_meal_type
+                    if activity_type == "food" and raw_meal_type in {"breakfast", "lunch", "dinner"}
+                    else None
+                ),
                 place=place,
                 map_visible=True,
                 transport_to_next=_safe_text(location.get("transport_to_next")) or None,
                 estimated_cost=_optional_float(location.get("estimated_cost")),
-                reservation=location.get("reservation") if isinstance(location.get("reservation"), dict) else None,
+                estimated_cost_currency=_safe_text(
+                    location.get("estimated_cost_currency") or location.get("currency")
+                ) or None,
+                estimated_cost_cny_reference_amount=_optional_float(
+                    location.get("estimated_cost_cny_reference_amount")
+                    or location.get("cny_reference_amount")
+                ),
+                estimated_cost_exchange_rate_as_of=_safe_text(
+                    location.get("estimated_cost_exchange_rate_as_of")
+                    or location.get("exchange_rate_as_of")
+                ) or None,
+                estimated_cost_unit=raw_cost_unit if raw_cost_unit in {"group", "per_traveler"} else "group",
+                official_traveler_prices=official_traveler_prices,
+                reservation=(
+                    location.get("reservation")
+                    if date_sensitive and isinstance(location.get("reservation"), dict)
+                    else None
+                ),
                 evidence_refs=location.get("evidence_refs")
                 if isinstance(location.get("evidence_refs"), list)
                 else [],
@@ -5264,51 +7632,42 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
             )
         )
 
-    people_count = max(1, intent.people_count or 1)
-    category_totals = {"transport": 0.0, "accommodation": 0.0, "food": 0.0, "tickets": 0.0, "other": 0.0}
-    unknown_items: List[str] = []
-    for activity in activities:
-        category_text = _safe_text(activity.place.category if activity.place else "")
-        amount = _optional_float(activity.estimated_cost)
-        if re.search(r"酒店|住宿|hotel|hostel", category_text, re.IGNORECASE):
-            key, fallback = "accommodation", 350.0
-        elif re.search(r"餐厅|美食|小吃|restaurant|food", category_text, re.IGNORECASE):
-            key, fallback = "food", 80.0 * people_count
-        elif re.search(r"交通|车站|机场|transport|station|airport", category_text, re.IGNORECASE):
-            key, fallback = "transport", 30.0 * people_count
-        elif re.search(r"景点|博物馆|公园|寺|attraction|museum|park", category_text, re.IGNORECASE):
-            key, fallback = "tickets", 60.0 * people_count
-        else:
-            key, fallback = "other", None
-        if amount is None and fallback is None:
-            unknown_items.append(activity.title)
-            continue
-        category_totals[key] += amount if amount is not None else fallback or 0
-
-    estimated_total = round(sum(category_totals.values()), 2)
-    target_total = intent.budget_total
-    if target_total is None and intent.budget_per_person is not None:
-        target_total = intent.budget_per_person * people_count
-    per_person_estimate = round(estimated_total / people_count, 2) if estimated_total else None
-    overrun_amount = round(max(0.0, estimated_total - float(target_total)), 2) if target_total is not None else 0.0
-    budget_summary = {
-        "currency": "CNY",
-        "budget_total": target_total if target_total is not None else estimated_total or None,
-        "budget_per_person": intent.budget_per_person or per_person_estimate,
-        "people_count": people_count,
-        "estimated_total": estimated_total if estimated_total else None,
-        "known_total": estimated_total if estimated_total else 0,
-        "unknown_count": len(unknown_items),
-        "unknown_items": unknown_items,
-        "categories": category_totals,
-        "over_budget": overrun_amount > 0,
-        "overrun_amount": overrun_amount,
-        "source_label": "基于地点类别和行程规则估算；实际价格需以对应来源实时确认",
-        "updated_at": datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
-        "data_type": "estimated_data",
-    }
+    destination_meta = INTERNATIONAL_DESTINATION_META.get(canonical_destination(destination_city) or "", {})
+    destination_currency = _safe_text(destination_meta.get("currency")) or "CNY"
+    budget_warnings = apply_reference_costs(
+        activities,
+        destination_currency=destination_currency,
+    )
 
     source_references = _trip_plan_source_references(travel_bundle)
+    exchange_rate_date = next((
+        _safe_text(activity.estimated_cost_exchange_rate_as_of)
+        for activity in activities
+        if _safe_text(activity.estimated_cost_currency) == destination_currency
+        and activity.estimated_cost_cny_reference_amount is not None
+        and _safe_text(activity.estimated_cost_exchange_rate_as_of)
+    ), "")
+    if destination_currency != "CNY" and exchange_rate_date:
+        exchange_reference_id = f"source_ecb_exchange_{exchange_rate_date.replace('-', '')}"
+        source_references.append({
+            "reference_id": exchange_reference_id,
+            "type": "budget",
+            "data_type": "reference_data",
+            "title": f"{destination_currency}/CNY 预算参考汇率",
+            "source": "European Central Bank",
+            "url": "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml",
+            "snippet": f"采用 {exchange_rate_date} 欧洲央行欧元参考汇率交叉换算，仅用于人民币预算参考。",
+            "updated_at": exchange_rate_date,
+            "related_fields": ["budget", "estimated_cost"],
+            "related_places": [destination_city],
+        })
+        for activity in activities:
+            if (
+                _safe_text(activity.estimated_cost_currency) == destination_currency
+                and activity.estimated_cost_cny_reference_amount is not None
+                and exchange_reference_id not in activity.evidence_refs
+            ):
+                activity.evidence_refs.append(exchange_reference_id)
     source_references.append(
         {
             "type": "plan_estimate",
@@ -5333,6 +7692,7 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
     seen_sources = set()
     for source in source_references:
         source_type = _safe_text(source.get("type")) or "reference"
+        explicit_reference_id = _safe_text(source.get("reference_id"))
         confidence, related_fields = source_defaults.get(source_type, (0.5, ["summary"]))
         source["updated_at"] = _safe_text(source.get("updated_at")) or source_updated_at
         source["reference_id"] = _safe_text(source.get("reference_id")) or f"source_{len(unique_sources) + 1}"
@@ -5341,22 +7701,52 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
         source["related_places"] = source.get("related_places") or [
             location.get("name") for location in map_locations[:8] if location.get("name")
         ]
-        source_key = (_safe_text(source.get("url")), _safe_text(source.get("title")), source_type)
+        # Different assets may cite the same page with distinct reference IDs.
+        # Keep those IDs resolvable when the formal document is adapted to V3.
+        source_key = (
+            _safe_text(source.get("url")), _safe_text(source.get("title")),
+            source_type, explicit_reference_id,
+        )
         if source_key in seen_sources:
             continue
         seen_sources.add(source_key)
         unique_sources.append(source)
     source_references = unique_sources
 
+    # Keep the verified planning lodging on the formal map as a route anchor.
+    # It is not a sightseeing activity and does not count toward daily capacity.
+    lodging_candidates = travel_bundle.get("lodging_candidates")
+    planning_lodging_rows = [
+        {**dict(location), "category": "酒店"}
+        for location in (lodging_candidates if isinstance(lodging_candidates, list) else [])[:1]
+        if isinstance(location, dict) and _has_reusable_poi_coordinates(location)
+    ]
+    plan_map_locations = _merge_map_locations(
+        map_locations,
+        planning_lodging_rows,
+        max_rows=len(map_locations) + len(planning_lodging_rows),
+        require_coordinates=True,
+    )
+
     plan = TripPlan(
         title=query_text,
         intent=intent,
         days=days,
         activities=activities,
-        budget_summary=budget_summary,
-        map_locations=map_locations,
+        budget_summary=calculate_budget_summary(intent, activities),
+        map_locations=plan_map_locations,
         source_references=source_references,
+        warnings=budget_warnings,
     )
+    domestic = canonical_destination(destination_city) not in INTERNATIONAL_DESTINATIONS
+    plan.warnings.extend(
+        apply_meal_schedule(
+            plan,
+            targets_by_day=meal_targets,
+            domestic=domestic,
+        )
+    )
+    plan.budget_summary = calculate_budget_summary(intent, plan.activities)
     confidence_summary = {
         "confirmed_live_data": 0,
         "reference_data": 0,
@@ -5374,6 +7764,357 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
     return plan
 
 
+def _image_provider_root(image_url: Any) -> str:
+    parsed = urlparse(_safe_text(image_url))
+    return f"https://{parsed.hostname}/" if parsed.scheme == "https" and parsed.hostname else ""
+
+
+def _normalize_image_search_candidates(payload: Any, tool_name: str) -> List[Dict[str, str]]:
+    if isinstance(payload, str):
+        # Parse tavily-mcp's numbered image section before the generic JSON
+        # fragment parser mistakes ``[1]`` for a complete JSON array.
+        formatted_items: List[Dict[str, str]] = []
+        for match in re.finditer(
+            r"(?:^|\n)\[\d+\]\s+URL:\s*(?P<url>https://\S+)"
+            r"(?:\r?\n\s*Description:\s*(?P<title>[^\r\n]+))?",
+            payload,
+            re.IGNORECASE,
+        ):
+            formatted_items.append({
+                "title": _safe_text(match.group("title")),
+                "image_url": match.group("url").rstrip(".,;"),
+            })
+        if formatted_items:
+            payload = {"images": formatted_items}
+        else:
+            parsed = _safe_json_loads(payload)
+            if parsed is not None:
+                payload = parsed
+    if isinstance(payload, dict) and ("content" in payload or "result" in payload):
+        unwrapped = _unwrap_tool_output(payload)
+        if unwrapped is not payload:
+            payload = unwrapped
+    if isinstance(payload, str):
+        text_payload = payload
+        parsed_items: List[Dict[str, str]] = []
+        for match in re.finditer(
+            r"(?:description|title|alt)\s*[:=]\s*[\"'](?P<title>[^\"']+)[\"'][\s\S]{0,240}?"
+            r"(?:image_url|url)\s*[:=]\s*[\"'](?P<url>https://[^\"']+)[\"']",
+            text_payload,
+            re.IGNORECASE,
+        ):
+            parsed_items.append({"title": match.group("title"), "image_url": match.group("url")})
+        for match in re.finditer(
+            r"\[(?P<title>[^\]\r\n]{2,160})\]\((?P<url>https://[^)\s]+)\)",
+            text_payload,
+        ):
+            parsed_items.append({"title": match.group("title"), "image_url": match.group("url")})
+        if parsed_items:
+            payload = {"images": parsed_items}
+    raw_items = _first_present_list(payload, ["images", "results", "photos", "items", "data"])
+    provider = "Tavily 图片检索" if "tavily" in tool_name.casefold() else "Serper 图片检索"
+    candidates: List[Dict[str, str]] = []
+    for item in raw_items:
+        if isinstance(item, str):
+            item = {"image_url": item}
+        if not isinstance(item, dict):
+            continue
+        image_url = _safe_text(
+            item.get("image_url")
+            or item.get("imageUrl")
+            or item.get("url")
+            or item.get("src")
+        )
+        if not image_url.startswith("https://"):
+            continue
+        # 图片说明比所在网页标题更具体；综合攻略标题可能列出多个地点。
+        title = _safe_text(item.get("alt") or item.get("description") or item.get("title"))
+        source_url = _safe_text(
+            item.get("source_url")
+            or item.get("page_url")
+            or item.get("link")
+            or item.get("provider_url")
+        )
+        candidates.append({
+            "image_url": image_url,
+            "title": title,
+            # CDN 根域不能证明图片属于哪个地点，也不能伪装成来源页。
+            "source_url": source_url if source_url.startswith("https://") else "",
+            "provider": provider,
+        })
+    return candidates
+
+
+def _image_candidate_matches_place(candidate: Dict[str, str], place_name: str, city: str) -> bool:
+    expected = _normalized_poi_match_text(place_name)
+    # 只匹配图片说明的主语，不把攻略目录中提及的地点当作图片主体。
+    # 例如“东京跨年攻略｜迪士尼・增上寺・涩谷”中的配图可能来自横滨。
+    subject = re.split(r"[|｜·・•+＋,，;；\n]", _safe_text(candidate.get("title")), maxsplit=1)[0]
+    title = _normalized_poi_match_text(subject)
+    if not expected or not title:
+        return False
+    name_matches = expected in title
+    if not name_matches:
+        return False
+    destination = canonical_destination(city) or _safe_text(city)
+    mentioned = _mentioned_destinations(candidate.get("title"))
+    return not destination or not any(item != destination for item in mentioned)
+
+
+def _search_activity_image_candidates(
+    *,
+    place_name: str,
+    city: str,
+    category: str,
+    tool_manager: Any,
+    message_history: List[Dict[str, Any]],
+    session_id: str,
+) -> List[Dict[str, str]]:
+    if tool_manager is None:
+        return []
+    tools = [
+        tool_name
+        for tool_name in [
+            _first_available_tool_name(tool_manager, ["tavily_search", "tavily-search"]),
+            _first_available_tool_name(tool_manager, ["search_image_from_web"]),
+        ]
+        if tool_name
+    ]
+    if not tools:
+        return []
+    scene = "餐厅菜品与门店实景" if category == "餐厅" else "景点建筑与环境实景"
+    query = f'"{place_name}" {city} {scene}'
+
+    def run_provider(tool_name: str) -> Tuple[str, Any]:
+        if "tavily" in tool_name.casefold():
+            args = {
+                "query": query,
+                "search_depth": "basic",
+                "max_results": 5,
+                "include_answer": False,
+                "include_images": True,
+                "include_image_descriptions": True,
+                "include_raw_content": False,
+            }
+            try:
+                parameter_names = set(getattr(tool_manager.get_tool(tool_name), "parameters", {}).keys())
+            except Exception:
+                parameter_names = set()
+            if parameter_names:
+                args = {key: value for key, value in args.items() if key in parameter_names}
+            arg_candidates = [args]
+        else:
+            arg_candidates = [
+                {"query": query, "count": 8, "country": "cn"},
+                {"query": query, "count": 8},
+                {"query": query},
+            ]
+        payload = _run_tool_with_arg_candidates(
+            tool_manager=tool_manager,
+            tool_name=tool_name,
+            message_history=message_history,
+            session_id=session_id,
+            arg_candidates=arg_candidates,
+        )
+        return tool_name, payload
+
+    with ThreadPoolExecutor(max_workers=len(tools), thread_name_prefix="place-image") as executor:
+        results = [future.result() for future in [executor.submit(run_provider, tool) for tool in tools]]
+    candidates = [
+        candidate
+        for tool_name, payload in results
+        if not _is_tool_execution_error_payload(payload)
+        for candidate in _normalize_image_search_candidates(payload, tool_name)
+        if _image_candidate_matches_place(candidate, place_name, city)
+    ]
+    to_verify: List[Dict[str, str]] = []
+    seen_sources = set()
+    for candidate in candidates:
+        key = (_canonical_web_url(candidate.get("image_url")), candidate.get("source_url"))
+        if not all(key) or key in seen_sources:
+            continue
+        seen_sources.add(key)
+        to_verify.append(candidate)
+        if len(to_verify) == 6:
+            break
+
+    def verify_source(candidate: Dict[str, str]) -> Optional[Dict[str, str]]:
+        # 图片检索 description 可能只是综合攻略标题。必须在原网页找到
+        # 相同图片 URL 的具体说明，避免将“涩谷”攻略配的浅草寺图当成涩谷。
+        descriptions = fetch_image_source_descriptions(candidate.get("source_url", ""), candidate["image_url"])
+        matching_description = next((description for description in descriptions
+            if _image_candidate_matches_place({"title": description}, place_name, city)), "")
+        return {**candidate, "title": matching_description} if matching_description else None
+
+    # 来源网页访问有界且并行，避免逐图片累积等待拖慢整份行程。
+    if not to_verify:
+        return []
+    with ThreadPoolExecutor(max_workers=3, thread_name_prefix="image-source") as executor:
+        verified = list(executor.map(verify_source, to_verify))
+    unique: List[Dict[str, str]] = []
+    seen_urls = set()
+    for candidate in verified:
+        if candidate and candidate["image_url"] not in seen_urls:
+            seen_urls.add(candidate["image_url"])
+            unique.append(candidate)
+    return unique[:3]
+
+
+def _external_activity_image(
+    *,
+    place_name: str,
+    image_url: str,
+    provider_name: str,
+    provider_url: str,
+    image_description: str = "",
+) -> Tuple[Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+    digest = hashlib.sha1(f"{place_name}|{image_url}".encode("utf-8")).hexdigest()[:16]
+    source_ref = f"source_image_external_{digest}"
+    asset = build_external_image_asset(
+        image_id=f"img_external_{digest}",
+        url=image_url,
+        alt=image_description or f"{place_name}实景参考图片",
+        provider_name=provider_name,
+        provider_url=provider_url,
+        source_ref=source_ref,
+        checked_at=datetime.datetime.now(datetime.timezone.utc),
+    )
+    if asset is None:
+        return None, None
+    return asset.model_dump(mode="json"), {
+        "reference_id": source_ref,
+        "type": "image",
+        "title": f"{place_name}实景图片",
+        "source": provider_name,
+        "url": provider_url or image_url,
+        "snippet": (f"来源页中该图片的说明：{image_description}" if image_description
+                    else "图片来自对应地点的数据来源，用于用户授权的私人展示与导出。"),
+        "data_type": "reference_data",
+        "related_fields": ["images"],
+        "related_places": [place_name],
+    }
+
+
+def maybe_prepare_activity_images(
+    travel_bundle: Dict[str, Any],
+    tool_manager: Any = None,
+    message_history: Optional[List[Dict[str, Any]]] = None,
+    session_id: str = "",
+) -> int:
+    """Attach exact-POI images first, then exact article and strict web-search fallbacks."""
+    raw_locations = travel_bundle.get("map_locations")
+    if not isinstance(raw_locations, list) or not raw_locations:
+        return 0
+    preliminary_plan = _travel_bundle_to_trip_plan(travel_bundle)
+    formal_metadata = [
+        {
+            "name": activity.place.name,
+            "city": activity.place.city or _safe_text(preliminary_plan.intent.destination),
+            "category": "餐厅" if activity.activity_type == "food" else "景点",
+        }
+        for activity in preliminary_plan.activities
+        if activity.place is not None and activity.activity_type in {"attraction", "food"}
+    ][:28]
+    formal_by_name = {
+        _normalized_poi_match_text(item["name"]): item
+        for item in formal_metadata
+    }
+    assets_by_name = fetch_wikimedia_activity_images([
+        (item["name"], item["city"])
+        for item in formal_metadata
+    ])
+    image_sources: List[Dict[str, Any]] = []
+    attached = 0
+    search_limit = max(0, int(os.getenv("TRAVEL_WEB_IMAGE_SEARCH_LIMIT", "28")))
+    searched = 0
+    for location in raw_locations:
+        if not isinstance(location, dict):
+            continue
+        name = _safe_text(location.get("name"))
+        metadata = formal_by_name.get(_normalized_poi_match_text(name))
+        if not metadata:
+            continue
+        image_assets: List[Dict[str, Any]] = []
+        provider_images = location.get("provider_images") if isinstance(location.get("provider_images"), dict) else {}
+        for provider in ("amap", "baidu"):
+            provider_name = "高德地图 POI 图片" if provider == "amap" else "百度地图 POI 图片"
+            provider_url = "https://www.amap.com/" if provider == "amap" else "https://map.baidu.com/"
+            urls = provider_images.get(provider) if isinstance(provider_images.get(provider), list) else []
+            for image_url in urls[:3]:
+                image_asset, source = _external_activity_image(
+                    place_name=name,
+                    image_url=_safe_text(image_url),
+                    provider_name=provider_name,
+                    provider_url=provider_url,
+                )
+                if image_asset and source:
+                    image_assets.append(image_asset)
+                    image_sources.append(source)
+        if not image_assets:
+            fallback_urls = location.get("images") if isinstance(location.get("images"), list) else []
+            fallback_provider = _safe_text(location.get("source_provider"))
+            if fallback_provider in {"amap", "baidu"}:
+                provider_name = "高德地图 POI 图片" if fallback_provider == "amap" else "百度地图 POI 图片"
+                provider_url = "https://www.amap.com/" if fallback_provider == "amap" else "https://map.baidu.com/"
+                for image_url in fallback_urls[:3]:
+                    image_asset, source = _external_activity_image(
+                        place_name=name,
+                        image_url=_safe_text(image_url),
+                        provider_name=provider_name,
+                        provider_url=provider_url,
+                    )
+                    if image_asset and source:
+                        image_assets.append(image_asset)
+                        image_sources.append(source)
+        wikimedia_asset = assets_by_name.get(name)
+        if wikimedia_asset:
+            source = wikimedia_asset.get("source")
+            if isinstance(source, dict):
+                image_sources.append(dict(source))
+            image_assets.append({key: value for key, value in wikimedia_asset.items() if key != "source"})
+        if not any(asset.get("export_allowed") for asset in image_assets) and searched < search_limit:
+            searched += 1
+            for candidate in _search_activity_image_candidates(
+                place_name=name,
+                city=_safe_text(metadata.get("city")),
+                category=_safe_text(metadata.get("category")),
+                tool_manager=tool_manager,
+                message_history=message_history or [],
+                session_id=session_id,
+            ):
+                image_asset, source = _external_activity_image(
+                    place_name=name,
+                    image_url=candidate["image_url"],
+                    provider_name=candidate["provider"],
+                    provider_url=candidate["source_url"],
+                    image_description=candidate["title"],
+                )
+                if image_asset and source:
+                    image_assets.append(image_asset)
+                    image_sources.append(source)
+        deduped_assets: List[Dict[str, Any]] = []
+        seen_image_urls = set()
+        for asset in image_assets:
+            image_url = _safe_text(asset.get("url"))
+            if not image_url or image_url in seen_image_urls:
+                continue
+            seen_image_urls.add(image_url)
+            deduped_assets.append(asset)
+        if deduped_assets:
+            location["image_assets"] = deduped_assets[:3]
+            attached += 1
+    unique_sources: List[Dict[str, Any]] = []
+    seen_source_refs = set()
+    for source in image_sources:
+        source_ref = _safe_text(source.get("reference_id"))
+        if not source_ref or source_ref in seen_source_refs:
+            continue
+        seen_source_refs.add(source_ref)
+        unique_sources.append(source)
+    travel_bundle["activity_image_sources"] = unique_sources
+    return attached
+
+
 def _ensure_estimated_route_legs(plan: TripPlan) -> None:
     """Mirror legacy transport text into typed route legs without inventing live route facts."""
     for activity in plan.activities:
@@ -5389,11 +8130,155 @@ def _ensure_estimated_route_legs(plan: TripPlan) -> None:
         )
 
 
+def _activity_clock_minutes(value: Any) -> int:
+    match = re.fullmatch(r"\s*(\d{1,2}):(\d{2})\s*", _safe_text(value))
+    if not match:
+        return 24 * 60
+    hour, minute = int(match.group(1)), int(match.group(2))
+    if hour > 23 or minute > 59:
+        return 24 * 60
+    return hour * 60 + minute
+
+
+def _format_activity_clock(total_minutes: int) -> str:
+    bounded = max(0, min(int(total_minutes), 23 * 60 + 59))
+    return f"{bounded // 60:02d}:{bounded % 60:02d}"
+
+
+def _selected_transport_clock(section: Dict[str, Any], field: str) -> Optional[int]:
+    options = section.get("options") if isinstance(section, dict) else None
+    if not isinstance(options, list):
+        return None
+    selected_id = _safe_text(section.get("recommended_option_id") or section.get("selected_option_id"))
+    if not selected_id:
+        return None
+    selected = next(
+        (
+            option for option in options
+            if isinstance(option, dict) and _safe_text(option.get("option_id")) == selected_id
+        ),
+        None,
+    )
+    if not isinstance(selected, dict):
+        return None
+    raw = _safe_text(selected.get(field))
+    match = re.search(r"(?:T|\s|^)([01]?\d|2[0-3]):([0-5]\d)", raw)
+    if not match:
+        return None
+    return int(match.group(1)) * 60 + int(match.group(2))
+
+
+def _apply_transport_day_windows(document: Dict[str, Any], minimum_transfer_minutes: int = 30) -> set[str]:
+    """Keep first/last-day activities inside the selected transport window."""
+    itinerary = document.get("itinerary")
+    days = itinerary.get("days") if isinstance(itinerary, dict) else None
+    if not isinstance(days, list) or not days:
+        return set()
+    arrival = _selected_transport_clock(document.get("outbound_transport") or {}, "arrival_time")
+    departure = _selected_transport_clock(document.get("return_transport") or {}, "departure_time")
+    dropped_ids: set[str] = set()
+
+    def normalize_day(day: Dict[str, Any], *, lower: int = 0, upper: int = 24 * 60) -> None:
+        activities = [item for item in day.get("activities", []) if isinstance(item, dict)]
+        activities.sort(key=lambda item: (
+            _activity_clock_minutes(item.get("start_time") or item.get("start_at")),
+            _safe_text(item.get("activity_id") or item.get("id")),
+        ))
+        cursor = max(0, lower)
+        kept: List[Dict[str, Any]] = []
+        for activity in activities:
+            raw_start = _activity_clock_minutes(activity.get("start_time") or activity.get("start_at"))
+            raw_end = _activity_clock_minutes(activity.get("end_time") or activity.get("end_at"))
+            duration = _optional_int(activity.get("duration_minutes"))
+            if duration is None or duration <= 0:
+                duration = raw_end - raw_start if raw_end < 24 * 60 and raw_end > raw_start else 60
+            start = max(raw_start if raw_start < 24 * 60 else cursor, cursor)
+            end = start + duration
+            if end > upper:
+                activity_id = _safe_text(activity.get("activity_id") or activity.get("id"))
+                if activity_id:
+                    dropped_ids.add(activity_id)
+                continue
+            start_text, end_text = _format_activity_clock(start), _format_activity_clock(end)
+            if "start_at" in activity:
+                activity["start_at"], activity["end_at"] = start_text, end_text
+            else:
+                activity["start_time"], activity["end_time"] = start_text, end_text
+            activity["duration_minutes"] = duration
+            kept.append(activity)
+            cursor = end + 15
+        day["activities"] = kept
+
+    first_day = next((day for day in days if isinstance(day, dict)), None)
+    last_day = next((day for day in reversed(days) if isinstance(day, dict)), None)
+    if first_day is not None and arrival is not None:
+        normalize_day(first_day, lower=min(24 * 60, arrival + minimum_transfer_minutes))
+    if last_day is not None and departure is not None:
+        normalize_day(last_day, upper=max(0, departure - minimum_transfer_minutes))
+    return dropped_ids
+
+
+def _sort_plan_activities_by_schedule(plan: TripPlan) -> None:
+    """Keep the formal array order identical to the displayed local-time order."""
+    plan.activities.sort(
+        key=lambda activity: (
+            activity.day,
+            _activity_clock_minutes(activity.start_time),
+            _activity_clock_minutes(activity.end_time),
+            activity.activity_id,
+        )
+    )
+
+
+def _shift_same_day_schedule_forward(
+    plan: TripPlan,
+    *,
+    reference_time: Optional[datetime.datetime] = None,
+) -> bool:
+    """Never emit already elapsed activity times for a trip starting today."""
+    try:
+        date_mode, start_date, _end_date, _days = resolve_planning_date_contract(
+            plan.intent.date_range,
+            plan.intent.days,
+        )
+    except Exception:
+        return False
+    if date_mode != "fixed" or start_date is None:
+        return False
+    now = reference_time or datetime.datetime.now(ZoneInfo("Asia/Shanghai"))
+    if start_date != now.date():
+        return False
+    first_day = [activity for activity in plan.activities if activity.day == 1]
+    if not first_day:
+        return False
+    earliest = ((now.hour * 60 + now.minute + 59) // 15) * 15 + 30
+    first_start = min(_activity_clock_minutes(activity.start_time) for activity in first_day)
+    if first_start >= earliest:
+        return False
+    delta = earliest - first_start
+    for activity in first_day:
+        start = _activity_clock_minutes(activity.start_time)
+        end = _activity_clock_minutes(activity.end_time)
+        if start < 24 * 60:
+            activity.start_time = _format_activity_clock(start + delta)
+        if end < 24 * 60:
+            activity.end_time = _format_activity_clock(end + delta)
+    plan.warnings.append("首日为当天出发，已按北京时间将日程整体顺延到当前时间之后。")
+    return True
+
+
 def _build_trip_days(plan: TripPlan, validation: Any) -> List[TripDay]:
     issues = validation.issues if validation is not None else []
     trip_days: List[TripDay] = []
     for day_number in range(1, plan.days + 1):
-        activities = [activity for activity in plan.activities if activity.day == day_number]
+        activities = sorted(
+            (activity for activity in plan.activities if activity.day == day_number),
+            key=lambda activity: (
+                _activity_clock_minutes(activity.start_time),
+                _activity_clock_minutes(activity.end_time),
+                activity.activity_id,
+            ),
+        )
         day_warnings = [
             issue.message
             for issue in issues
@@ -5420,6 +8305,69 @@ def _public_trip_plan_payload(plan: TripPlan) -> Dict[str, Any]:
     payload["day_count"] = day_count
     payload["days"] = payload.pop("trip_days")
     return payload
+
+
+def _route_feasible_time_updates(
+    days: List[Dict[str, Any]],
+    routes: List[Dict[str, Any]],
+) -> Tuple[Dict[str, Tuple[str, str]], set[str]]:
+    """Shift flexible activities so every provider route fits before the next card."""
+    route_minutes: Dict[Tuple[str, str], int] = {}
+    for route in routes:
+        for leg in route.get("legs", []) if isinstance(route, dict) else []:
+            if not isinstance(leg, dict) or leg.get("status") != "ready":
+                continue
+            duration = _optional_int(leg.get("duration_minutes"))
+            if duration is None:
+                continue
+            route_minutes[(
+                _safe_text(leg.get("from_activity_id")),
+                _safe_text(leg.get("to_activity_id")),
+            )] = max(0, duration)
+
+    updates: Dict[str, Tuple[str, str]] = {}
+    dropped_ids: set[str] = set()
+    for day in days:
+        if not isinstance(day, dict) or not isinstance(day.get("activities"), list):
+            continue
+        activities = [item for item in day["activities"] if isinstance(item, dict)]
+        activities.sort(
+            key=lambda item: (
+                _activity_clock_minutes(item.get("start_time") or item.get("start_at")),
+                _safe_text(item.get("activity_id") or item.get("id")),
+            )
+        )
+        kept: List[Dict[str, Any]] = []
+        previous: Optional[Dict[str, Any]] = None
+        previous_end: Optional[int] = None
+        for activity in activities:
+            activity_id = _safe_text(activity.get("activity_id") or activity.get("id"))
+            start = _activity_clock_minutes(activity.get("start_time") or activity.get("start_at"))
+            end = _activity_clock_minutes(activity.get("end_time") or activity.get("end_at"))
+            duration = _optional_int(activity.get("duration_minutes"))
+            if duration is None or duration <= 0:
+                duration = max(30, end - start) if end < 24 * 60 and start < 24 * 60 else 60
+            if start >= 24 * 60:
+                start = previous_end + 30 if previous_end is not None else 9 * 60
+            if previous is not None and previous_end is not None:
+                previous_id = _safe_text(previous.get("activity_id") or previous.get("id"))
+                travel = route_minutes.get((previous_id, activity_id))
+                if travel is not None:
+                    earliest = ((previous_end + travel + 10 + 14) // 15) * 15
+                    start = max(start, earliest)
+            end = start + duration
+            if start >= 23 * 60 + 59 or end > 23 * 60 + 59:
+                if activity_id:
+                    dropped_ids.add(activity_id)
+                continue
+            start_text, end_text = _format_activity_clock(start), _format_activity_clock(end)
+            activity["start_time"] = start_text
+            activity["end_time"] = end_text
+            updates[activity_id] = (start_text, end_text)
+            previous, previous_end = activity, end
+            kept.append(activity)
+        day["activities"] = kept
+    return updates, dropped_ids
 
 
 def maybe_prepare_destination_cover(
@@ -5468,12 +8416,45 @@ def maybe_prepare_destination_cover(
         return None
 
 
+def _is_destination_lodging_recommendation(
+    recommendation: Dict[str, Any],
+    destination_city: str,
+    verified_candidate_names: set[str],
+) -> bool:
+    name = _safe_text(recommendation.get("name"))
+    if name in verified_candidate_names:
+        return True
+    destination = canonical_destination(destination_city) or _safe_text(destination_city)
+    if not destination:
+        return False
+    return _has_positive_destination_signal({
+        **recommendation,
+        "description": " ".join(
+            _safe_text(item)
+            for item in recommendation.get("reasons", [])
+            if isinstance(item, str)
+        ),
+    }, destination)
+
+
+def _transport_fallback_guidance(travel_bundle: Dict[str, Any], direction: str) -> str:
+    raw_intent = travel_bundle.get("trip_intent")
+    intent = raw_intent if isinstance(raw_intent, dict) else {}
+    origin = _safe_text(intent.get("origin") or travel_bundle.get("origin_city"))
+    destination = _safe_text(intent.get("destination") or travel_bundle.get("destination_city"))
+    if direction == "return":
+        origin, destination = destination, origin
+    return transport_query_guidance(origin, destination)
+
+
 def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
     initial_plan = _travel_bundle_to_trip_plan(travel_bundle)
     initial_validation = validate_trip_plan(initial_plan)
     repair_result = repair_trip_plan_once(initial_plan, initial_validation)
     plan = repair_result.plan
-    final_validation = repair_result.remaining_validation
+    _sort_plan_activities_by_schedule(plan)
+    _shift_same_day_schedule_forward(plan)
+    final_validation = validate_trip_plan(plan)
     _ensure_estimated_route_legs(plan)
     plan.trip_days = _build_trip_days(plan, final_validation)
     plan_payload = _public_trip_plan_payload(plan)
@@ -5482,15 +8463,176 @@ def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List
         "budget": plan.budget_summary, "sources": [item.model_dump(mode="json") for item in plan.source_references],
         "cover_image": travel_bundle.get("cover_image"),
     })
+    document["candidate_places"] = _candidate_places_for_document(travel_bundle, plan)
+    destination_summary = _build_destination_overview_summary(travel_bundle)
+    if destination_summary:
+        document["destination_overview"]["area_overview"] = destination_summary
+    raw_lodging_candidates = travel_bundle.get("lodging_candidates")
+    destination_city = (
+        canonical_destination(_safe_text(plan.intent.destination))
+        or canonical_destination(_safe_text(travel_bundle.get("destination_city")))
+        or _safe_text(plan.intent.destination)
+        or _safe_text(travel_bundle.get("destination_city"))
+    )
+    lodging_candidates = _filter_destination_lodging_locations(
+        [dict(candidate) for candidate in raw_lodging_candidates if isinstance(candidate, dict)],
+        destination_city,
+    ) if isinstance(raw_lodging_candidates, list) else []
+    verified_lodging_names = {
+        _safe_text(candidate.get("name"))
+        for candidate in lodging_candidates
+        if isinstance(candidate, dict) and _safe_text(candidate.get("name"))
+    } if isinstance(lodging_candidates, list) else set()
+    existing_lodgings = document["hotel_recommendations"].get("recommendations")
+    if isinstance(existing_lodgings, list):
+        document["hotel_recommendations"]["recommendations"] = [
+            recommendation
+            for recommendation in existing_lodgings
+            if isinstance(recommendation, dict)
+            and _is_destination_lodging_recommendation(
+                recommendation,
+                destination_city,
+                verified_lodging_names,
+            )
+        ]
+    if (
+        isinstance(lodging_candidates, list)
+        and lodging_candidates
+        and not document["hotel_recommendations"].get("recommendations")
+    ):
+        reference_time = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        lodging_items: List[Dict[str, Any]] = []
+        for index, candidate in enumerate(lodging_candidates[:3], start=1):
+            if not isinstance(candidate, dict):
+                continue
+            name = _safe_text(candidate.get("name"))
+            if not name:
+                continue
+            source_reference_id = f"source_lodging_candidate_{index}"
+            description = _safe_text(candidate.get("description") or candidate.get("address"))
+            poi_id = _safe_text(candidate.get("poi_id") or candidate.get("place_id") or candidate.get("uid"))
+            lat = _optional_float(candidate.get("lat"))
+            lng = _optional_float(candidate.get("lng"))
+            place = (
+                {
+                    "name": name,
+                    "category": "住宿",
+                    "poi_id": poi_id,
+                    "lat": lat,
+                    "lng": lng,
+                    "address": _safe_text(candidate.get("address") or candidate.get("description")) or None,
+                    "city": _safe_text(candidate.get("city")) or destination_city,
+                    "rating": _optional_float(candidate.get("rating")),
+                    "summary": description or None,
+                    "source": _safe_text(candidate.get("source")) or "地图住宿专项检索",
+                    "data_type": candidate.get("data_type") or "reference_data",
+                }
+                if poi_id and lat is not None and lng is not None
+                else None
+            )
+            lodging_items.append({
+                "hotel_id": poi_id or f"lodging_candidate_{index}",
+                "area": _safe_text(
+                    candidate.get("area")
+                    or candidate.get("city")
+                    or candidate.get("address")
+                    or candidate.get("description")
+                ) or "区域待确认",
+                "name": name,
+                "place": place,
+                "nightly_price": None,
+                "total_price": None,
+                "currency": "CNY",
+                "rating": _optional_float(candidate.get("rating")),
+                "reasons": [description] if description else ["来自目的地住宿专项检索，位置、房型与价格需在预订前复核"],
+                "booking_url": None,
+                "source_reference_id": source_reference_id,
+                "data_type": "reference_data",
+                "updated_at": reference_time,
+            })
+            document["sources"].append({
+                "reference_id": source_reference_id,
+                "type": "map",
+                "title": f"{name}住宿候选",
+                "source": _safe_text(candidate.get("source")) or "地图住宿专项检索",
+                "url": "",
+                "snippet": description or "住宿候选名称来自本次地图专项检索，库存与价格未核验。",
+                "data_type": "reference_data",
+                "updated_at": reference_time,
+                "confidence": 0.65,
+                "related_fields": ["lodging_plan"],
+                "related_places": [name],
+            })
+        if lodging_items:
+            document["hotel_recommendations"] = {
+                "status": "needs_confirmation",
+                "status_reason": "住宿候选来自地图专项检索；价格、库存与预订状态待确认",
+                "recommendations": lodging_items,
+            }
+    lodging_reference_rows = travel_bundle.get("lodging_reference_rows")
+    if isinstance(lodging_reference_rows, list) and document["hotel_recommendations"].get("recommendations"):
+        reference_time = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        lodging_reference_ids: List[str] = []
+        for index, row in enumerate(lodging_reference_rows, start=1):
+            if not isinstance(row, dict):
+                continue
+            title = _safe_text(row.get("title")) or f"住宿体验参考 {index}"
+            summary = _safe_text(row.get("summary"))
+            source_url = _safe_text(row.get("url"))
+            reference_type = _safe_text(row.get("reference_type")) or "xhs"
+            if reference_type not in {"xhs", "web"}:
+                reference_type = "web"
+            source_reference_id = next(
+                (
+                    _safe_text(source.get("reference_id"))
+                    for source in document["sources"]
+                    if isinstance(source, dict)
+                    and (_safe_text(source.get("url")) == source_url or _safe_text(source.get("title")) == title)
+                ),
+                "",
+            )
+            if not source_reference_id:
+                source_reference_id = f"source_lodging_reference_{index}"
+                document["sources"].append({
+                    "reference_id": source_reference_id,
+                    "type": reference_type,
+                    "title": title,
+                    "source": _safe_text(row.get("author") or row.get("source")) or ("小红书" if reference_type == "xhs" else "网页住宿参考"),
+                    "url": source_url,
+                    "snippet": summary or "该条资料仅作为目的地住宿体验与区域参考。",
+                    "data_type": "reference_data",
+                    "updated_at": reference_time,
+                    "confidence": 0.55,
+                    "related_fields": ["lodging_plan"],
+                    "related_places": [],
+                })
+            lodging_reference_ids.append(source_reference_id)
+        for item in document["hotel_recommendations"]["recommendations"]:
+            reasons = item.get("reasons") if isinstance(item.get("reasons"), list) else []
+            if not any("社区住宿体验参考" in _safe_text(reason) for reason in reasons):
+                reasons.append("社区与网页住宿参考仅用于了解区域、入住体验、房型或价格线索；具体位置、价格和库存须以地图与预订页核验。")
+            item["reasons"] = reasons
+            item["source_reference_ids"] = lodging_reference_ids
     scope = document["outbound_transport"]["scope"]
     outbound_date = document["outbound_transport"].get("travel_date")
     return_date = document["return_transport"].get("travel_date")
-    document["outbound_transport"] = transport_section_from_bundle(
-        travel_bundle.get("ticket_bundle"), "outbound", scope, outbound_date,
-    )
-    document["return_transport"] = transport_section_from_bundle(
-        travel_bundle.get("return_ticket_bundle"), "return", scope, return_date,
-    )
+    date_sensitive = bool(travel_bundle.get("date_sensitive", True))
+    if date_sensitive:
+        document["outbound_transport"] = transport_section_from_bundle(
+            travel_bundle.get("ticket_bundle"), "outbound", scope, outbound_date,
+            _transport_fallback_guidance(travel_bundle, "outbound"),
+        )
+        document["return_transport"] = transport_section_from_bundle(
+            travel_bundle.get("return_ticket_bundle"), "return", scope, return_date,
+            _transport_fallback_guidance(travel_bundle, "return"),
+        )
+    else:
+        document["outbound_transport"] = transport_section_from_bundle(
+            None, "outbound", scope, None,
+        )
+        document["return_transport"] = transport_section_from_bundle(
+            None, "return", scope, None,
+        )
     ticket_source_labels = {"train": "铁路票务平台", "intercity_bus": "城际客运平台", "flight": "航班票务平台"}
     existing_source_ids = {str(item.get("reference_id") or "") for item in document["sources"]}
     for section_name in ("outbound_transport", "return_transport"):
@@ -5584,6 +8726,232 @@ def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List
 def _build_travel_structured_events(travel_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
     events, _ = _build_travel_structured_result(travel_bundle)
     return events
+
+
+async def _build_travel_structured_result_with_routes(
+    travel_bundle: Dict[str, Any],
+    tool_manager: Any,
+) -> Tuple[List[Dict[str, Any]], str]:
+    """Build the formal document and persist provider routes in the same snapshot."""
+    events, markdown = _build_travel_structured_result(travel_bundle)
+    trip_event = next((event for event in events if event.get("type") == "trip_plan"), None)
+    if not isinstance(trip_event, dict):
+        return events, markdown
+    plan = trip_event.get("plan")
+    document = trip_event.get("document")
+    if not isinstance(plan, dict) or not isinstance(document, dict):
+        return events, markdown
+    days = plan.get("days")
+    if not isinstance(days, list) or not days:
+        return events, markdown
+
+    destination = canonical_destination(
+        _safe_text((plan.get("intent") or {}).get("destination"))
+        if isinstance(plan.get("intent"), dict)
+        else ""
+    )
+    scope = "international" if destination in INTERNATIONAL_DESTINATIONS else "domestic"
+    dispatcher = getattr(tool_manager, "baidu_request_dispatcher", None)
+    route_tasks = [
+        build_day_route(
+            day=max(1, _optional_int(day.get("day")) or index),
+            plan_version=max(1, _optional_int(plan.get("version")) or 1),
+            activities=day.get("activities") if isinstance(day.get("activities"), list) else [],
+            scope=scope,
+            baidu_dispatcher=dispatcher,
+        )
+        for index, day in enumerate(days, start=1)
+        if isinstance(day, dict)
+    ]
+    if not route_tasks:
+        return events, markdown
+    raw_routes = await asyncio.gather(*route_tasks, return_exceptions=True)
+    routes: List[Dict[str, Any]] = []
+    for index, route in enumerate(raw_routes, start=1):
+        if isinstance(route, dict):
+            routes.append(route)
+            continue
+        routes.append({
+            "day": index,
+            "plan_version": max(1, _optional_int(plan.get("version")) or 1),
+            "provider": "openrouteservice" if scope == "international" else "baidu_directionlite",
+            "coordinate_system": "WGS84" if scope == "international" else "BD09LL",
+            "legs": [],
+            "bbox": None,
+            "status": "unavailable",
+        })
+    ready_count = sum(route.get("status") == "ready" for route in routes)
+    partial_count = sum(route.get("status") == "partial" for route in routes)
+    if ready_count == len(routes):
+        route_status = "ready"
+        status_reason = "已按日计算真实道路路线"
+    elif ready_count or partial_count:
+        route_status = "degraded"
+        status_reason = "部分真实路线暂不可用，已保留核验成功的路段"
+    else:
+        route_status = "unavailable"
+        status_reason = "真实路线暂不可用，当前仅显示已核验地点"
+
+    time_updates, route_dropped_ids = _route_feasible_time_updates(days, routes)
+    map_guidance = document.get("map_guidance")
+    if not isinstance(map_guidance, dict):
+        map_guidance = {}
+        document["map_guidance"] = map_guidance
+    map_guidance.update({
+        "status": route_status,
+        "status_reason": status_reason,
+        "day_routes": routes,
+        "unavailable_segments": [
+            leg
+            for route in routes
+            for leg in route.get("legs", [])
+            if isinstance(leg, dict) and leg.get("status") == "unavailable"
+        ],
+    })
+
+    # Persist each adjacent provider leg on the originating activity as well as
+    # in map_guidance. The workbench activity card, V2 plan and later V3 adapter
+    # must all read the same route fact instead of leaving route_to_next empty.
+    route_by_activity_id: Dict[str, Dict[str, Any]] = {}
+    for route in routes:
+        for leg in route.get("legs", []):
+            if not isinstance(leg, dict):
+                continue
+            from_id = _safe_text(leg.get("from_activity_id"))
+            if not from_id:
+                continue
+            ready = leg.get("status") == "ready"
+            if not ready:
+                continue
+            route_by_activity_id[from_id] = {
+                "mode": _safe_text(leg.get("mode")) or "步行",
+                "distance_meters": _optional_int(leg.get("distance_meters")),
+                "duration_minutes": _optional_int(leg.get("duration_minutes")),
+                "estimated_cost": _optional_float(leg.get("estimated_cost")),
+                "provider": _safe_text(leg.get("provider")) or None,
+                "data_type": "confirmed_live_data",
+                "calculated_at": _safe_text(leg.get("calculated_at")) or None,
+            }
+
+    activity_collections: List[Any] = [plan.get("activities")]
+    activity_collections.extend(
+        day.get("activities")
+        for day in plan.get("days", [])
+        if isinstance(day, dict)
+    )
+    itinerary = document.get("itinerary")
+    if isinstance(itinerary, dict):
+        activity_collections.extend(
+            day.get("activities")
+            for day in itinerary.get("days", [])
+            if isinstance(day, dict)
+        )
+    for event in events:
+        if event.get("type") == "trip_day_upsert" and isinstance(event.get("day"), dict):
+            activity_collections.append(event["day"].get("activities"))
+
+    def preserve_dropped_as_candidates(activity_ids: set[str]) -> None:
+        if not activity_ids:
+            return
+        candidate_places = document.get("candidate_places")
+        if not isinstance(candidate_places, list):
+            candidate_places = []
+            document["candidate_places"] = candidate_places
+        known_poi_ids = {
+            _safe_text(item.get("poi_id") or item.get("place_id") or item.get("uid"))
+            for item in candidate_places
+            if isinstance(item, dict)
+        }
+        activities_by_id: Dict[str, Dict[str, Any]] = {}
+        for collection in activity_collections:
+            if not isinstance(collection, list):
+                continue
+            for activity in collection:
+                if not isinstance(activity, dict):
+                    continue
+                activity_id = _safe_text(activity.get("activity_id") or activity.get("id"))
+                if activity_id in activity_ids:
+                    activities_by_id.setdefault(activity_id, activity)
+        for activity in activities_by_id.values():
+            place = activity.get("place")
+            if not isinstance(place, dict):
+                continue
+            poi_id = _safe_text(place.get("poi_id") or place.get("place_id") or place.get("uid"))
+            if not poi_id or poi_id in known_poi_ids:
+                continue
+            # 路线可行性修复可能把原正式活动降为候选；V2 合同最多允许
+            # 15 个候选，因此满额时让新降级的正式活动替换末尾普通候选。
+            if len(candidate_places) >= 15:
+                candidate_places.pop()
+            candidate_places.append({
+                **place,
+                "suggested_duration_minutes": _optional_int(activity.get("duration_minutes")),
+            })
+            known_poi_ids.add(poi_id)
+        for collection in activity_collections:
+            if isinstance(collection, list):
+                collection[:] = [
+                    activity
+                    for activity in collection
+                    if not isinstance(activity, dict)
+                    or _safe_text(activity.get("activity_id") or activity.get("id")) not in activity_ids
+                ]
+
+    preserve_dropped_as_candidates(route_dropped_ids)
+    for collection in activity_collections:
+        if not isinstance(collection, list):
+            continue
+        for activity in collection:
+            if not isinstance(activity, dict):
+                continue
+            activity_id = _safe_text(activity.get("activity_id") or activity.get("id"))
+            if activity_id in time_updates:
+                start_time, end_time = time_updates[activity_id]
+                if "start_at" in activity:
+                    activity["start_at"] = start_time
+                    activity["end_at"] = end_time
+                else:
+                    activity["start_time"] = start_time
+                    activity["end_time"] = end_time
+            route_summary = route_by_activity_id.get(activity_id)
+            if route_summary:
+                activity["route_to_next"] = dict(route_summary)
+                activity["transport_to_next"] = route_summary["mode"]
+
+    transport_dropped_ids = _apply_transport_day_windows(document)
+    preserve_dropped_as_candidates(transport_dropped_ids)
+
+    # 活动被移入候选池后，地图正式地点必须同步到当前日程快照；否则
+    # map_guidance 仍引用已删除地点，整份正式文档会在最终校验时失败。
+    formal_map_locations: List[Dict[str, Any]] = []
+    itinerary = document.get("itinerary")
+    itinerary_days = itinerary.get("days") if isinstance(itinerary, dict) else []
+    for day in itinerary_days if isinstance(itinerary_days, list) else []:
+        if not isinstance(day, dict):
+            continue
+        for order, activity in enumerate(day.get("activities", []), start=1):
+            if not isinstance(activity, dict) or activity.get("map_visible", True) is False:
+                continue
+            place = activity.get("place")
+            if not isinstance(place, dict) or place.get("lat") is None or place.get("lng") is None:
+                continue
+            formal_map_locations.append({
+                **place,
+                "id": place.get("poi_id") or activity.get("activity_id"),
+                "day": day.get("day"),
+                "order": order,
+                "activity_id": activity.get("activity_id"),
+            })
+    map_guidance["location_ids"] = [
+        _safe_text(location.get("id")) for location in formal_map_locations
+    ]
+    plan["map_locations"] = formal_map_locations
+    for event in events:
+        if event.get("type") == "trip_locations":
+            event["locations"] = formal_map_locations
+
+    sanitized_events = sanitize_user_visible_payload(events)
+    return sanitized_events, export_trip_markdown(document)
 
 
 def _structured_trip_plan_context(events: List[Dict[str, Any]]) -> str:
@@ -5707,6 +9075,15 @@ def execute_chat_once(
     travel_rag_context = ""
 
     latest_user_query = _extract_latest_user_query(message_history)
+    non_stream_trip_intent = (
+        extract_trip_intent(latest_user_query, profile=profile)
+        if is_trip_planning_query(latest_user_query)
+        else None
+    )
+    date_sensitive_enabled = not bool(
+        non_stream_trip_intent
+        and is_flexible_date_range(non_stream_trip_intent.date_range)
+    )
     effective_use_deepthink, effective_use_multi_agent = resolve_planning_mode_flags(
         planning_mode=planning_mode,
         use_deepthink=use_deepthink,
@@ -5734,13 +9111,14 @@ def execute_chat_once(
             clarification_answers={},
         )
     try:
-        ticket_bundle = maybe_prepare_train_ticket_bundle(
-            user_query=latest_user_query,
-            tool_manager=effective_tool_manager,
-            message_history=message_history,
-            session_id=runtime_session_id,
-            selected_skill_ids=selected_skill_ids,
-        )
+        if date_sensitive_enabled:
+            ticket_bundle = maybe_prepare_train_ticket_bundle(
+                user_query=latest_user_query,
+                tool_manager=effective_tool_manager,
+                message_history=message_history,
+                session_id=runtime_session_id,
+                selected_skill_ids=selected_skill_ids,
+            )
         if ticket_bundle and ticket_bundle.get("context_message"):
             message_history.append(
                 {
@@ -5772,7 +9150,7 @@ def execute_chat_once(
             "result": _sanitize_non_stream_result(direct_result),
         }
 
-    if not ticket_bundle and allow_web_search:
+    if allow_web_search and (not ticket_bundle or is_trip_planning_query(latest_user_query)):
         try:
             xhs_bundle = maybe_prepare_xhs_search_bundle(
                 user_query=latest_user_query,
@@ -5780,6 +9158,7 @@ def execute_chat_once(
                 message_history=message_history,
                 session_id=runtime_session_id,
                 selected_skill_ids=selected_skill_ids,
+                accommodation_reference=is_trip_planning_query(latest_user_query),
             )
         except Exception as xhs_error:
             logger.error(f"非流式小红书预检索失败: {xhs_error}")
@@ -5794,13 +9173,22 @@ def execute_chat_once(
                 selected_skill_ids=selected_skill_ids,
                 xhs_bundle=xhs_bundle,
                 allow_web_search=allow_web_search,
+                allow_date_sensitive=date_sensitive_enabled,
             )
             if travel_bundle:
+                if non_stream_trip_intent is not None:
+                    travel_bundle["trip_intent"] = non_stream_trip_intent.model_dump()
                 if ticket_bundle:
                     travel_bundle["ticket_bundle"] = ticket_bundle
                 destination = _safe_text(travel_bundle.get("destination_city")) or _extract_destination_city(latest_user_query)
                 travel_bundle["cover_image"] = maybe_prepare_destination_cover(
                     destination=destination,
+                    tool_manager=effective_tool_manager,
+                    message_history=message_history,
+                    session_id=runtime_session_id,
+                )
+                maybe_prepare_activity_images(
+                    travel_bundle,
                     tool_manager=effective_tool_manager,
                     message_history=message_history,
                     session_id=runtime_session_id,
@@ -5971,6 +9359,7 @@ def build_chat_stream_response(
     allow_web_search: bool = True,
     clarification_answers: Optional[Dict[str, Any]] = None,
     selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    structured_trip_request: Optional[Any] = None,
     request_id: Optional[str] = None,
     sanitize_text: Optional[Callable[[str], str]] = None,
     sse_headers: Optional[Dict[str, str]] = None,
@@ -6006,6 +9395,8 @@ def build_chat_stream_response(
         stream_kwargs["clarification_answers"] = clarification_answers
     if selected_knowledge_context is not None:
         stream_kwargs["selected_knowledge_context"] = selected_knowledge_context
+    if structured_trip_request is not None:
+        stream_kwargs["structured_trip_request"] = structured_trip_request
 
     return StreamingResponse(
         generate_chat_stream(**stream_kwargs),
@@ -6027,6 +9418,7 @@ def build_chat_stream_route(
     allow_web_search: bool = True,
     clarification_answers: Optional[Dict[str, Any]] = None,
     selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    structured_trip_request: Optional[Any] = None,
     request_id: Optional[str] = None,
     logger: Any = logger,
 ) -> Any:
@@ -6054,6 +9446,8 @@ def build_chat_stream_route(
             response_kwargs["clarification_answers"] = clarification_answers
         if selected_knowledge_context is not None:
             response_kwargs["selected_knowledge_context"] = selected_knowledge_context
+        if structured_trip_request is not None:
+            response_kwargs["structured_trip_request"] = structured_trip_request
         return build_chat_stream_response(**response_kwargs)
     except HTTPException:
         raise
@@ -6089,6 +9483,8 @@ def build_chat_stream_request_route(
         route_kwargs["clarification_answers"] = getattr(request, "clarification_answers")
     if hasattr(request, "selected_knowledge_context"):
         route_kwargs["selected_knowledge_context"] = getattr(request, "selected_knowledge_context")
+    if hasattr(request, "structured_trip_request"):
+        route_kwargs["structured_trip_request"] = getattr(request, "structured_trip_request")
     if hasattr(request, "request_id"):
         route_kwargs["request_id"] = getattr(request, "request_id")
     return build_chat_stream_route(**route_kwargs)
@@ -6121,6 +9517,7 @@ async def generate_chat_stream(
     allow_web_search: bool = True,
     clarification_answers: Optional[Dict[str, Any]] = None,
     selected_knowledge_context: Optional[List[Dict[str, Any]]] = None,
+    structured_trip_request: Optional[Any] = None,
     request_id: Optional[str] = None,
     sanitize_text: Optional[Callable[[str], str]] = None,
 ) -> AsyncGenerator[str, None]:
@@ -6175,8 +9572,9 @@ async def generate_chat_stream(
             )
 
         latest_user_query = _extract_latest_user_query(message_history)
+        structured_trip_intent = _trip_intent_from_structured_request(structured_trip_request)
         latest_user_message_id = _extract_latest_user_message_id(message_history)
-        if _is_travel_experience_query(latest_user_query) or is_trip_planning_query(latest_user_query):
+        if structured_trip_intent or _is_travel_experience_query(latest_user_query) or is_trip_planning_query(latest_user_query):
             _begin_map_planning_scope(
                 effective_tool_manager,
                 stream_session_id,
@@ -6196,7 +9594,27 @@ async def generate_chat_stream(
             or clarification_answers is not None
         )
 
-        if trip_product_flow_enabled and is_trip_planning_query(latest_user_query):
+        if structured_trip_intent is not None:
+            progress_chunk = _build_progress_chunk(
+                progress_message_id,
+                "已收到完整表单，正在核对条件并开始规划。",
+                sanitize_text,
+                latest_user_message_id,
+            )
+            yield encode_event(progress_chunk)
+            await asyncio.sleep(0.01)
+            resolved_trip_intent = structured_trip_intent
+            yield encode_event({"type": "trip_intent", "intent": structured_trip_intent.model_dump(), "task_graph": True})
+            await asyncio.sleep(0.01)
+            message_history.append(
+                {
+                    "role": "system",
+                    "content": build_trip_context_message(structured_trip_intent, None, {}),
+                    "message_id": str(uuid.uuid4()),
+                    "type": "system_trip_intent_context",
+                }
+            )
+        elif trip_product_flow_enabled and is_trip_planning_query(latest_user_query):
             cumulative_answers, skipped_fields = _normalized_clarification_answers(clarification_answers)
             processed_fields = set(cumulative_answers) | skipped_fields
             answered_count = count_clarification_fields(processed_fields)
@@ -6217,9 +9635,18 @@ async def generate_chat_stream(
             user_profile = _normalize_user_profile(profile)
             trip_intent = extract_trip_intent(
                 query=latest_user_query,
-                profile=None,
+                profile=profile,
                 clarification_answers=cumulative_answers,
             )
+            normalized_date_range = canonicalize_planning_date_range(
+                trip_intent.date_range,
+                trip_intent.days,
+            )
+            if normalized_date_range:
+                trip_intent.date_range = normalized_date_range
+            elif "date_range" in processed_fields:
+                processed_fields.discard("date_range")
+                answered_count = count_clarification_fields(processed_fields)
             semantic_analysis = await _analyze_trip_request_with_model(
                 controller=controller,
                 query_text=latest_user_query,
@@ -6234,9 +9661,16 @@ async def generate_chat_stream(
                 intent=trip_intent,
                 analysis=semantic_analysis,
                 evidence_text=evidence_text,
+                protected_fields=set(cumulative_answers),
             )
+            normalized_date_range = canonicalize_planning_date_range(
+                trip_intent.date_range,
+                trip_intent.days,
+            )
+            if normalized_date_range:
+                trip_intent.date_range = normalized_date_range
             resolved_trip_intent = trip_intent
-            yield encode_event({"type": "trip_intent", "intent": trip_intent.model_dump()})
+            yield encode_event({"type": "trip_intent", "intent": trip_intent.model_dump(), "task_graph": True})
             await asyncio.sleep(0.01)
 
             answered_fields = processed_fields
@@ -6317,6 +9751,19 @@ async def generate_chat_stream(
         structured_trip_final_text = ""
         model_final_answer_emitted = False
         error_phase = "researching"
+        date_sensitive_enabled = not bool(
+            resolved_trip_intent
+            and is_flexible_date_range(resolved_trip_intent.date_range)
+        )
+        if resolved_trip_intent is not None and (structured_trip_intent is not None or is_trip_planning_query(latest_user_query)):
+            from services.production_planning_service import stream_production_plan
+            async for event in stream_production_plan(intent=resolved_trip_intent, query=latest_user_query,
+                tool_manager=effective_tool_manager, message_history=message_history, session_id=stream_session_id,
+                allow_web_search=allow_web_search, selected_skill_ids=selected_skill_ids, profile=profile,
+                selected_knowledge_context=selected_knowledge_context):
+                yield encode_event(event)
+            yield encode_event(_chat_complete_payload(request_id=stream_request_id, message_id=message_id, finish_reason="completed"))
+            return
         try:
             ticket_kwargs = {
                 "tool_manager": effective_tool_manager,
@@ -6326,13 +9773,19 @@ async def generate_chat_stream(
             }
             dates = re.findall(r"\d{4}-\d{2}-\d{2}", _safe_text(resolved_trip_intent.date_range) if resolved_trip_intent else "")
             can_query_return = bool(
+                date_sensitive_enabled
+                and
                 is_trip_planning_query(latest_user_query)
                 and resolved_trip_intent and resolved_trip_intent.origin and resolved_trip_intent.destination
                 and len(dates) >= 2
             )
             if can_query_return:
+                outbound_query = (
+                    f"{resolved_trip_intent.origin}到{resolved_trip_intent.destination} "
+                    f"{dates[0]} 火车票 机票 大巴票"
+                )
                 outbound_task = asyncio.create_task(asyncio.to_thread(
-                    maybe_prepare_train_ticket_bundle, user_query=latest_user_query, **ticket_kwargs,
+                    maybe_prepare_train_ticket_bundle, user_query=outbound_query, **ticket_kwargs,
                 ))
                 return_query = (
                     f"{resolved_trip_intent.destination}到{resolved_trip_intent.origin} "
@@ -6348,7 +9801,7 @@ async def generate_chat_stream(
                     task.cancel()
                 ticket_bundle = outbound_task.result() if outbound_task in done and not outbound_task.exception() else None
                 return_ticket_bundle = return_task.result() if return_task in done and not return_task.exception() else None
-            else:
+            elif date_sensitive_enabled:
                 ticket_bundle = await asyncio.to_thread(
                     maybe_prepare_train_ticket_bundle, user_query=latest_user_query, **ticket_kwargs,
                 )
@@ -6367,13 +9820,15 @@ async def generate_chat_stream(
                 if not realtime_only_answer:
                     realtime_only_answer = _build_realtime_only_answer(ticket_bundle)
 
-            if not ticket_bundle and allow_web_search:
-                xhs_bundle = maybe_prepare_xhs_search_bundle(
+            if allow_web_search and (not ticket_bundle or is_trip_planning_query(latest_user_query)):
+                xhs_bundle = await asyncio.to_thread(
+                    maybe_prepare_xhs_search_bundle,
                     user_query=latest_user_query,
                     tool_manager=effective_tool_manager,
                     message_history=message_history,
                     session_id=stream_session_id,
                     selected_skill_ids=selected_skill_ids,
+                    accommodation_reference=is_trip_planning_query(latest_user_query),
                 )
         except Exception as ticket_error:
             logger.error(f"流式预检索失败: {ticket_error}")
@@ -6413,7 +9868,8 @@ async def generate_chat_stream(
 
         if not ticket_bundle or is_trip_planning_query(latest_user_query):
             try:
-                travel_bundle = maybe_prepare_travel_experience_bundle(
+                travel_bundle = await asyncio.to_thread(
+                    maybe_prepare_travel_experience_bundle,
                     user_query=latest_user_query,
                     tool_manager=effective_tool_manager,
                     message_history=message_history,
@@ -6421,6 +9877,7 @@ async def generate_chat_stream(
                     selected_skill_ids=selected_skill_ids,
                     xhs_bundle=xhs_bundle,
                     allow_web_search=allow_web_search,
+                    allow_date_sensitive=date_sensitive_enabled,
                 )
                 if travel_bundle:
                     if ticket_bundle:
@@ -6429,6 +9886,8 @@ async def generate_chat_stream(
                         travel_bundle["return_ticket_bundle"] = return_ticket_bundle
                     if resolved_trip_intent is not None:
                         travel_bundle["trip_intent"] = resolved_trip_intent.model_dump()
+                    if profile:
+                        travel_bundle["user_profile"] = _normalize_user_profile(profile).model_dump()
                     if selected_knowledge_context:
                         travel_bundle["selected_knowledge_context"] = selected_knowledge_context
                     destination = _safe_text(travel_bundle.get("destination_city")) or (
@@ -6437,6 +9896,13 @@ async def generate_chat_stream(
                     travel_bundle["cover_image"] = await asyncio.to_thread(
                         maybe_prepare_destination_cover,
                         destination=destination,
+                        tool_manager=effective_tool_manager,
+                        message_history=message_history,
+                        session_id=stream_session_id,
+                    )
+                    await asyncio.to_thread(
+                        maybe_prepare_activity_images,
+                        travel_bundle,
                         tool_manager=effective_tool_manager,
                         message_history=message_history,
                         session_id=stream_session_id,
@@ -6478,7 +9944,10 @@ async def generate_chat_stream(
         logger.info(f"旅行增强结果状态: {'已生成' if travel_bundle else '未生成'}")
         if travel_bundle:
             try:
-                structured_events, structured_trip_final_text = _build_travel_structured_result(travel_bundle)
+                structured_events, structured_trip_final_text = await _build_travel_structured_result_with_routes(
+                    travel_bundle,
+                    effective_tool_manager,
+                )
                 logger.info(
                     f"结构化行程已渲染: {len(structured_events)} 个事件, "
                     f"Markdown {len(structured_trip_final_text)} 字符"
@@ -6495,7 +9964,26 @@ async def generate_chat_stream(
                     }
                 )
             except Exception as structured_error:
-                logger.error(f"旅行结构化事件生成失败: {structured_error}")
+                raw_diagnostics = getattr(structured_error, "diagnostics", None)
+                diagnostics = (
+                    [dict(item) for item in raw_diagnostics[:8] if isinstance(item, dict)]
+                    if isinstance(raw_diagnostics, list)
+                    else [{
+                        "location": "document",
+                        "type": type(structured_error).__name__,
+                        "message": "结构化旅行文档生成失败",
+                    }]
+                )
+                logger.error(
+                    "旅行结构化事件生成失败 diagnostics=%s",
+                    json.dumps(diagnostics, ensure_ascii=False),
+                )
+                raise PlanningPipelineError(
+                    code="FORMAL_DOCUMENT_BUILD_FAILED",
+                    user_message="方案结构校验失败，未保存不完整内容。请重试本次规划。",
+                    diagnostics=diagnostics,
+                    retryable=True,
+                ) from structured_error
 
         if ticket_bundle or travel_bundle or xhs_bundle:
             if ticket_bundle:

@@ -1,10 +1,12 @@
+import asyncio
 import json
 import sys
+import threading
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import AsyncMock, patch
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -68,6 +70,17 @@ def sanitize_text(value: str) -> str:
 
 
 class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        # 此层只校验请求路由/澄清契约；真实任务执行图由独立测试覆盖。
+        self.production_calls = []
+        async def fake_production(**kwargs):
+            self.production_calls.append(kwargs)
+            document = json.loads((BACKEND_ROOT / "tests/fixtures/trip_v3_domestic_3d.json").read_text(encoding="utf-8"))
+            yield {"type": "trip_plan", "document": document, "task_graph_executed": True}
+        patcher = patch("services.production_planning_service.stream_production_plan", side_effect=fake_production)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     async def _collect_sse_payloads(self, generator):
         events = []
         async for line in generator:
@@ -83,6 +96,53 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         clarifications = [payload for payload in payloads if payload.get("type") == "clarification_required"]
         self.assertEqual(len(clarifications), 1, "本轮应且仅应返回一个 clarification_required 事件")
         return clarifications[0]
+
+    async def test_slow_travel_research_does_not_block_the_api_event_loop(self):
+        request_messages = [
+            SimpleNamespace(role="user", content="规划杭州3日游", message_id="u-responsive", type="normal"),
+        ]
+        controller = FakeController(chunks=[])
+
+        research_started = threading.Event()
+        release_research = threading.Event()
+        research_finished = threading.Event()
+        research_threads = []
+        loop_thread = threading.get_ident()
+
+        def slow_research(**_kwargs):
+            research_threads.append(threading.get_ident())
+            research_started.set()
+            release_research.wait(timeout=5)
+            research_finished.set()
+            return None
+
+        with TemporaryDirectory() as tmpdir:
+            with patch("services.chat_service.get_output_root_path", return_value=Path(tmpdir)):
+                with patch("services.chat_service.maybe_prepare_train_ticket_bundle", return_value=None):
+                    with patch("services.chat_service.maybe_prepare_xhs_search_bundle", return_value=None):
+                        with patch("services.chat_service.maybe_prepare_travel_experience_bundle", side_effect=slow_research):
+                            collecting = asyncio.create_task(self._collect_sse_payloads(
+                                generate_chat_stream(
+                                    request_messages=request_messages,
+                                    controller=controller,
+                                    tool_manager=object(),
+                                    selected_mcp_servers=None,
+                                    use_deepthink=True,
+                                    use_multi_agent=False,
+                                    request_id="req-responsive",
+                                    sanitize_text=sanitize_text,
+                                )
+                            ))
+                            try:
+                                self.assertTrue(await asyncio.to_thread(research_started.wait, 5))
+                                # 研究仍被阻塞时，事件循环应能恢复执行并释放它；
+                                # 不把磁盘、线程启动和测试机负载计入延迟阈值。
+                                self.assertEqual(len(research_threads), 1)
+                                self.assertNotEqual(research_threads[0], loop_thread)
+                                self.assertFalse(research_finished.is_set())
+                            finally:
+                                release_research.set()
+                                await collecting
 
     async def test_generate_chat_stream_emits_start_chunk_complete(self):
         request_messages = [
@@ -248,6 +308,8 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertTrue(any(payload.get("type") == "trip_intent" for payload in payloads))
         clarification = self._get_single_clarification(payloads)
         self.assertEqual(len(clarification["questions"]), 1)
+        self.assertEqual(clarification["max_questions"], 4)
+        self.assertEqual(clarification["answered_count"], 0)
         self.assertEqual(clarification["questions"][0]["field"], "origin")
         self.assertIsNone(controller.called_with)
         self.assertEqual(payloads[-1]["type"], "chat_complete")
@@ -260,7 +322,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         answers = {}
         expected_rounds = [
             ("origin", "上海"),
-            ("date_range", "下周"),
+            ("date_range", "2026年8月15日至17日"),
             ("people_type", "朋友"),
             ("budget_total", "不设严格预算"),
         ]
@@ -330,7 +392,8 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
                     )
 
         self.assertFalse(any(payload.get("type") == "clarification_required" for payload in payloads))
-        self.assertIsNotNone(controller.called_with)
+        self.assertIsNone(controller.called_with)
+        self.assertTrue(self.production_calls)
         self.assertEqual(payloads[-1]["finish_reason"], "completed")
 
     async def test_generate_chat_stream_does_not_repeat_non_numeric_budget_answer(self):
@@ -364,7 +427,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         request_messages = [
             SimpleNamespace(
                 role="user",
-                content="下周从上海出发，帮我规划北京三日游，和朋友一起，节奏轻松",
+                content="2026年8月15日至17日从上海出发，帮我规划北京三日游，和朋友一起，节奏轻松",
                 message_id="u-skip",
                 type="normal",
             ),
@@ -406,11 +469,12 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         intent_event = next(payload for payload in payloads if payload.get("type") == "trip_intent")
         self.assertIsNone(intent_event["intent"]["budget_total"])
         self.assertIsNone(intent_event["intent"]["budget_per_person"])
-        self.assertIsNotNone(controller.called_with)
-        model_context = json.dumps(controller.called_with["input_messages"], ensure_ascii=False)
+        self.assertIsNone(controller.called_with)
+        self.assertTrue(self.production_calls)
+        model_context = json.dumps(self.production_calls[-1]["message_history"], ensure_ascii=False)
         self.assertNotIn("__skip__", model_context)
         self.assertNotIn("用户画像预算档位: 标准", model_context)
-        final_chunks = [payload for payload in payloads if payload.get("type") == "chat_chunk"]
+        final_chunks = [payload for payload in payloads if payload.get("type") == "trip_plan"]
         self.assertTrue(final_chunks)
         self.assertNotIn("__skip__", json.dumps(final_chunks, ensure_ascii=False))
         self.assertTrue(all(payload["request_id"] == "req-skip" for payload in payloads))
@@ -420,7 +484,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         request_messages = [
             SimpleNamespace(
                 role="user",
-                content="下周从上海出发，帮我规划北京三日游",
+                content="2026年8月15日至17日从上海出发，帮我规划北京三日游",
                 message_id="u-profile-default",
                 type="normal",
             ),
@@ -523,27 +587,26 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
                             clarification_answers={
                                 "destination": "杭州",
                                 "origin": "上海",
-                                "date_range": "下周",
-                                "people_type": "情侣",
+                                "days": "3天",
+                                "date_range": "日期暂未确定",
                             },
                             sanitize_text=sanitize_text,
                         )
                     )
 
         self.assertFalse(any(payload.get("type") == "clarification_required" for payload in payloads))
-        self.assertIsNotNone(controller.called_with)
-        self.assertEqual(controller.called_with["deep_thinking"], True)
-        self.assertEqual(controller.called_with["deep_research"], True)
+        self.assertIsNone(controller.called_with)
+        self.assertTrue(self.production_calls)
         self.assertTrue(
-            any(message.get("type") == "system_trip_intent_context" for message in controller.called_with["input_messages"])
+            any(message.get("type") == "system_trip_intent_context" for message in self.production_calls[-1]["message_history"])
         )
-        self.assertTrue(any(payload.get("content") == "clean::杭州三日游方案" for payload in payloads))
+        self.assertTrue(any(payload.get("type") == "trip_plan" for payload in payloads))
 
     async def test_generate_chat_stream_complete_request_does_not_trigger_clarification(self):
         request_messages = [
             SimpleNamespace(
                 role="user",
-                content="下周从上海出发，帮我规划北京3天2夜特种兵之旅，和朋友两个人，人均2000",
+                content="2026年8月15日至17日从上海出发，帮我规划北京3天2夜特种兵之旅，和朋友两个人，人均2000",
                 message_id="u-complete",
                 type="normal",
             ),
@@ -580,14 +643,127 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
                     )
 
         self.assertFalse(any(payload.get("type") == "clarification_required" for payload in payloads))
-        self.assertIsNotNone(controller.called_with)
-        self.assertTrue(any(payload.get("content") == "clean::完整行程方案" for payload in payloads))
+        self.assertIsNone(controller.called_with)
+        self.assertTrue(self.production_calls)
+        self.assertTrue(any(payload.get("type") == "trip_plan" for payload in payloads))
+
+    async def test_flexible_date_plan_skips_ticket_and_date_sensitive_research(self):
+        request_messages = [
+            SimpleNamespace(
+                role="user",
+                content="日期还没定，从上海出发，帮我规划北京3天情侣游，人均2000",
+                message_id="u-flexible-date",
+                type="normal",
+            ),
+        ]
+        controller = FakeController(chunks=[[
+            {
+                "message_id": "m-flexible-date",
+                "role": "assistant",
+                "content": "日期待定参考方案",
+                "show_content": "日期待定参考方案",
+                "type": "final_answer",
+            }
+        ]])
+
+        with patch("services.chat_service.maybe_prepare_train_ticket_bundle", return_value=None) as ticket_mock:
+            with patch("services.chat_service.maybe_prepare_xhs_search_bundle", return_value=None):
+                with patch("services.chat_service.maybe_prepare_travel_experience_bundle", return_value=None) as travel_mock:
+                    payloads = await self._collect_sse_payloads(
+                        generate_chat_stream(
+                            request_messages=request_messages,
+                            controller=controller,
+                            tool_manager=object(),
+                            selected_mcp_servers=None,
+                            profile={},
+                            planning_mode="standard_plan",
+                            sanitize_text=sanitize_text,
+                        )
+                    )
+
+        self.assertFalse(any(payload.get("type") == "clarification_required" for payload in payloads))
+        ticket_mock.assert_not_called()
+        travel_mock.assert_not_called()
+        self.assertEqual("日期暂未确定", self.production_calls[-1]["intent"].date_range)
+
+    async def test_structured_form_bypasses_semantic_clarification_and_preserves_exact_intent(self):
+        request_messages = [
+            SimpleNamespace(
+                role="user",
+                content="请帮我规划一趟从上海出发、前往杭州的3天旅行，并核验交通和地图数据。",
+                message_id="u-structured-form",
+                type="normal",
+            ),
+        ]
+        controller = FakeSemanticController(
+            chunks=[[
+                {
+                    "message_id": "m-structured-form",
+                    "role": "assistant",
+                    "content": "结构化表单行程方案",
+                    "show_content": "结构化表单行程方案",
+                    "type": "final_answer",
+                }
+            ]],
+            semantic_payload={
+                "next_question": {
+                    "field": "budget_total",
+                    "question": "预算是多少？",
+                    "reason": "需要预算",
+                    "options": ["3000", "6000"],
+                }
+            },
+        )
+        structured_trip_request = {
+            "origin": "上海",
+            "destination": "杭州",
+            "start_date": "2026-08-15",
+            "end_date": "2026-08-17",
+            "adults": 2,
+            "children": 0,
+            "seniors": 0,
+            "budget": 6000,
+            "party_type": "情侣",
+            "preferences": ["人文历史", "当地美食"],
+        }
+
+        with patch("services.chat_service.maybe_prepare_train_ticket_bundle", return_value=None):
+            with patch("services.chat_service.maybe_prepare_xhs_search_bundle", return_value=None):
+                with patch("services.chat_service.maybe_prepare_travel_experience_bundle", return_value=None):
+                    payloads = await self._collect_sse_payloads(
+                        generate_chat_stream(
+                            request_messages=request_messages,
+                            controller=controller,
+                            tool_manager=object(),
+                            selected_mcp_servers=None,
+                            structured_trip_request=structured_trip_request,
+                            profile={},
+                            planning_mode="standard_plan",
+                            sanitize_text=sanitize_text,
+                        )
+                    )
+
+        self.assertFalse(any(payload.get("type") == "clarification_required" for payload in payloads))
+        intent = next(payload["intent"] for payload in payloads if payload.get("type") == "trip_intent")
+        self.assertEqual(intent["origin"], "上海")
+        self.assertEqual(intent["destination"], "杭州")
+        self.assertEqual(intent["date_range"], "2026-08-15 至 2026-08-17")
+        self.assertEqual(intent["people_count"], 2)
+        self.assertEqual(intent["adult_count"], 2)
+        self.assertEqual(intent["child_count"], 0)
+        self.assertEqual(intent["senior_count"], 0)
+        self.assertEqual(intent["people_type"], "情侣")
+        self.assertEqual(intent["budget_total"], 6000)
+        self.assertEqual(intent["interests"], ["人文历史", "当地美食"])
+        self.assertIsNone(controller.task_analysis_agent.called_with)
+        self.assertIsNone(controller.called_with)
+        self.assertTrue(self.production_calls)
 
     async def test_product_trip_stream_returns_structured_document_without_long_agent_loop(self):
         request_messages = [
             SimpleNamespace(
                 role="user",
-                content="下周从上海出发，帮我规划杭州3天2夜行程，和朋友两个人，人均2000",
+                content="2026年8月15日至17日从上海出发，帮我规划杭州3天2夜行程，和朋友两个人，人均2000",
                 message_id="u-structured-final",
                 type="normal",
             ),
@@ -602,7 +778,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
                 "people_count": 2,
                 "people_type": "朋友",
                 "budget_per_person": 2000,
-                "date_range": "下周",
+                "date_range": "2026-08-15 至 2026-08-17",
             },
             "kinds": ["行程规划"],
             "context_message": "旅行参考信息已整理",
@@ -645,13 +821,9 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
 
         self.assertIsNone(controller.called_with)
         self.assertTrue(any(payload.get("type") == "trip_plan" for payload in payloads), payloads)
-        final_text = "".join(
-            payload.get("content", "")
-            for payload in payloads
-            if payload.get("type") == "chat_chunk" and payload.get("step_type") == "final_answer"
-        )
-        self.assertIn("## 1. 目的地介绍", final_text)
-        self.assertIn("## 8. 下载与分享", final_text)
+        plan = next(payload for payload in payloads if payload.get("type") == "trip_plan")
+        self.assertEqual("3.0", plan["document"]["schema_version"])
+        self.assertTrue(plan["task_graph_executed"])
         self.assertEqual(payloads[-1]["type"], "chat_complete")
         self.assertEqual(payloads[-1]["finish_reason"], "completed")
 
@@ -694,8 +866,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         intent_event = next(payload for payload in payloads if payload.get("type") == "trip_intent")
         clarification = self._get_single_clarification(payloads)
         self.assertEqual(intent_event["intent"]["people_type"], "朋友")
-        self.assertEqual(clarification["questions"][0]["field"], "date_range")
-        self.assertIn("什么时候", clarification["questions"][0]["question"])
+        self.assertEqual(clarification["questions"][0]["field"], "origin")
         self.assertIsNotNone(controller.task_analysis_agent.called_with)
         self.assertIsNone(controller.called_with)
 
@@ -703,7 +874,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         request_messages = [
             SimpleNamespace(
                 role="user",
-                content="下周从上海出发，帮我规划杭州三日游，和朋友一起，轻松一点",
+                content="2026年8月15日至17日从上海出发，帮我规划杭州三日游，和朋友一起，轻松一点",
                 message_id="u-knowledge",
                 type="normal",
             ),
@@ -746,14 +917,15 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
                         )
                     )
 
-        self.assertIsNotNone(controller.called_with)
+        self.assertIsNone(controller.called_with)
+        self.assertTrue(self.production_calls)
         knowledge_messages = [
-            message for message in controller.called_with["input_messages"]
+            message for message in self.production_calls[-1]["message_history"]
             if message.get("type") == "system_selected_knowledge_context"
         ]
         self.assertEqual(len(knowledge_messages), 1)
         self.assertIn("西湖城区路线", knowledge_messages[0]["content"])
-        self.assertTrue(any(payload.get("content") == "clean::已结合知识库。" for payload in payloads))
+        self.assertTrue(any(payload.get("type") == "trip_plan" for payload in payloads))
 
     async def test_generate_chat_stream_emits_error_event_on_exception(self):
         request_messages = [
@@ -990,7 +1162,22 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         ]
         self.assertTrue(any("小红书检索资源表" in content for content in chunk_contents))
 
-    async def test_generate_chat_stream_appends_travel_map_locations(self):
+    @patch("services.chat_service.build_day_route", new_callable=AsyncMock)
+    async def test_generate_chat_stream_appends_travel_map_locations(self, build_day_route):
+        # This SSE contract covers unavailable routes, independent of local .env
+        # credentials. Provider integration is verified by separate route tests.
+        def unavailable_day_route(**kwargs):
+            return {
+                "day": kwargs["day"],
+                "plan_version": kwargs["plan_version"],
+                "provider": "baidu_directionlite",
+                "coordinate_system": "BD09LL",
+                "legs": [],
+                "bbox": None,
+                "status": "unavailable",
+            }
+
+        build_day_route.side_effect = unavailable_day_route
         request_messages = [
             SimpleNamespace(role="user", content="推荐上海外滩附近性价比高的酒店", message_id="u-travel", type="normal"),
         ]
@@ -1064,6 +1251,66 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
                     "description": "第二日城市文化游览",
                     "category": "景点",
                     "order": 3,
+                    "day": 2,
+                },
+                {
+                    "id": "travel_meal_1",
+                    "name": "外滩早餐店",
+                    "lat": 31.2370,
+                    "lng": 121.4900,
+                    "description": "第一日早餐",
+                    "category": "餐厅",
+                    "order": 4,
+                    "day": 1,
+                },
+                {
+                    "id": "travel_meal_2",
+                    "name": "外滩午餐厅",
+                    "lat": 31.2380,
+                    "lng": 121.4910,
+                    "description": "第一日午餐",
+                    "category": "餐厅",
+                    "order": 5,
+                    "day": 1,
+                },
+                {
+                    "id": "travel_meal_3",
+                    "name": "外滩晚餐厅",
+                    "lat": 31.2390,
+                    "lng": 121.4920,
+                    "description": "第一日晚餐",
+                    "category": "餐厅",
+                    "order": 6,
+                    "day": 1,
+                },
+                {
+                    "id": "travel_meal_4",
+                    "name": "豫园早餐店",
+                    "lat": 31.2260,
+                    "lng": 121.4910,
+                    "description": "第二日早餐",
+                    "category": "餐厅",
+                    "order": 7,
+                    "day": 2,
+                },
+                {
+                    "id": "travel_meal_5",
+                    "name": "豫园午餐厅",
+                    "lat": 31.2270,
+                    "lng": 121.4930,
+                    "description": "第二日午餐",
+                    "category": "餐厅",
+                    "order": 8,
+                    "day": 2,
+                },
+                {
+                    "id": "travel_meal_6",
+                    "name": "豫园晚餐厅",
+                    "lat": 31.2280,
+                    "lng": 121.4940,
+                    "description": "第二日晚餐",
+                    "category": "餐厅",
+                    "order": 9,
                     "day": 2,
                 }
             ],
@@ -1144,6 +1391,8 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(day_event["day"]["activities"][0]["title"], "上海外滩华尔道夫酒店")
         self.assertTrue(day_event["day"]["activities"][0]["activity_id"].startswith("travel_place_"))
         route = day_event["day"]["activities"][0]["route_to_next"]
+        self.assertEqual(build_day_route.await_count, 2)
+        self.assertEqual([call.kwargs["day"] for call in build_day_route.await_args_list], [1, 2])
         self.assertEqual(route["data_type"], "estimated_data")
         self.assertEqual(route["provider"], "行程规划估算")
         self.assertIsNone(route["distance_meters"])
@@ -1157,7 +1406,7 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(plan_event["version"], plan_event["plan"]["version"])
         self.assertEqual(plan_event["plan"]["day_count"], 2)
         self.assertEqual(len(plan_event["plan"]["days"]), 2)
-        self.assertEqual(len(plan_event["plan"]["activities"]), 3)
+        self.assertEqual(len(plan_event["plan"]["activities"]), 7)
         self.assertEqual(plan_event["plan"]["validation"]["valid"], True)
         self.assertEqual(plan_event["plan"]["validation"], repair_event["final_validation"])
         structured_payloads = payloads[shell_index:plan_index + 1]
