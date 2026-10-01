@@ -1,9 +1,8 @@
-from typing import Dict, Any, List, Callable, Optional, Type, Union
+from typing import Dict, Any, List, Callable, Union
 from dataclasses import dataclass, replace
 from mcp import StdioServerParameters
 from agents.utils.logger import logger
 import inspect
-import json
 import os
 from functools import wraps
 from docstring_parser import parse,DocstringStyle

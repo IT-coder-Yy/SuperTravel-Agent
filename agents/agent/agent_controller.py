@@ -12,7 +12,6 @@ import json
 import uuid
 import re
 import os
-import sys
 import datetime
 import traceback
 import time

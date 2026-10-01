@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from datetime import date
 from typing import Any, Dict, Iterable, List, Mapping, Optional
 

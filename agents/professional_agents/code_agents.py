@@ -1,8 +1,7 @@
-from pandas.compat import F
 from agents.agent.agent_controller import AgentController
 from agents.tool.tool_manager import ToolManager
 from agents.agent.agent_base import AgentBase
-from typing import List, Dict, Any, Optional, Generator
+from typing import List, Dict, Any, Generator
 
 class CodeAgent(AgentBase):
     def __init__(self, model: Any, model_config: Dict[str, Any]):

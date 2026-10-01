@@ -1,22 +1,11 @@
 import httpx
 from mcp.server.fastmcp import FastMCP
 from starlette.applications import Starlette
-from starlette.routing import Mount, Host
+from starlette.routing import Mount
 import uvicorn
-from typing import List, Dict, Any,Union
 import argparse
-from openai import OpenAI
 import json
-import pypandoc
-from pathlib import Path
-import pdfplumber
-import subprocess
-from pptx import Presentation
-import aspose.slides as slides
 import os
-import html2text
-import requests
-import asyncio
 import re
 mcp = FastMCP("Serper Search")
 
