@@ -1,3 +1,4 @@
+import asyncio
 import os
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -16,6 +17,7 @@ class BaiduRouteProvider:
         api_key: str | None = None,
         timeout_seconds: float | None = None,
         dispatcher: BaiduRequestDispatcher | None = None,
+        request_priority: str = "formal",
     ) -> None:
         self.api_key = api_key or os.getenv("BAIDU_MAP_API_KEY", "")
         configured_timeout = float(os.getenv("BAIDU_MAP_NETWORK_TIMEOUT_SECONDS", "35"))
@@ -25,6 +27,7 @@ class BaiduRouteProvider:
             else max(35.0, configured_timeout)
         )
         self.dispatcher = dispatcher or BaiduRequestDispatcher()
+        self.request_priority = request_priority
 
     @staticmethod
     def _endpoint(mode: str) -> str:
@@ -45,8 +48,19 @@ class BaiduRouteProvider:
         routes = payload.get("result", {}).get("routes", [])
         if not routes:
             return []
+        route = routes[0] if isinstance(routes[0], dict) else {}
+
+        def iter_steps(value: Any):
+            """Baidu transit responses may nest steps as ``list[list[dict]]``."""
+            if isinstance(value, dict):
+                yield value
+                return
+            if isinstance(value, list):
+                for item in value:
+                    yield from iter_steps(item)
+
         points: List[List[float]] = []
-        for step in routes[0].get("steps", []):
+        for step in iter_steps(route.get("steps", [])):
             for pair in str(step.get("path") or "").split(";"):
                 try:
                     lng, lat = pair.split(",", 1)
@@ -68,7 +82,7 @@ class BaiduRouteProvider:
             "coord_type": "bd09ll",
         }
 
-        async def request() -> Dict[str, Any]:
+        async def perform_request() -> Dict[str, Any]:
             async with httpx.AsyncClient(timeout=self.timeout_seconds) as client:
                 response = await client.get(
                     f"https://api.map.baidu.com/directionlite/v1/{endpoint}",
@@ -76,6 +90,26 @@ class BaiduRouteProvider:
                 )
                 response.raise_for_status()
                 return response.json()
+
+        async def request() -> Dict[str, Any]:
+            task = asyncio.create_task(perform_request())
+            done, _ = await asyncio.wait({task}, timeout=self.timeout_seconds)
+            if task in done:
+                return task.result()
+            task.cancel()
+
+            def consume_late_result(completed_task: asyncio.Task) -> None:
+                if completed_task.cancelled():
+                    return
+                try:
+                    completed_task.exception()
+                except (asyncio.CancelledError, Exception):
+                    return
+
+            task.add_done_callback(consume_late_result)
+            raise asyncio.TimeoutError(
+                f"Baidu route network call exceeded {self.timeout_seconds:g}s"
+            )
 
         payload = await self.dispatcher.execute_async(
             request,
@@ -86,7 +120,7 @@ class BaiduRouteProvider:
                 "destination": params["destination"],
                 "coord_type": params["coord_type"],
             },
-            priority="formal",
+            priority=self.request_priority,
             cache_ttl_seconds=900,
         )
         if int(payload.get("status", -1)) != 0:

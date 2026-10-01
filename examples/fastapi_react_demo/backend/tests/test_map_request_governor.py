@@ -18,6 +18,45 @@ from agents.tool.tool_manager import ToolManager
 
 
 class MapRequestGovernorTests(unittest.TestCase):
+    def test_baidu_mcp_network_timeout_does_not_wait_for_stuck_cancellation(self):
+        manager = ToolManager(is_auto_discover=False)
+        manager.baidu_network_timeout_seconds = 0.01
+        tool = McpToolSpec(
+            name="map_search_places",
+            description="map",
+            func=lambda: None,
+            parameters={"query": {"type": "string"}},
+            required=["query"],
+            server_name="baidu-map",
+            server_params=SseServerParameters(url="http://unused"),
+        )
+
+        async def verify_timeout():
+            release_cancellation = asyncio.Event()
+
+            async def stuck_mcp_call(*args, **kwargs):
+                del args, kwargs
+                try:
+                    await asyncio.Future()
+                except asyncio.CancelledError:
+                    await release_cancellation.wait()
+
+            manager._execute_sse_mcp_tool = stuck_mcp_call
+
+            async def release_later():
+                await asyncio.sleep(0.2)
+                release_cancellation.set()
+
+            release_task = asyncio.create_task(release_later())
+            started_at = time.monotonic()
+            with self.assertRaises(asyncio.TimeoutError):
+                await manager._run_mcp_tool_async(tool, "hard-timeout", query="Wuhan")
+            elapsed = time.monotonic() - started_at
+            await release_task
+            return elapsed
+
+        self.assertLess(asyncio.run(verify_timeout()), 0.1)
+
     def test_tool_manager_uses_injected_application_dispatcher(self):
         dispatcher = BaiduRequestDispatcher(min_interval_seconds=0)
         manager = ToolManager(

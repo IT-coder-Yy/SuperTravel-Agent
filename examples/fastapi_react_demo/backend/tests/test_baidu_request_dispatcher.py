@@ -255,7 +255,7 @@ class BaiduRequestDispatcherTests(unittest.TestCase):
         self.assertEqual(calls, 2)
 
     def test_mcp_and_direct_provider_pressure_share_metrics_and_one_slot(self):
-        dispatcher = BaiduRequestDispatcher(min_interval_seconds=0, queue_timeout_seconds=2)
+        dispatcher = BaiduRequestDispatcher(min_interval_seconds=0, queue_timeout_seconds=10)
         manager = ToolManager(is_auto_discover=False, baidu_request_dispatcher=dispatcher)
         manager.tools["map_search_places"] = McpToolSpec(
             name="map_search_places",
@@ -271,7 +271,21 @@ class BaiduRequestDispatcherTests(unittest.TestCase):
         active = 0
         observed_peak = 0
         emitted_events = []
-        dispatcher.add_event_listener(emitted_events.append)
+        all_waiters_queued = threading.Event()
+
+        def record_waiting(event):
+            with lock:
+                emitted_events.append(event)
+                if len(emitted_events) >= 5:
+                    all_waiters_queued.set()
+
+        dispatcher.add_event_listener(record_waiting)
+
+        async def hold_slot_until_requests_queue():
+            # 首个请求保持执行槽，直到其余五个请求明确排队，
+            # 避免依赖 10ms 内所有线程恰好启动的时序假设。
+            if not await asyncio.to_thread(all_waiters_queued.wait, 5):
+                raise AssertionError("其余五个地图请求未进入共享队列")
 
         def enter() -> None:
             nonlocal active, observed_peak
@@ -287,7 +301,7 @@ class BaiduRequestDispatcherTests(unittest.TestCase):
         async def fake_mcp_call(tool, session_id=None, **kwargs):
             del tool, session_id
             enter()
-            await asyncio.sleep(0.01)
+            await hold_slot_until_requests_queue()
             leave()
             return {"content": [{"text": str(kwargs.get("query"))}]}
 
@@ -324,7 +338,7 @@ class BaiduRequestDispatcherTests(unittest.TestCase):
             async def get(self, *args, **kwargs):
                 del args, kwargs
                 enter()
-                await asyncio.sleep(0.01)
+                await hold_slot_until_requests_queue()
                 leave()
                 return FakeResponse()
 

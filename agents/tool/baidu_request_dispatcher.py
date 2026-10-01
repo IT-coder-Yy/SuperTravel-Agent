@@ -505,7 +505,9 @@ class BaiduRequestDispatcher:
     def _record_queue_wait(self, ticket: _QueueTicket) -> None:
         if not ticket.waiting_event_emitted:
             return
-        wait_ms = max(0.0, (time.monotonic() - ticket.queued_at) * 1000)
+        # A waiting event means the request did queue, even when the platform
+        # clock resolution reports the enqueue/dequeue timestamps as equal.
+        wait_ms = max(0.001, (time.monotonic() - ticket.queued_at) * 1000)
         with self._state_lock:
             self._metrics["queue_waits"] += 1
             self._metrics["total_queue_wait_ms"] += wait_ms
