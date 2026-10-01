@@ -12,3 +12,6 @@ websockets>=12.0
 pydantic>=2.5.0
 mcp>=1.9.2
 docstring_parser>=0.16
+Pillow>=12.1.1
+reportlab>=5.0.0
+pypdf>=6.14.2

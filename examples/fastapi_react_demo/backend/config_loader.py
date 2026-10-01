@@ -25,7 +25,7 @@ class ServerConfig:
     """服务器配置"""
     host: str = "0.0.0.0"
     port: int = 8001
-    reload: bool = True
+    reload: bool = False
     log_level: str = "info"
 
 
@@ -147,6 +147,7 @@ class ConfigLoader:
             'SAGE_TEMPERATURE': ['model', 'temperature'],
             'SAGE_HOST': ['server', 'host'],
             'SAGE_PORT': ['server', 'port'],
+            'SAGE_RELOAD': ['server', 'reload'],
         }
         
         for env_var, config_path in env_mappings.items():
@@ -190,7 +191,7 @@ class ConfigLoader:
         server_config = ServerConfig(
             host=server_data.get('host', '0.0.0.0'),
             port=server_data.get('port', 8001),
-            reload=server_data.get('reload', True),
+            reload=server_data.get('reload', False),
             log_level=server_data.get('log_level', 'info')
         )
         
@@ -229,6 +230,27 @@ class ConfigLoader:
                     "UNSPLASH_APP_NAME": "${UNSPLASH_APP_NAME}",
                 },
                 description="搜索并提供带版权署名的旅行图片。",
+            )
+        if os.getenv("TAVILY_API_KEY", "").strip() and "tavily-mcp" not in servers:
+            servers["tavily-mcp"] = MCPServerConfig(
+                command="npx",
+                args=["-y", "tavily-mcp@0.2.21"],
+                env={
+                    "TAVILY_API_KEY": "${TAVILY_API_KEY}",
+                    "DEFAULT_PARAMETERS": (
+                        '{"search_depth":"basic","max_results":8,'
+                        '"include_answer":false,"include_images":false,'
+                        '"include_raw_content":false}'
+                    ),
+                },
+                description="使用 Tavily 检索并提取适合旅行规划引用的实时网页信息。",
+            )
+        if os.getenv("AMAP_MAPS_API_KEY", "").strip() and "amap-maps" not in servers:
+            servers["amap-maps"] = MCPServerConfig(
+                command="npx",
+                args=["-y", "@amap/amap-maps-mcp-server@0.0.8"],
+                env={"AMAP_MAPS_API_KEY": "${AMAP_MAPS_API_KEY}"},
+                description="使用高德地图查询国内 POI、地理编码、距离和路线。",
             )
         if servers:
             mcp_config = MCPConfig(servers=servers)

@@ -236,11 +236,10 @@ def main():
     print("=" * 50)
     
     try:
-        # 切换到backend目录并启动
-        os.chdir(backend_dir)
+        # 以包模块方式启动，保证 backend.* 绝对导入与测试环境一致。
         subprocess.run([
-            sys.executable, "main.py"
-        ], check=True)
+            sys.executable, "-m", "backend.main"
+        ], cwd=current_dir, check=True)
     except KeyboardInterrupt:
         print("\n👋 服务器已停止")
     except subprocess.CalledProcessError as e:
