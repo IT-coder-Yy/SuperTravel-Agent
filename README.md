@@ -1,16 +1,19 @@
-# SuperTravelAgent
+<h1 align="center">SuperTravelAgent</h1>
 
-Plan a trip, explore it on the map, and refine each day in one workspace.
+<p align="center">
+  <strong>Plan a trip, explore the map, and refine every day.</strong><br>
+  A multi-agent travel planner built with FastAPI, React and TypeScript.
+</p>
 
-A multi-agent travel planner built with FastAPI, React and TypeScript.
-
-English · [简体中文](README_CN.md)
+<p align="center">
+  <strong>English</strong> · <a href="README_CN.md">Simplified Chinese</a>
+</p>
 
 ## Preview
 
-[![SuperTravelAgent: itinerary and map workspace](assets/preview/supertravelagent-preview.gif)](assets/preview/supertravelagent-preview.mp4)
+![SuperTravelAgent: itinerary and map workspace](assets/preview/supertravelagent-preview.gif)
 
-[Watch the recording (MP4)](assets/preview/supertravelagent-preview.mp4) · [Animated preview](assets/preview/supertravelagent-preview.gif)
+[Download the full recording (MP4, 44 seconds)](https://github.com/IT-coder-Yy/SuperTravel-Agent/raw/refs/heads/main/assets/preview/supertravelagent-preview.mp4)
 
 Recorded from the running application on October 2, 2026: replay the built-in Hangzhou case, browse three days alongside the map, review the checklist and alerts, and use the case as a template. This sanitized case replay does not request a new model-generated plan or represent current prices and availability.
 
@@ -60,13 +63,15 @@ For provider configuration, frontend development and troubleshooting, see the [w
 
 ## Common workflows
 
+Control names below are English translations of the current Chinese interface.
+
 ### Explore a demo
 
-Click **新旅程** (New trip), then choose **一键回放** (Replay) on a case. Pause, change playback speed or jump to the result. Browse the daily schedule and map, then choose **以此为模板创建行程** (Use as a template) to prefill a new trip. Replay does not write to trip history.
+Click **New trip**, then choose **Replay** on a case. Pause, change playback speed or jump to the result. Browse the daily schedule and map, then choose **Use as a template** to prefill a new trip. Replay does not write to trip history.
 
 ### Create and refine your trip
 
-Fill in the form and click **创建并开始规划** (Create and plan), or describe your requirements in the conversation. Once planning completes, edit activities in the itinerary. Changes remain in a draft until **应用修改** (Apply changes) validates and saves the new formal version. Resolve blocking issues before applying; use restore to return to the previous formal version.
+Fill in the form and click **Create and plan**, or describe your requirements in the conversation. Once planning completes, edit activities in the itinerary. Changes remain in a draft until **Apply changes** validates and saves the new formal version. Resolve blocking issues before applying; use restore to return to the previous formal version.
 
 ### Download the plan
 
