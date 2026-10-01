@@ -496,6 +496,7 @@ class MainRouteContractTests(unittest.IsolatedAsyncioTestCase):
             activities=[],
             scope="domestic",
             baidu_dispatcher=self.main.runtime_state.baidu_request_dispatcher,
+            baidu_priority="candidate",
         )
 
     async def test_cleanup_system_delegates_to_lifecycle_wrapper(self):

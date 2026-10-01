@@ -50,20 +50,36 @@ class TripPersistenceRouteTests(unittest.TestCase):
         self.assertIn("httponly", cookie)
         self.assertIn("samesite=lax", cookie)
 
-    def test_devices_cannot_read_each_others_trips(self):
-        self.bootstrap()
+    def test_separate_browser_clients_have_isolated_local_history(self):
+        first_device = self.bootstrap().json()["device_id"]
         saved = self.client.put(
             "/api/trips/trip-1",
             json={"title": "杭州", "messages": [], "change_reason": "user_message"},
         )
         other_client = TestClient(self.client.app)
         try:
+            second_device = other_client.get("/api/device").json()["device_id"]
             response = other_client.get("/api/trips/trip-1")
         finally:
             other_client.close()
 
         self.assertEqual(200, saved.status_code)
+        self.assertNotEqual(first_device, second_device)
         self.assertEqual(404, response.status_code)
+
+    def test_active_planning_run_uses_frontend_contract_without_cache(self):
+        device_id = self.bootstrap().json()["device_id"]
+        self.client.put(
+            "/api/trips/trip-1",
+            json={"title": "杭州", "messages": [], "change_reason": "system"},
+        )
+        self.repository.begin_planning_run(device_id, "trip-1", "run-1", "request-1")
+
+        response = self.client.get("/api/planning-runs/active")
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("run-1", response.json()["active_run"]["run_id"])
+        self.assertEqual("no-store", response.headers["cache-control"])
 
     def test_migrates_lists_and_loads_legacy_trip(self):
         self.bootstrap()
@@ -137,6 +153,87 @@ class TripPersistenceRouteTests(unittest.TestCase):
         self.assertTrue(replay.json()["idempotent_replay"])
         self.assertEqual(422, rejected.status_code)
         self.assertEqual("INVALID_V3_DOCUMENT", rejected.json()["detail"]["code"])
+
+    def test_draft_apply_endpoint_uses_persisted_draft_and_returns_new_formal_document(self):
+        self.bootstrap()
+        self.client.put(
+            "/api/trips/trip-1",
+            json={"title": "杭州", "messages": [], "change_reason": "system"},
+        )
+        initial = copy.deepcopy(self.fixture)
+        initial["revision"] = 1
+        self.client.post(
+            "/api/trips/trip-1/formal",
+            json={"operation_id": "op-initial", "document": initial},
+        )
+        draft = copy.deepcopy(initial)
+        draft["revision"] = 4
+        draft["title"] = "等待应用的连续编辑"
+        self.client.put(
+            "/api/trips/trip-1/draft",
+            json={"document": draft, "operations": []},
+        )
+
+        applied = self.client.post(
+            "/api/trips/trip-1/draft/apply",
+            json={"operation_id": "op-apply", "expected_draft_revision": 4},
+        )
+        replay = self.client.post(
+            "/api/trips/trip-1/draft/apply",
+            json={"operation_id": "op-apply", "expected_draft_revision": 4},
+        )
+        detail = self.client.get("/api/trips/trip-1").json()
+
+        self.assertEqual(200, applied.status_code)
+        self.assertEqual(2, applied.json()["revision"])
+        self.assertEqual(2, applied.json()["document"]["revision"])
+        self.assertEqual("等待应用的连续编辑", applied.json()["document"]["title"])
+        self.assertTrue(replay.json()["idempotent_replay"])
+        self.assertIsNone(detail["draft"])
+        self.assertEqual(1, detail["formalSnapshots"]["previous"]["revision"])
+
+    def test_revision_event_endpoint_replays_full_document_and_can_resume_by_sequence(self):
+        self.bootstrap()
+        self.client.put(
+            "/api/trips/trip-1",
+            json={"title": "杭州", "messages": [], "change_reason": "system"},
+        )
+        initial = copy.deepcopy(self.fixture)
+        initial["revision"] = 1
+        self.client.post(
+            "/api/trips/trip-1/formal",
+            json={"operation_id": "op-initial", "document": initial},
+        )
+        draft = copy.deepcopy(initial)
+        draft["revision"] = 2
+        self.client.put("/api/trips/trip-1/draft", json={"document": draft, "operations": []})
+        self.client.post(
+            "/api/trips/trip-1/draft/apply",
+            json={"operation_id": "op-apply", "expected_draft_revision": 2},
+        )
+
+        response = self.client.get("/api/trips/trip-1/revisions/op-apply/events")
+        payloads = [
+            json.loads(line.removeprefix("data: "))
+            for line in response.text.splitlines()
+            if line.startswith("data: ")
+        ]
+        resumed = self.client.get("/api/trips/trip-1/revisions/op-apply/events?after_sequence=5")
+        resumed_payloads = [
+            json.loads(line.removeprefix("data: "))
+            for line in resumed.text.splitlines()
+            if line.startswith("data: ")
+        ]
+
+        self.assertEqual(200, response.status_code)
+        self.assertEqual("text/event-stream; charset=utf-8", response.headers["content-type"])
+        self.assertEqual(list(range(1, len(payloads) + 1)), [item["sequence"] for item in payloads])
+        self.assertEqual("plan_revision_started", payloads[0]["type"])
+        self.assertEqual("plan_revision_completed", payloads[-2]["type"])
+        self.assertEqual("trip_plan", payloads[-1]["type"])
+        self.assertEqual(2, payloads[-1]["document"]["revision"])
+        self.assertTrue(all(item["sequence"] > 5 for item in resumed_payloads))
+        self.assertEqual(payloads[0]["occurred_at"], resumed_payloads[0]["occurred_at"])
 
     def test_active_run_blocks_delete_all_with_chinese_error(self):
         device_id = self.bootstrap().json()["device_id"]

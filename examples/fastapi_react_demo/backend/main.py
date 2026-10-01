@@ -10,17 +10,23 @@ import sys
 import asyncio
 import json
 import uuid
+import httpx
 from pathlib import Path
 from typing import List
 from contextlib import asynccontextmanager
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response, Header
 from fastapi.responses import HTMLResponse, StreamingResponse
 import uvicorn
 
-# 添加项目路径
+# 同时支持 ``python -m backend.main`` 与历史脚本导入路径。
 project_root = Path(__file__).parent.parent.parent.parent
-sys.path.append(str(project_root))
+backend_root = Path(__file__).parent
+for import_root in (project_root, backend_root):
+    import_root_text = str(import_root)
+    if import_root_text not in sys.path:
+        sys.path.insert(0, import_root_text)
 
 from agents.utils.logger import logger
 
@@ -43,15 +49,33 @@ from services.tool_catalog_service import build_tool_catalog_runtime_model_http_
 from services.skill_profile_service import build_skill_catalog_runtime_model_http_response
 from services.powerpaint_status_service import build_powerpaint_status_model_http_response
 from services.travel_knowledge_catalog_service import build_travel_knowledge_cities_response, build_travel_knowledge_search_response
-from services.trip_edit_service import TripEditError, apply_trip_edit
+from services.trip_edit_service import (
+    TripEditError,
+    apply_trip_edit,
+    get_activity_delete_impact,
+    get_day_route_optimization_preview,
+)
+from services.trip_draft_validation_service import validate_trip_draft
 from services.trip_product_service import (
     TRIP_TEMPLATES,
-    export_trip_markdown,
     import_trip_document,
     share_repository,
 )
 from services.route_geometry_service import build_day_route
-from services.unsplash_tracking_service import track_document_cover_download
+from services.location_service import LocationLookupUnavailable, reverse_geocode_current_location
+from services.unsplash_image_proxy_service import fetch_unsplash_image
+from services.travel_document_service import export_travel_plan_v3_plain_markdown, safe_delivery_filename
+from services.pdf_export_service import export_travel_plan_v3_pdf, fetch_pdf_export_images
+from services.export_cache_service import export_cache_key, travel_export_cache
+from services.demo_case_replay_service import (
+    default_demo_case_directory,
+    demo_case_summary,
+    iter_demo_case_sse,
+    iter_valid_demo_case_packages,
+    load_ready_demo_case_package,
+)
+from services.demo_case_package_service import DemoCasePackageError
+from schemas.trip_v3_models import TravelPlanDocumentV3
 from services.app_factory_service import create_fastapi_app
 from services.server_bootstrap_service import run_backend_server
 from services.runtime_state_service import create_runtime_state
@@ -76,10 +100,14 @@ from schemas.api_models import (
     ToolInfo,
     TripEditRequest,
     TripEditResponse,
+    TripActivityDeleteImpactRequest,
+    TripDayRouteOptimizationPreviewRequest,
+    TripDraftValidationRequest,
     TripDocumentImportRequest,
     TripDocumentExportRequest,
     ShareCreateRequest,
     DayRouteRequest,
+    ReverseGeocodeRequest,
 )
 
 
@@ -199,6 +227,39 @@ async def get_system_status(response: Response):
     )
 
 
+@app.post("/api/location/reverse-geocode")
+async def reverse_geocode_endpoint(request: ReverseGeocodeRequest):
+    """将浏览器授权的位置坐标解析为结构化表单可用的城市。"""
+    try:
+        return await reverse_geocode_current_location(
+            latitude=request.latitude,
+            longitude=request.longitude,
+            dispatcher=runtime_state.baidu_request_dispatcher,
+        )
+    except LocationLookupUnavailable as exc:
+        logger.warning(f"当前位置解析不可用: {exc}")
+        raise HTTPException(
+            status_code=503,
+            detail="当前位置解析暂不可用，请手动输入出发地。",
+        ) from None
+
+
+@app.get("/api/images/unsplash")
+async def unsplash_image_endpoint(url: str = Query(..., min_length=1, max_length=4096)):
+    """Deliver a validated Unsplash CDN image without persisting or caching it."""
+    try:
+        content, media_type = await fetch_unsplash_image(url)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail="图片地址不可用") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail="图片暂时无法加载") from exc
+    return Response(
+        content=content,
+        media_type=media_type,
+        headers={"Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @app.get("/api/powerpaint/status", response_model=PowerPaintStatus)
 async def get_powerpaint_status(response: Response):
     """获取 PowerPaint 服务状态"""
@@ -274,7 +335,20 @@ _TRIP_EDIT_ERROR_RESPONSES = {
     "INVALID_INPUT": (422, "行程编辑请求无效"),
     "INVALID_PLAN": (422, "当前行程数据无效"),
     "INVALID_PAYLOAD": (422, "行程编辑参数无效"),
+    "PLACE_SELECTION_INVALID": (422, "地点选择已过期或不属于当前目的地，请重新搜索选择"),
     "ACTIVITY_NOT_FOUND": (422, "未找到要编辑的行程活动"),
+    "CANDIDATE_NOT_FOUND": (422, "未找到要排入行程的候选地点"),
+    "CANDIDATE_POOL_FULL": (422, "候选池已满，暂不能继续移入候选"),
+    "CANDIDATE_NO_FEASIBLE_SLOT": (422, "目标日期没有满足时间、营业窗口、距离和预算约束的空档"),
+    "TIME_NOT_SET": (422, "请先为活动设置时间后再调整或固定"),
+    "TIME_OUT_OF_RANGE": (422, "15 分钟调整不能超出当天的时间范围"),
+    "TRANSPORT_OPTION_NOT_FOUND": (422, "未找到可选择的交通方案"),
+    "TRANSPORT_OPTION_UNAVAILABLE": (422, "当前交通方案尚未核验，不能设为主方案"),
+    "LODGING_OPTION_NOT_FOUND": (422, "未找到可选择的规划住宿点"),
+    "DELETE_CONFIRMATION_REQUIRED": (422, "请先确认永久删除操作"),
+    "ROUTE_OPTIMIZATION_CONFIRMATION_REQUIRED": (422, "请先确认当天路线优化"),
+    "ROUTE_OPTIMIZATION_UNAVAILABLE": (422, "当天没有可应用的路线优化"),
+    "ROUTE_OPTIMIZATION_BLOCKED": (422, "请先修正草稿中的时间或结构问题，再优化路线"),
 }
 
 
@@ -282,7 +356,31 @@ _TRIP_EDIT_ERROR_RESPONSES = {
 async def trip_edit_endpoint(request: TripEditRequest):
     """Apply one versioned, deterministic edit to a structured trip plan."""
     try:
-        return apply_trip_edit(plan=request.plan, operation=request.operation)
+        result = apply_trip_edit(plan=request.document or request.plan, operation=request.operation)
+        document = result.get("document")
+        if document and document.get("schema_version") == "3.0" and result.get("diff", {}).get("routes_revalidation_required"):
+            from services.formal_consistency_service import rebuild_formal_routes, refresh_schedule_validation
+            if request.operation.type == "select_transport_option":
+                from services.transport_hub_service import enrich_selected_transport_hubs
+                await enrich_selected_transport_hubs(
+                    document, runtime_state.tool_manager,
+                    directions=(request.operation.payload["direction"],),
+                )
+            await rebuild_formal_routes(
+                document, dispatcher=runtime_state.baidu_request_dispatcher,
+                affected_days=result["diff"].get("affected_days"),
+            )
+            if request.operation.type == "move_activity":
+                from services.trip_edit_service import reschedule_moved_activity
+                reschedule_moved_activity(document, request.operation.model_dump(mode="json"), result["diff"])
+            elif request.operation.type == "insert_candidate":
+                from services.candidate_route_schedule_service import reschedule_inserted_candidate
+                reschedule_inserted_candidate(document, request.operation.model_dump(mode="json"), result["diff"])
+            refresh_schedule_validation(document)
+            result["document"] = TravelPlanDocumentV3.model_validate(document, context={"draft": True}).model_dump(mode="json")
+            result["plan"] = result["document"]
+            result["draft_validation"] = validate_trip_draft(document)
+        return result
     except TripEditError as exc:
         status_code, message = _TRIP_EDIT_ERROR_RESPONSES.get(
             exc.code,
@@ -300,6 +398,56 @@ async def trip_edit_endpoint(request: TripEditRequest):
         ) from None
 
 
+@app.get("/api/places/search")
+async def search_places_endpoint(q: str = Query(min_length=2, max_length=100), destination: str = Query(min_length=1, max_length=80), kind: str = "attraction"):
+    if kind not in {"attraction", "food", "hotel", "shopping", "transport", "other"}:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_PLACE_KIND", "message": "地点类别无效"})
+    from services.editable_place_service import search_editable_places
+    await ensure_tool_manager_ready()
+    results = await asyncio.to_thread(search_editable_places, q, destination, kind, runtime_state.tool_manager)
+    return {"items": results, "message": None if results else "没有找到带有效坐标的准确地点，请换一个名称搜索。"}
+
+
+@app.post("/api/trip-drafts/validate")
+async def validate_trip_draft_endpoint(request: TripDraftValidationRequest):
+    """校验草稿；硬错误只阻止后续应用，不丢弃当前草稿。"""
+    return validate_trip_draft(request.document)
+
+
+@app.post("/api/trip-drafts/delete-impact")
+async def trip_draft_delete_impact_endpoint(request: TripActivityDeleteImpactRequest):
+    """返回永久删除活动前的服务端关联数据影响计数。"""
+    try:
+        return get_activity_delete_impact(request.document, request.activity_id)
+    except TripEditError as exc:
+        status_code, message = _TRIP_EDIT_ERROR_RESPONSES.get(
+            exc.code,
+            (422, "无法读取活动删除影响"),
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code, "message": message},
+        ) from None
+
+
+@app.post("/api/trip-drafts/route-optimization-preview")
+async def trip_draft_route_optimization_preview_endpoint(
+    request: TripDayRouteOptimizationPreviewRequest,
+):
+    """返回仅调整当天非固定活动的路线优化预览。"""
+    try:
+        return get_day_route_optimization_preview(request.document, request.day)
+    except TripEditError as exc:
+        status_code, message = _TRIP_EDIT_ERROR_RESPONSES.get(
+            exc.code,
+            (422, "无法生成当天路线优化预览"),
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail={"code": exc.code, "message": message},
+        ) from None
+
+
 @app.get("/api/trip-templates")
 async def get_trip_templates():
     return {"templates": TRIP_TEMPLATES, "count": len(TRIP_TEMPLATES)}
@@ -313,17 +461,79 @@ async def import_trip_document_endpoint(request: TripDocumentImportRequest):
         raise HTTPException(status_code=422, detail={"code": "INVALID_TRIP_DOCUMENT", "message": str(exc)}) from None
 
 
-@app.post("/api/trips/export/markdown")
-async def export_trip_markdown_endpoint(request: TripDocumentExportRequest):
+def _current_export_document(payload: TripDocumentExportRequest, request: Request) -> TravelPlanDocumentV3:
+    repository = runtime_state.trip_repository
+    if repository is None:
+        raise HTTPException(status_code=503, detail={"code": "TRIP_STORAGE_UNAVAILABLE", "message": "旅程存储暂不可用"})
+    identity = resolve_anonymous_device(repository, request.cookies.get(DEVICE_COOKIE_NAME))
     try:
-        normalized = import_trip_document("json", request.document)
-        await track_document_cover_download(normalized)
+        trip = repository.get_trip(identity.device_id, payload.trip_id)
+    except TripRepositoryError as error:
+        raise HTTPException(status_code=404, detail={"code": error.code, "message": "未找到当前设备的旅程"}) from None
+    snapshot = trip.get("formalSnapshots", {}).get("current")
+    if not snapshot:
+        raise HTTPException(status_code=409, detail={"code": "FORMAL_SNAPSHOT_NOT_FOUND", "message": "请先生成并保存正式方案"})
+    if snapshot["revision"] != payload.expected_revision:
+        raise HTTPException(status_code=409, detail={"code": "REVISION_CONFLICT", "message": "正式方案已更新，请刷新后下载当前版本"})
+    return TravelPlanDocumentV3.model_validate(snapshot["document"])
+
+
+@app.post("/api/trips/export/markdown")
+async def export_trip_markdown_endpoint(request: TripDocumentExportRequest, http_request: Request):
+    try:
+        document = _current_export_document(request, http_request)
+        async def build_markdown() -> bytes:
+            return export_travel_plan_v3_plain_markdown(document).encode("utf-8")
+
+        content, cache_hit = await travel_export_cache.get_or_create(
+            export_cache_key(document, "markdown"),
+            build_markdown,
+        )
         return {
-            "content": export_trip_markdown(normalized),
-            "filename": normalized["delivery"]["markdown_filename"],
-            "plan_id": normalized["plan_id"],
-            "version": normalized["version"],
+            "content": content.decode("utf-8"),
+            "filename": safe_delivery_filename(
+                document.delivery.markdown_filename,
+                fallback_title=document.title,
+                revision=document.revision,
+                suffix=".md",
+            ),
+            "plan_id": document.plan_id,
+            "version": document.revision,
+            "cache_hit": cache_hit,
         }
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "INVALID_TRIP_DOCUMENT", "message": str(exc)}) from None
+
+
+@app.post("/api/trips/export/pdf")
+async def export_trip_pdf_endpoint(request: TripDocumentExportRequest, http_request: Request):
+    try:
+        document = _current_export_document(request, http_request)
+        async def build_pdf() -> bytes:
+            image_data = await fetch_pdf_export_images(document)
+            return export_travel_plan_v3_pdf(document, image_data)
+
+        content, cache_hit = await travel_export_cache.get_or_create(
+            export_cache_key(document, "pdf"),
+            build_pdf,
+        )
+        filename = quote(
+            safe_delivery_filename(
+                document.delivery.pdf_filename,
+                fallback_title=document.title,
+                revision=document.revision,
+                suffix=".pdf",
+            ),
+            safe="",
+        )
+        return Response(
+            content=content,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{filename}",
+                "X-Export-Cache": "HIT" if cache_hit else "MISS",
+            },
+        )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail={"code": "INVALID_TRIP_DOCUMENT", "message": str(exc)}) from None
 
@@ -336,6 +546,7 @@ async def build_day_route_endpoint(request: DayRouteRequest):
         activities=request.activities,
         scope=request.scope,
         baidu_dispatcher=runtime_state.baidu_request_dispatcher,
+        baidu_priority="candidate",
     )
 
 
@@ -485,6 +696,33 @@ def _last_sequence_from_header(last_event_id: str, fallback: int) -> int:
         return max(0, fallback)
 
 
+@app.get("/api/demo-cases")
+async def list_demo_cases():
+    """只读取已验收的静态案例包；不触发模型、Provider 或旅程存储。"""
+    packages = iter_valid_demo_case_packages(default_demo_case_directory())
+    return {"cases": [demo_case_summary(package) for package in packages]}
+
+
+@app.get("/api/demo-cases/{case_id}/events")
+async def replay_demo_case_events(
+    case_id: str,
+    after_sequence: int = Query(default=0, ge=0),
+    speed: float = Query(default=1.0),
+    final_only: bool = Query(default=False),
+):
+    """按录制顺序回放版本化 SSE，不读取用户历史或调用实时服务。"""
+    try:
+        package = load_ready_demo_case_package(default_demo_case_directory(), case_id)
+        stream = iter_demo_case_sse(package, after_sequence=after_sequence, speed=speed, final_only=final_only)
+    except DemoCasePackageError as exc:
+        raise HTTPException(status_code=404, detail={"code": "DEMO_CASE_NOT_FOUND", "message": str(exc)}) from exc
+    return StreamingResponse(
+        stream,
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.get("/api/planning-runs/{run_id}/events")
 async def resume_planning_events(
     run_id: str,
@@ -577,5 +815,5 @@ if __name__ == "__main__":
         config_loader=get_app_config,
         uvicorn_runner=uvicorn.run,
         printer=print,
-        app_target="main:app",
-    ) 
+        app_target="backend.main:app",
+    )
