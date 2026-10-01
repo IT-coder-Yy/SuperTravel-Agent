@@ -2,6 +2,7 @@ import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { resetTripHistoryApiForTests } from '../services/tripHistoryApi';
 import { useChatHistory } from './useChatHistory';
+import formalFixture from '../../../backend/tests/fixtures/trip_v3_domestic_3d.json';
 
 
 const jsonResponse = (body: unknown, status = 200): Response => ({
@@ -79,6 +80,7 @@ const createHistoryServer = () => {
           tripPlan: 'trip_plan' in payload ? payload.trip_plan : existing?.tripPlan,
           tripDocument: 'trip_document' in payload ? payload.trip_document : existing?.tripDocument,
           tripWorkspace: 'trip_workspace' in payload ? payload.trip_workspace : existing?.tripWorkspace,
+          agentTimeline: 'agent_timeline' in payload ? payload.agent_timeline : existing?.agentTimeline,
           status: 'draft',
           createdAt: existing?.createdAt || timestamp,
           updatedAt: timestamp,
@@ -147,6 +149,36 @@ describe('useChatHistory', () => {
     expect(server.store.get('trip-1')?.contentUpdatedAt).toBe(original);
   });
 
+  it('保存并恢复可回看的 Agent 安全阶段摘要', async () => {
+    const server = createHistoryServer();
+    vi.stubGlobal('fetch', server.fetchMock);
+    const { result } = renderHook(() => useChatHistory());
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
+
+    const agentTimeline = {
+      request_id: 'request-history-review',
+      run_id: 'run-history-review',
+      status: 'completed',
+      stages: {
+        research: {
+          label: '资料研究',
+          status: 'completed',
+          agent_name: '资料研究 Agent',
+          task: '整理公开资料',
+          data_sources: ['本地知识库'],
+          summary: '已汇总公开资料',
+        },
+      },
+    };
+
+    act(() => result.current.saveChat('trip-agent-timeline', message('杭州三日游'), undefined, { agentTimeline }));
+    await waitFor(() => expect(server.store.get('trip-agent-timeline')?.agentTimeline).toEqual(agentTimeline));
+
+    const detail = await result.current.getChat('trip-agent-timeline');
+
+    expect(detail?.agentTimeline).toEqual(agentTimeline);
+  });
+
   it('单程删除和删除全部都调用后端并同步摘要镜像', async () => {
     const server = createHistoryServer();
     server.store.set('trip-1', {
@@ -190,5 +222,31 @@ describe('useChatHistory', () => {
 
     expect(localStorage.getItem('sage_chat_history')).toBe(legacyRaw);
     expect(localStorage.getItem('sage_trip_history_migrated_v1')).toBeNull();
+  });
+
+  it('读取旅程时始终以当前正式快照恢复工作台', async () => {
+    const server = createHistoryServer();
+    server.store.set('trip-formal', {
+      id: 'trip-formal', title: '杭州正式方案', messages: message('杭州三日游'), status: 'completed',
+      createdAt: '2026-07-15T08:00:00.000Z', updatedAt: '2026-07-15T08:00:00.000Z',
+      contentUpdatedAt: '2026-07-15T08:00:00.000Z', currentRevision: 1,
+      tripPlan: null,
+      tripDocument: null,
+      tripWorkspace: { locations: [], sources: [], budget: null, validation: null, repair: null },
+      formalSnapshots: {
+        current: { revision: 1, document: formalFixture },
+        previous: { revision: 0, document: formalFixture },
+      },
+    });
+    vi.stubGlobal('fetch', server.fetchMock);
+    const { result } = renderHook(() => useChatHistory());
+    await waitFor(() => expect(result.current.history).toHaveLength(1));
+
+    const detail = await result.current.getChat('trip-formal');
+
+    expect(detail?.tripPlan?.plan_id).toBe('plan_fixture_hangzhou_3d');
+    expect(detail?.tripDocument?.schema_version).toBe('3.0');
+    expect((detail?.tripWorkspace?.locations as unknown[])).not.toHaveLength(0);
+    expect(detail?.hasPreviousFormalSnapshot).toBe(true);
   });
 });

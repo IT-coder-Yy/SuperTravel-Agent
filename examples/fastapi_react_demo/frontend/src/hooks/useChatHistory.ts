@@ -6,6 +6,8 @@ import {
   TripHistorySummaryPayload,
   TripUpsertPayload,
 } from '../services/tripHistoryApi';
+import { restoreFormalSnapshotState } from '../features/travel/state/formalSnapshotRestore';
+import type { TripEditDraftPayload } from '../features/travel/state/tripEditDraft';
 
 export interface ChatHistoryMessage {
   id: string;
@@ -30,6 +32,9 @@ export interface ChatHistoryItem {
   tripPlan?: Record<string, unknown> | null;
   tripDocument?: Record<string, unknown> | null;
   tripWorkspace?: Record<string, unknown> | null;
+  agentTimeline?: Record<string, unknown> | null;
+  tripDraft?: TripEditDraftPayload | null;
+  hasPreviousFormalSnapshot?: boolean;
 }
 
 export interface SaveChatOptions {
@@ -38,6 +43,7 @@ export interface SaveChatOptions {
   tripPlan?: Record<string, unknown> | null;
   tripDocument?: Record<string, unknown> | null;
   tripWorkspace?: Record<string, unknown> | null;
+  agentTimeline?: Record<string, unknown> | null;
 }
 
 const LEGACY_STORAGE_KEY = 'sage_chat_history';
@@ -69,8 +75,10 @@ const normalizeSummary = (item: TripHistorySummaryPayload): ChatHistoryItem => (
   currentRevision: item.currentRevision,
 });
 
-const normalizeDetail = (item: TripDetailPayload): ChatHistoryItem => ({
-  ...normalizeSummary({
+const normalizeDetail = (item: TripDetailPayload): ChatHistoryItem => {
+  const formalState = restoreFormalSnapshotState(item.formalSnapshots);
+  return {
+    ...normalizeSummary({
     id: item.id,
     title: item.title,
     status: item.status,
@@ -79,12 +87,21 @@ const normalizeDetail = (item: TripDetailPayload): ChatHistoryItem => ({
     updatedAt: item.updatedAt,
     contentUpdatedAt: item.contentUpdatedAt,
     currentRevision: item.currentRevision,
-  }),
-  messages: (item.messages || []).map(normalizeMessage),
-  tripPlan: item.tripPlan,
-  tripDocument: item.tripDocument,
-  tripWorkspace: item.tripWorkspace,
-});
+    }),
+    messages: (item.messages || []).map(normalizeMessage),
+    tripPlan: formalState?.plan || item.tripPlan,
+    tripDocument: formalState?.document || item.tripDocument,
+    tripWorkspace: formalState?.workspace as unknown as Record<string, unknown> || item.tripWorkspace,
+    agentTimeline: item.agentTimeline,
+    tripDraft: item.draft as TripEditDraftPayload | null | undefined,
+    hasPreviousFormalSnapshot: Boolean(
+      item.formalSnapshots
+      && typeof item.formalSnapshots === 'object'
+      && !Array.isArray(item.formalSnapshots)
+      && (item.formalSnapshots as Record<string, unknown>).previous,
+    ),
+  };
+};
 
 const readLegacyItems = (): unknown[] => {
   if (localStorage.getItem(MIGRATION_MARKER_KEY) === '1') return [];
@@ -196,6 +213,7 @@ export const useChatHistory = () => {
     if (options.tripPlan !== undefined) payload.trip_plan = options.tripPlan;
     if (options.tripDocument !== undefined) payload.trip_document = options.tripDocument;
     if (options.tripWorkspace !== undefined) payload.trip_workspace = options.tripWorkspace;
+    if (options.agentTimeline !== undefined) payload.agent_timeline = options.agentTimeline;
 
     const previous = saveQueues.get(chatId) || Promise.resolve();
     const queued = previous

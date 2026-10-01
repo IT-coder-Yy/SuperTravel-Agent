@@ -22,6 +22,7 @@ export interface TripDetailPayload extends TripHistorySummaryPayload {
   tripPlan?: Record<string, unknown> | null;
   tripDocument?: Record<string, unknown> | null;
   tripWorkspace?: Record<string, unknown> | null;
+  agentTimeline?: Record<string, unknown> | null;
   formalSnapshots?: Record<string, unknown>;
   draft?: Record<string, unknown> | null;
 }
@@ -33,10 +34,37 @@ export interface TripUpsertPayload {
   trip_plan?: Record<string, unknown> | null;
   trip_document?: Record<string, unknown> | null;
   trip_workspace?: Record<string, unknown> | null;
+  agent_timeline?: Record<string, unknown> | null;
+}
+
+export interface TripDraftPayload {
+  document: Record<string, unknown>;
+  operations: Array<{
+    operation_id: string;
+    type: string;
+    payload: Record<string, unknown>;
+    base_version: number;
+  }>;
+}
+
+export interface ApplyDraftPayload {
+  operation_id: string;
+  expected_draft_revision: number;
+}
+
+export interface FormalSnapshotResult {
+  operation_id: string;
+  trip_id: string;
+  revision: number;
+  checksum: string;
+  status: 'applied' | 'restored';
+  document: Record<string, unknown>;
+  idempotent_replay: boolean;
 }
 
 let deviceBootstrapPromise: Promise<void> | null = null;
 let legacyMigrationPromise: Promise<void> | null = null;
+const draftSaveQueues = new Map<string, Promise<unknown>>();
 
 const responseError = async (response: Response): Promise<Error> => {
   try {
@@ -61,6 +89,18 @@ const bootstrapDevice = (): Promise<void> => {
     deviceBootstrapPromise = requestJson<{ status: string }>('/api/device').then(() => undefined);
   }
   return deviceBootstrapPromise;
+};
+
+const enqueueDraftRequest = <T,>(tripId: string, request: () => Promise<T>): Promise<T> => {
+  const previous = draftSaveQueues.get(tripId) || Promise.resolve();
+  const queued = previous
+    .catch(() => undefined)
+    .then(request)
+    .finally(() => {
+      if (draftSaveQueues.get(tripId) === queued) draftSaveQueues.delete(tripId);
+    });
+  draftSaveQueues.set(tripId, queued);
+  return queued;
 };
 
 export const tripHistoryApi = {
@@ -92,6 +132,66 @@ export const tripHistoryApi = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
+  },
+
+  saveDraft: (tripId: string, payload: TripDraftPayload): Promise<{ trip_id: string; document: Record<string, unknown>; updated_at: string }> => {
+    return enqueueDraftRequest(tripId, async () => {
+      await bootstrapDevice();
+      return requestJson<{ trip_id: string; document: Record<string, unknown>; updated_at: string }>(
+        `/api/trips/${encodeURIComponent(tripId)}/draft`,
+        {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        },
+      );
+    });
+  },
+
+  discardDraft: (tripId: string): Promise<{ discarded: boolean }> => {
+    return enqueueDraftRequest(tripId, async () => {
+      await bootstrapDevice();
+      return requestJson<{ discarded: boolean }>(`/api/trips/${encodeURIComponent(tripId)}/draft`, {
+        method: 'DELETE',
+      });
+    });
+  },
+
+  applyDraft: (tripId: string, payload: ApplyDraftPayload): Promise<FormalSnapshotResult> => {
+    return enqueueDraftRequest(tripId, async () => {
+      await bootstrapDevice();
+      return requestJson<FormalSnapshotResult>(`/api/trips/${encodeURIComponent(tripId)}/draft/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    });
+  },
+
+  restorePrevious: (tripId: string, payload: { operation_id: string; expected_current_revision: number }): Promise<FormalSnapshotResult> => {
+    return enqueueDraftRequest(tripId, async () => {
+      await bootstrapDevice();
+      return requestJson<FormalSnapshotResult>(`/api/trips/${encodeURIComponent(tripId)}/restore`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+    });
+  },
+
+  streamFormalRevision: async (
+    tripId: string,
+    operationId: string,
+    afterSequence = 0,
+    signal?: AbortSignal,
+  ): Promise<Response> => {
+    await bootstrapDevice();
+    const response = await fetch(
+      `/api/trips/${encodeURIComponent(tripId)}/revisions/${encodeURIComponent(operationId)}/events?after_sequence=${Math.max(0, afterSequence)}`,
+      { credentials: 'same-origin', signal },
+    );
+    if (!response.ok) throw await responseError(response);
+    return response;
   },
 
   delete: async (tripId: string): Promise<void> => {
@@ -126,4 +226,5 @@ export const ensureLegacyHistoryMigration = (
 export const resetTripHistoryApiForTests = (): void => {
   deviceBootstrapPromise = null;
   legacyMigrationPromise = null;
+  draftSaveQueues.clear();
 };

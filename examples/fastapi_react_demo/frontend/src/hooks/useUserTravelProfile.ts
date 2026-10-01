@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 
 export interface UserTravelProfile {
   user_id: string;
+  home_city?: string;
   preferred_budget_level?: string;
   default_people_type?: string;
   travel_style: string[];
@@ -57,6 +58,7 @@ export const normalizeUserTravelProfile = (value: unknown): UserTravelProfile =>
   };
 
   const scalarFields = [
+    'home_city',
     'preferred_budget_level',
     'default_people_type',
     'pace',

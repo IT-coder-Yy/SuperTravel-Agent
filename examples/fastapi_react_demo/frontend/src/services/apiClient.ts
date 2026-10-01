@@ -86,6 +86,47 @@ export interface SkillInfo {
     missing_env: string[];
 }
 
+export interface ActivePlanningRunInfo {
+    run_id: string;
+    trip_id: string;
+    request_id: string;
+    status: 'running' | 'retrying';
+    started_at: string;
+    updated_at: string;
+}
+
+export interface DemoCaseSummary {
+    id: string;
+    title: string;
+    summary: string;
+    days: number;
+    traveler_label: string;
+    origin: string;
+    destination: string;
+    preferences: string[];
+    recording_status: 'ready';
+    event_count: number;
+    notice: string;
+    template: {
+        origin: string;
+        destination: string;
+        days: number;
+        adults: number;
+        children: number;
+        seniors: number;
+        preferences: string[];
+    };
+}
+
+export interface ReverseGeocodeResponse {
+    city: string;
+    province: string;
+    district: string;
+    formatted_address: string;
+    coordinate_system: 'WGS84';
+    source: 'baidu_reverse_geocode';
+}
+
 export interface TravelKnowledgeChunk {
     title: string;
     source: string;
@@ -154,6 +195,15 @@ export const apiClient = {
 
     getSystemStatus: () => requestJson<SystemStatusResponse>('/api/status'),
 
+    reverseGeocode: (latitude: number, longitude: number) => requestJson<ReverseGeocodeResponse>(
+        '/api/location/reverse-geocode',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ latitude, longitude })
+        }
+    ),
+
     getTools: () => requestJson<ToolInfo[]>('/api/tools'),
 
     getMcpServers: () => requestJson<MCPServersResponse>('/api/mcp-servers'),
@@ -186,6 +236,18 @@ export const apiClient = {
     resumePlanningRun: (runId: string, lastSequence: number, signal?: AbortSignal) => fetch(
         `/api/planning-runs/${encodeURIComponent(runId)}/events?last_sequence=${Math.max(0, lastSequence)}`,
         { signal }
+    ),
+
+    getDemoCases: () => requestJson<{ cases: DemoCaseSummary[] }>('/api/demo-cases', { cache: 'no-store' }),
+
+    replayDemoCase: (caseId: string, afterSequence: number, speed: 1 | 2, finalOnly = false, signal?: AbortSignal) => fetch(
+        `/api/demo-cases/${encodeURIComponent(caseId)}/events?after_sequence=${Math.max(0, afterSequence)}&speed=${speed}&final_only=${finalOnly}`,
+        { signal, cache: 'no-store' }
+    ),
+
+    getActivePlanningRun: () => requestJson<{ active_run: ActivePlanningRunInfo | null }>(
+        '/api/planning-runs/active',
+        { cache: 'no-store' }
     ),
 
     cancelPlanningRun: (runId: string) => requestJson<{ run_id: string; status: string; cancelled: boolean }>(
