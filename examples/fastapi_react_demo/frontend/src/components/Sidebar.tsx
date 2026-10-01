@@ -178,6 +178,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
 
   return (
     <Sider
+      className="travel-sidebar"
       trigger={null}
       collapsible
       collapsed={collapsed}
@@ -191,7 +192,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
       }}
     >
       {/* 顶部标题区域 */}
-      <div style={{
+      <div className="travel-sidebar-brand" style={{
         padding: collapsed ? '16px 8px' : '20px 16px',
         textAlign: collapsed ? 'center' : 'left',
         borderBottom: '1px solid var(--travel-border-soft)',
@@ -201,8 +202,8 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
         justifyContent: 'space-between'
       }}>
         {!collapsed ? (
-          <div>
-            <div style={{
+          <div className="travel-sidebar-brand-copy">
+            <div className="travel-sidebar-wordmark" style={{
               color: 'var(--travel-ink)',
               fontSize: '16px',
               fontWeight: 600,
@@ -210,7 +211,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
             }}>
               SuperTravelAgent
             </div>
-            <div style={{
+            <div className="travel-sidebar-tagline" style={{
               color: 'var(--travel-muted)',
               fontSize: '12px'
             }}>
@@ -218,7 +219,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
             </div>
           </div>
         ) : (
-          <div style={{
+          <div className="travel-sidebar-monogram" style={{
             color: 'var(--travel-primary)',
             fontSize: '20px',
             fontWeight: 700
@@ -229,6 +230,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
 
         {/* 折叠/展开按钮 */}
         <Button
+          className="travel-sidebar-toggle"
           type="text"
           icon={collapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
           onClick={onToggleCollapse}
@@ -244,7 +246,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
       </div>
 
       {/* 菜单区域 */}
-      <div style={{ padding: '0 12px', marginBottom: '16px', flexShrink: 0 }}>
+      <div className="travel-sidebar-primary" style={{ padding: '0 12px', marginBottom: '16px', flexShrink: 0 }}>
         <Menu
           mode="inline"
           selectedKeys={[location.pathname]}
@@ -260,7 +262,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
       </div>
 
       {!collapsed && (
-        <div style={{ padding: '0 12px 14px', flexShrink: 0 }}>
+        <div className="travel-sidebar-search" style={{ padding: '0 12px 14px', flexShrink: 0 }}>
           <Input
             allowClear
             size="middle"
@@ -275,7 +277,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
 
       {/* 对话历史区域 */}
       {!collapsed && (
-        <div style={{
+        <div className="travel-sidebar-history" style={{
           flex: 1,
           display: 'flex',
           flexDirection: 'column',
@@ -283,7 +285,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
           padding: '0 12px'
         }}>
           {/* 历史标题和操作 */}
-          <div style={{
+          <div className="travel-sidebar-history-heading" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -320,7 +322,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
           </div>
 
           {/* 历史对话列表 */}
-          <div style={{
+          <div className="travel-sidebar-history-list" style={{
             flex: 1,
             overflowY: 'auto',
             overflowX: 'hidden'
@@ -435,7 +437,7 @@ const Sidebar: React.FC<SidebarProps> = ({ collapsed, currentChatId, onChatSelec
         </div>
       )}
 
-      <div style={{
+      <div className="travel-sidebar-secondary" style={{
         flexShrink: 0,
         marginTop: 'auto',
         padding: collapsed ? '10px 8px 14px' : '12px',

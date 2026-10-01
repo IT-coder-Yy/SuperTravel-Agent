@@ -1,9 +1,7 @@
 /* index.css */
 body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
@@ -36,43 +34,67 @@ html, body, #root {
 
 /* 自定义主题色 */
 :root {
-  --travel-bg: oklch(0.955 0.04 296);
-  --travel-bg-mid: oklch(0.88 0.07 238);
-  --travel-bg-soft: oklch(0.95 0.04 188);
-  --travel-sidebar-bg: oklch(0.985 0.018 246);
-  --travel-surface: oklch(0.996 0.004 245);
-  --travel-surface-muted: oklch(0.946 0.034 238);
-  --travel-surface-warm: oklch(0.97 0.036 76);
-  --travel-hover: oklch(0.925 0.055 255);
-  --travel-selected: oklch(0.89 0.074 252);
-  --travel-selected-strong: oklch(0.83 0.098 254);
-  --travel-primary: oklch(0.5 0.16 255);
-  --travel-primary-dark: oklch(0.31 0.105 260);
-  --travel-primary-soft: oklch(0.76 0.105 250);
-  --travel-voyage: oklch(0.72 0.13 202);
-  --travel-violet: oklch(0.7 0.15 304);
-  --travel-accent: oklch(0.82 0.13 78);
-  --travel-coral: oklch(0.76 0.15 22);
-  --travel-success: oklch(0.57 0.13 154);
-  --travel-warning: oklch(0.68 0.15 68);
-  --travel-danger: oklch(0.57 0.17 28);
-  --travel-ink: oklch(0.205 0.032 244);
-  --travel-muted: oklch(0.43 0.028 242);
-  --travel-subtle: oklch(0.6 0.02 240);
-  --travel-border: oklch(0.82 0.03 229);
-  --travel-border-soft: oklch(0.9 0.02 229);
-  --travel-gradient-primary: linear-gradient(135deg, oklch(0.56 0.17 258) 0%, oklch(0.72 0.13 202) 48%, oklch(0.7 0.15 304) 100%);
-  --travel-gradient-action: linear-gradient(135deg, oklch(0.58 0.17 256) 0%, oklch(0.74 0.14 200) 52%, oklch(0.82 0.13 78) 100%);
-  --travel-gradient-soft: linear-gradient(145deg, color-mix(in oklch, var(--travel-surface) 88%, var(--travel-violet) 12%) 0%, oklch(0.946 0.034 238) 54%, color-mix(in oklch, var(--travel-surface-warm) 82%, white 18%) 100%);
-  --travel-gradient-page: radial-gradient(circle at 12% 0%, oklch(0.76 0.14 202 / 0.52), transparent 30%), radial-gradient(circle at 84% 2%, oklch(0.74 0.15 304 / 0.46), transparent 28%), radial-gradient(circle at 62% 88%, oklch(0.86 0.13 78 / 0.32), transparent 36%), linear-gradient(145deg, oklch(0.97 0.04 286) 0%, oklch(0.94 0.052 230) 48%, oklch(0.965 0.04 178) 100%);
-  --travel-gradient-glow: radial-gradient(circle at 18% 12%, color-mix(in oklch, var(--travel-voyage) 34%, transparent), transparent 31%), radial-gradient(circle at 88% 8%, color-mix(in oklch, var(--travel-violet) 34%, transparent), transparent 28%), radial-gradient(circle at 72% 88%, color-mix(in oklch, var(--travel-accent) 22%, transparent), transparent 32%);
-  --travel-card-shadow: 0 8px 14px rgba(67, 76, 118, 0.10);
-  --travel-float-shadow: 0 16px 30px rgba(69, 77, 134, 0.22);
-  --travel-focus: 0 0 0 3px rgba(118, 151, 236, 0.22);
+  /* 品牌色保持蓝、紫、粉；大面积区域以低饱和底色承载，减少通用 AI 渐变感。 */
+  --travel-bg: oklch(0.975 0.018 279);
+  --travel-bg-mid: oklch(0.935 0.035 267);
+  --travel-bg-soft: oklch(0.962 0.024 318);
+  --travel-sidebar-bg: oklch(0.982 0.014 272 / 0.94);
+  --travel-surface: oklch(0.995 0.004 255);
+  --travel-surface-translucent: oklch(0.995 0.006 270 / 0.78);
+  --travel-surface-muted: oklch(0.955 0.022 274);
+  --travel-surface-warm: oklch(0.972 0.026 329);
+  --travel-hover: oklch(0.936 0.042 276);
+  --travel-selected: oklch(0.908 0.061 278);
+  --travel-selected-strong: oklch(0.854 0.088 279);
+  --travel-primary: oklch(0.52 0.165 274);
+  --travel-primary-dark: oklch(0.34 0.108 272);
+  --travel-primary-soft: oklch(0.77 0.102 278);
+  --travel-voyage: oklch(0.68 0.13 254);
+  --travel-violet: oklch(0.67 0.145 305);
+  --travel-accent: oklch(0.74 0.135 337);
+  --travel-coral: oklch(0.7 0.14 345);
+  --travel-success: #237a52;
+  --travel-warning: #8a4b00;
+  --travel-danger: #b42318;
+  --travel-ink: oklch(0.22 0.038 259);
+  --travel-muted: oklch(0.44 0.033 257);
+  --travel-subtle: oklch(0.59 0.025 258);
+  --travel-border: oklch(0.82 0.027 257);
+  --travel-border-soft: oklch(0.9 0.017 262);
+  --travel-gradient-primary: linear-gradient(132deg, oklch(0.55 0.17 272) 0%, oklch(0.65 0.145 303) 58%, oklch(0.72 0.135 337) 100%);
+  --travel-gradient-action: linear-gradient(132deg, oklch(0.54 0.17 272) 0%, oklch(0.65 0.145 303) 56%, oklch(0.73 0.135 337) 100%);
+  --travel-gradient-soft: linear-gradient(145deg, color-mix(in oklch, var(--travel-surface) 92%, var(--travel-voyage) 8%) 0%, color-mix(in oklch, var(--travel-surface) 90%, var(--travel-violet) 10%) 52%, color-mix(in oklch, var(--travel-surface) 92%, var(--travel-accent) 8%) 100%);
+  --travel-gradient-page: radial-gradient(circle at 18% 0%, oklch(0.77 0.105 254 / 0.22), transparent 32%), radial-gradient(circle at 82% 0%, oklch(0.75 0.115 306 / 0.18), transparent 30%), radial-gradient(circle at 68% 100%, oklch(0.8 0.1 337 / 0.14), transparent 38%), linear-gradient(150deg, oklch(0.978 0.016 280) 0%, oklch(0.958 0.024 272) 52%, oklch(0.979 0.018 322) 100%);
+  --travel-gradient-glow: radial-gradient(circle at 16% 8%, color-mix(in oklch, var(--travel-voyage) 24%, transparent), transparent 34%), radial-gradient(circle at 86% 4%, color-mix(in oklch, var(--travel-violet) 22%, transparent), transparent 31%), radial-gradient(circle at 70% 92%, color-mix(in oklch, var(--travel-accent) 16%, transparent), transparent 34%);
+  --travel-card-shadow: 0 10px 26px rgba(57, 64, 119, 0.09);
+  --travel-float-shadow: 0 20px 50px rgba(57, 64, 119, 0.17);
+  --travel-shadow-raised: 0 12px 34px rgba(54, 62, 118, 0.12);
+  --travel-shadow-chrome: 0 18px 44px rgba(54, 62, 118, 0.16);
+  --travel-focus-color: #353b9d;
+  --travel-focus: 0 0 0 2px var(--travel-surface), 0 0 0 4px var(--travel-focus-color);
+  --travel-space-xs: 0.25rem;
+  --travel-space-sm: 0.5rem;
+  --travel-space-md: 0.75rem;
+  --travel-space-lg: 1rem;
+  --travel-space-xl: 1.5rem;
+  --travel-space-2xl: 2rem;
+  --travel-radius-sm: 0.625rem;
+  --travel-radius-md: 0.875rem;
+  --travel-radius-lg: 1.125rem;
+  --travel-radius-xl: 1.5rem;
+  --travel-text-xs: 0.75rem;
+  --travel-text-sm: 0.875rem;
+  --travel-text-base: 1rem;
+  --travel-text-lg: 1.125rem;
+  --travel-text-xl: 1.375rem;
+  --travel-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --travel-motion-fast: 160ms;
+  --travel-motion-base: 280ms;
   --primary-color: #6269d8;
-  --success-color: #2b9a68;
-  --warning-color: #c98624;
-  --error-color: #d2473d;
+  --success-color: #237a52;
+  --warning-color: #8a4b00;
+  --error-color: #b42318;
+  --travel-warning-text: #8a4b00;
   --border-color: #d2dbe7;
   --text-color: #202f3f;
   --text-color-secondary: #5f6f80;
