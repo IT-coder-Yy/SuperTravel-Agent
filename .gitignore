@@ -221,6 +221,9 @@ examples/fastapi_react_demo/frontend/.tmp/
 examples/fastapi_react_demo/frontend/vite-*.log
 examples/fastapi_react_demo/frontend/test-results/
 examples/fastapi_react_demo/frontend/playwright-report/
+.codex-run/
+**/.codex-run/
+**/.test-temp/
 
 # ===================================================
 # Project-specific: 编辑器 / AI 工具配置
@@ -234,3 +237,22 @@ examples/fastapi_react_demo/frontend/playwright-report/
 PowerPaint/
 mcp_servers/xhs-mcp/.venv/
 mcp_servers/xhs-mcp/xhs_mcp.egg-info/
+
+# Local recordings, acceptance evidence and temporary build/test outputs
+/output/
+/tmp/
+/test-results/
+*.tsbuildinfo
+/examples/fastapi_react_demo/frontend/vite.config.js
+/examples/fastapi_react_demo/frontend/vite.config.d.ts
+/examples/fastapi_react_demo/frontend/e2e/qa-*.spec.ts
+.env.*
+!.env.example
+
+# Internal implementation plans, research, acceptance and interview notes
+/docs/P[0-9]*_*.md
+/docs/QA_*.md
+/docs/TRAVEL_AGENT_REFACTOR_STAGE_*.md
+/docs/TRAVEL_AGENT_TARGET_PRODUCT_DESIGN_DECISIONS_CN.md
+/docs/TRAVEL_AGENT_FINAL_PRODUCT_BRIEF_CN.md
+/docs/PITRAVEL_REFERENCE_PRODUCT_RESEARCH_CN.md
