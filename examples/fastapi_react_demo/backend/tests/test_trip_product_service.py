@@ -10,6 +10,10 @@ for path in (BACKEND_ROOT, PROJECT_ROOT):
         sys.path.append(str(path))
 
 from services.destination_catalog_service import (
+    DESTINATION_APPROXIMATE_CENTERS,
+    DOMESTIC_CLASSICS,
+    INTERNATIONAL_DESTINATIONS,
+    approximate_coordinates_for_place,
     canonical_destination,
     classic_places_for_city,
     domestic_city_names,
@@ -58,11 +62,28 @@ class TripProductServiceTests(unittest.TestCase):
 
     def test_destination_catalog_covers_domestic_international_and_bad_poi(self):
         self.assertGreaterEqual(len(domestic_city_names()), 290)
+        self.assertGreaterEqual(len(DOMESTIC_CLASSICS), 45)
         self.assertEqual(canonical_destination("Plan a 3-day trip to Paris"), "巴黎")
         self.assertEqual(canonical_destination("去东京旅行"), "东京")
         self.assertTrue(classic_places_for_city("London"))
+        self.assertIn("西湖风景名胜区", dict(classic_places_for_city("杭州")))
+        self.assertIn("灵隐寺", dict(classic_places_for_city("杭州")))
+        self.assertIn("黄鹤楼", dict(classic_places_for_city("武汉")))
+        self.assertIn("武汉长江大桥", dict(classic_places_for_city("武汉")))
+        self.assertIn("岳麓山", dict(classic_places_for_city("长沙")))
+        self.assertIn("圣索菲亚教堂", dict(classic_places_for_city("哈尔滨")))
         self.assertTrue(is_invalid_poi_name("规划道路"))
         self.assertFalse(is_invalid_poi_name("西湖风景名胜区"))
+        self.assertEqual(
+            set(DESTINATION_APPROXIMATE_CENTERS),
+            set(DOMESTIC_CLASSICS) | set(INTERNATIONAL_DESTINATIONS),
+        )
+        west_lake = approximate_coordinates_for_place("杭州", "西湖风景名胜区")
+        lingyin = approximate_coordinates_for_place("杭州", "灵隐寺")
+        self.assertIsNotNone(west_lake)
+        self.assertIsNotNone(lingyin)
+        self.assertNotEqual(west_lake[:2], lingyin[:2])
+        self.assertEqual("BD09LL", west_lake[2])
 
     def test_json_and_markdown_round_trip_are_validated(self):
         normalized = import_trip_document("json", _document())

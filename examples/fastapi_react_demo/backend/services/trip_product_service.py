@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 from schemas.trip_models import TravelPlanDocumentV2, TripPlan
 from services.destination_catalog_service import (
+    INTERNATIONAL_DESTINATION_META,
     INTERNATIONAL_DESTINATIONS,
     canonical_destination,
     domestic_city_names,
@@ -17,6 +18,7 @@ from services.destination_catalog_service import (
 from services.file_service import get_output_root_path
 from services.text_sanitizer_service import sanitize_user_visible_payload
 from services.trip_plan_validator import validate_trip_plan
+from services.travel_date_service import is_flexible_date_range
 
 
 SCHEMA_VERSION = "2.0"
@@ -81,22 +83,6 @@ _BLOCKED_KEYS = {
     "tool_calls", "tool_records", "internal_context", "logs", "diagnostics",
 }
 
-INTERNATIONAL_DESTINATION_META: Dict[str, Dict[str, Any]] = {
-    "东京": {"name_en": "Tokyo", "country_code": "JP", "country": "日本", "timezone": "Asia/Tokyo", "currency": "JPY", "languages": ["日语"]},
-    "京都": {"name_en": "Kyoto", "country_code": "JP", "country": "日本", "timezone": "Asia/Tokyo", "currency": "JPY", "languages": ["日语"]},
-    "大阪": {"name_en": "Osaka", "country_code": "JP", "country": "日本", "timezone": "Asia/Tokyo", "currency": "JPY", "languages": ["日语"]},
-    "首尔": {"name_en": "Seoul", "country_code": "KR", "country": "韩国", "timezone": "Asia/Seoul", "currency": "KRW", "languages": ["韩语"]},
-    "新加坡": {"name_en": "Singapore", "country_code": "SG", "country": "新加坡", "timezone": "Asia/Singapore", "currency": "SGD", "languages": ["英语", "华语", "马来语", "泰米尔语"]},
-    "曼谷": {"name_en": "Bangkok", "country_code": "TH", "country": "泰国", "timezone": "Asia/Bangkok", "currency": "THB", "languages": ["泰语"]},
-    "吉隆坡": {"name_en": "Kuala Lumpur", "country_code": "MY", "country": "马来西亚", "timezone": "Asia/Kuala_Lumpur", "currency": "MYR", "languages": ["马来语", "英语"]},
-    "巴黎": {"name_en": "Paris", "country_code": "FR", "country": "法国", "timezone": "Europe/Paris", "currency": "EUR", "languages": ["法语"]},
-    "伦敦": {"name_en": "London", "country_code": "GB", "country": "英国", "timezone": "Europe/London", "currency": "GBP", "languages": ["英语"]},
-    "罗马": {"name_en": "Rome", "country_code": "IT", "country": "意大利", "timezone": "Europe/Rome", "currency": "EUR", "languages": ["意大利语"]},
-    "悉尼": {"name_en": "Sydney", "country_code": "AU", "country": "澳大利亚", "timezone": "Australia/Sydney", "currency": "AUD", "languages": ["英语"]},
-    "纽约": {"name_en": "New York", "country_code": "US", "country": "美国", "timezone": "America/New_York", "currency": "USD", "languages": ["英语"]},
-}
-
-
 def _strip_private(value: Any) -> Any:
     if isinstance(value, list):
         return [_strip_private(item) for item in value]
@@ -138,7 +124,22 @@ def _scope_for_destination(destination: str) -> str:
 
 def _filename(title: str, version: int) -> str:
     safe_title = re.sub(r"[\\/:*?\"<>|]+", "-", str(title or "旅行规划")).strip(" .-")
-    return f"{safe_title or '旅行规划'}-v{version}.md"
+    stem = safe_title or "旅行规划"
+    candidate = f"{stem}-v{version}.md"
+    if len(candidate.encode("utf-8")) <= 120:
+        return candidate
+    digest = hashlib.sha256(candidate.encode("utf-8")).hexdigest()[:10]
+    trailer = f"-v{version}-{digest}.md"
+    allowed = 120 - len(trailer.encode("utf-8"))
+    kept = []
+    used = 0
+    for character in stem:
+        size = len(character.encode("utf-8"))
+        if used + size > allowed:
+            break
+        kept.append(character)
+        used += size
+    return f"{''.join(kept).rstrip(' .-') or '旅行规划'}{trailer}"
 
 
 def _legacy_plan_from_v2(document: Mapping[str, Any]) -> Dict[str, Any]:
@@ -210,6 +211,7 @@ def adapt_v1_document_to_v2(document: Mapping[str, Any]) -> Dict[str, Any]:
     location_ids = [str(item.get("id")) for item in _derive_map_locations(days)]
     country = INTERNATIONAL_DESTINATIONS.get(destination, {}).get("country") if scope == "international" else "中国"
     destination_meta = INTERNATIONAL_DESTINATION_META.get(destination, {})
+    destination_currency = str(destination_meta.get("currency") or ("CNY" if scope == "domestic" else "XXX"))
     checklist = _normalize_user_items(document.get("checklist"), "checklist")
     notes = _normalize_user_items(document.get("notes"), "notes")
     validation = validate_trip_plan(plan).model_dump(mode="json")
@@ -261,8 +263,9 @@ def adapt_v1_document_to_v2(document: Mapping[str, Any]) -> Dict[str, Any]:
                 "hotel_id": place.get("poi_id") or activity.get("activity_id"),
                 "area": place.get("city") or place.get("address") or "待确认",
                 "name": hotel_name,
+                "place": dict(place),
                 "nightly_price": activity.get("estimated_cost"), "total_price": None,
-                "currency": "CNY", "rating": place.get("rating"),
+                "currency": destination_currency, "rating": place.get("rating"),
                 "reasons": [str(item) for item in activity.get("notes", []) if item],
                 "booking_url": None, "source_reference_id": hotel_source.get("reference_id") if hotel_source else None,
                 "data_type": place.get("data_type") or "reference_data", "updated_at": place.get("updated_at"),
@@ -294,7 +297,7 @@ def adapt_v1_document_to_v2(document: Mapping[str, Any]) -> Dict[str, Any]:
             "country_code": destination_meta.get("country_code") or ("CN" if scope == "domestic" else None),
             "country_name": destination_meta.get("country") or country,
             "timezone": destination_meta.get("timezone"),
-            "currency": destination_meta.get("currency") or ("CNY" if scope == "domestic" else None),
+            "currency": destination_currency,
             "languages": destination_meta.get("languages") or (["中文"] if scope == "domestic" else []),
             "themes": list(plan.intent.interests),
             "area_overview": str(destination_sources[0].get("snippet") or "") if destination_sources else None,
@@ -368,6 +371,29 @@ def _normalize_user_items(items: Any, item_type: str) -> List[Dict[str, Any]]:
     return result
 
 
+class TripDocumentValidationError(ValueError):
+    """A safe, field-level V2 validation failure for logs and planning events."""
+
+    def __init__(self, error: ValidationError):
+        self.diagnostics = []
+        for item in error.errors(include_url=False, include_input=False)[:8]:
+            message = str(item.get("msg") or "文档字段校验失败")
+            location = ".".join(str(part) for part in item.get("loc", ()))
+            if not location:
+                tokens = re.findall(r"\b[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*", message)
+                location = next((token for token in tokens if "." in token or "_" in token), "document")
+            self.diagnostics.append({
+                "location": location,
+                "type": str(item.get("type") or "validation_error"),
+                "message": message,
+            })
+        summary = "；".join(
+            f"{item['location']}: {item['message']}"
+            for item in self.diagnostics
+        )
+        super().__init__(f"旅行文档结构无效：{summary}")
+
+
 def validate_trip_document(document: Any) -> Dict[str, Any]:
     cleaned = _safe_document(document)
     try:
@@ -384,7 +410,7 @@ def validate_trip_document(document: Any) -> Dict[str, Any]:
         candidate["notes"] = _normalize_user_items(candidate.get("notes"), "notes")
         parsed = TravelPlanDocumentV2.model_validate(candidate)
     except ValidationError as exc:
-        raise ValueError("旅行文档结构无效") from exc
+        raise TripDocumentValidationError(exc) from exc
     normalized = parsed.model_dump(mode="json")
     normalized["plan"] = _legacy_plan_from_v2(normalized)
     normalized["imported_at"] = _now_iso()
@@ -417,6 +443,12 @@ def export_trip_markdown(document: Any) -> str:
         f"- 适合季节：{'、'.join(overview.get('best_seasons') or []) or '待确认'}",
         f"- 区域概览：{overview.get('area_overview') or overview.get('status_reason') or '待确认'}",
     ]
+    flexible_dates = is_flexible_date_range((normalized.get("intent") or {}).get("date_range"))
+    if flexible_dates:
+        lines.extend([
+            "",
+            "> 当前为日期待定参考方案：按第 1 天至第 N 天规划；具体日期确定后再补充往返班次、票价、余票、天气和时效性预约信息。",
+        ])
     cover = overview.get("cover_image") if isinstance(overview.get("cover_image"), Mapping) else None
     if cover:
         lines.extend(["", f"![{cover.get('alt') or overview.get('name_zh')}]({cover.get('url')})", "",
@@ -436,14 +468,20 @@ def export_trip_markdown(document: Any) -> str:
             )
             lines.append(f"  - 来源：{option.get('source_reference_id') or '暂无可靠来源'}；查询时间：{option.get('queried_at') or '待确认'}")
 
-    append_transport("## 2. 出发地到目的地的车票", normalized["outbound_transport"])
+    if not flexible_dates:
+        append_transport("## 2. 出发地到目的地的车票", normalized["outbound_transport"])
 
     hotels = normalized["hotel_recommendations"]
     lines.extend(["", "## 3. 酒店推荐", ""])
     if not hotels.get("recommendations"):
         lines.append(f"- {hotels.get('status_reason') or '待确认'}")
     for hotel in hotels.get("recommendations", []):
-        lines.append(f"- {hotel.get('name') or '待确认'}（{hotel.get('area') or '区域待确认'}）：每晚 {_money(hotel.get('nightly_price'), hotel.get('currency') or 'CNY')}，评分 {hotel.get('rating') or '待确认'}")
+        hotel_summary = f"- {hotel.get('name') or '待确认'}（{hotel.get('area') or '区域待确认'}）"
+        if not flexible_dates:
+            hotel_summary += f"：每晚 {_money(hotel.get('nightly_price'), hotel.get('currency') or 'CNY')}，评分 {hotel.get('rating') or '待确认'}"
+        elif hotel.get("reasons"):
+            hotel_summary += f"：{'；'.join(str(item) for item in hotel.get('reasons') if item)}"
+        lines.append(hotel_summary)
         lines.append(f"  - 来源：{hotel.get('source_reference_id') or '暂无可靠来源'}；更新：{hotel.get('updated_at') or '待确认'}")
 
     lines.extend(["", "## 4. 日程规划（景点与美食）", ""])
@@ -485,13 +523,16 @@ def export_trip_markdown(document: Any) -> str:
         lines.extend(["", "### 便签", ""])
         lines.extend(f"- {item['content']}" for item in notes)
 
-    append_transport("## 5. 目的地返回出发地的车票", normalized["return_transport"])
+    if not flexible_dates:
+        append_transport("## 5. 目的地返回出发地的车票", normalized["return_transport"])
 
     reminders = normalized["friendly_reminders"]
     lines.extend(["", "## 6. 友情提醒", ""])
     if not reminders.get("items"):
         lines.append(f"- {reminders.get('status_reason') or '待确认'}")
     for item in reminders.get("items", []):
+        if flexible_dates and item.get("category") in {"reservation", "weather"}:
+            continue
         lines.append(f"- [{item.get('category') or 'other'}] {item.get('content')}")
         lines.append(f"  - 来源：{item.get('source_reference_id') or '暂无可靠来源'}；更新：{item.get('updated_at') or '待确认'}")
 
