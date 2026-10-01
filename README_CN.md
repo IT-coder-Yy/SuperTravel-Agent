@@ -1,6 +1,15 @@
 <h1 align="center">SuperTravelAgent</h1>
 
 <p align="center">
+  <a href="https://github.com/IT-coder-Yy/SuperTravel-Agent"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github&amp;style=flat-square" alt="GitHub repository"></a>
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white&amp;style=flat-square" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&amp;logoColor=white&amp;style=flat-square" alt="FastAPI backend">
+  <img src="https://img.shields.io/badge/React-18-149ECA?logo=react&amp;logoColor=white&amp;style=flat-square" alt="React 18">
+  <img src="https://img.shields.io/badge/TypeScript-Frontend-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript frontend">
+  <a href="https://github.com/IT-coder-Yy/SuperTravel-Agent/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/IT-coder-Yy/SuperTravel-Agent/docs.yml?branch=main&amp;label=Docs%20CI&amp;style=flat-square" alt="Documentation CI"></a>
+</p>
+
+<p align="center">
   <strong>规划一趟旅行，在地图上查看路线，调整每一天。</strong><br>
   基于 FastAPI、React 和 TypeScript 的多 Agent 旅行规划应用。
 </p>
@@ -12,8 +21,6 @@
 ## 预览
 
 ![SuperTravelAgent：行程与地图工作台](assets/preview/supertravelagent-preview.gif)
-
-[下载完整录屏（MP4，44 秒）](https://github.com/IT-coder-Yy/SuperTravel-Agent/raw/refs/heads/main/assets/preview/supertravelagent-preview.mp4)
 
 2026 年 10 月 2 日录制于实际运行的应用：回放内置杭州案例，在地图旁查看三天日程，浏览准备清单和提醒，再将案例转为新旅程模板。视频展示脱敏案例回放，不发起新的模型规划，案例中的信息不代表当前价格或库存。
 

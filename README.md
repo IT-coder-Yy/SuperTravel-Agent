@@ -1,19 +1,26 @@
 <h1 align="center">SuperTravelAgent</h1>
 
 <p align="center">
+  <a href="https://github.com/IT-coder-Yy/SuperTravel-Agent"><img src="https://img.shields.io/badge/GitHub-Repository-181717?logo=github&amp;style=flat-square" alt="GitHub repository"></a>
+  <img src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&amp;logoColor=white&amp;style=flat-square" alt="Python 3.10+">
+  <img src="https://img.shields.io/badge/FastAPI-Backend-009688?logo=fastapi&amp;logoColor=white&amp;style=flat-square" alt="FastAPI backend">
+  <img src="https://img.shields.io/badge/React-18-149ECA?logo=react&amp;logoColor=white&amp;style=flat-square" alt="React 18">
+  <img src="https://img.shields.io/badge/TypeScript-Frontend-3178C6?logo=typescript&amp;logoColor=white&amp;style=flat-square" alt="TypeScript frontend">
+  <a href="https://github.com/IT-coder-Yy/SuperTravel-Agent/actions/workflows/docs.yml"><img src="https://img.shields.io/github/actions/workflow/status/IT-coder-Yy/SuperTravel-Agent/docs.yml?branch=main&amp;label=Docs%20CI&amp;style=flat-square" alt="Documentation CI"></a>
+</p>
+
+<p align="center">
   <strong>Plan a trip, explore the map, and refine every day.</strong><br>
   A multi-agent travel planner built with FastAPI, React and TypeScript.
 </p>
 
 <p align="center">
-  <strong>English</strong> · <a href="README_CN.md">Simplified Chinese</a>
+  <strong>English</strong> · <a href="README_CN.md">简体中文</a>
 </p>
 
 ## Preview
 
 ![SuperTravelAgent: itinerary and map workspace](assets/preview/supertravelagent-preview.gif)
-
-[Download the full recording (MP4, 44 seconds)](https://github.com/IT-coder-Yy/SuperTravel-Agent/raw/refs/heads/main/assets/preview/supertravelagent-preview.mp4)
 
 Recorded from the running application on October 2, 2026: replay the built-in Hangzhou case, browse three days alongside the map, review the checklist and alerts, and use the case as a template. This sanitized case replay does not request a new model-generated plan or represent current prices and availability.
 
