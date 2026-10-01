@@ -36,7 +36,7 @@ class ClarificationServiceTests(unittest.TestCase):
         self.assertEqual(questions[0].field, "origin")
 
     def test_profile_default_is_offered_as_actual_value_instead_of_silently_applied(self):
-        query = "下周从上海出发，帮我规划杭州三日游"
+        query = "2026年8月15日至17日从上海出发，帮我规划杭州三日游"
         intent = extract_trip_intent(query)
 
         questions = build_clarification_questions(
@@ -54,7 +54,7 @@ class ClarificationServiceTests(unittest.TestCase):
         self.assertEqual(questions[0].skip_value, "__skip__")
 
     def test_synonymous_fields_count_once_and_are_not_reasked(self):
-        query = "下周从上海出发，帮我规划北京三日游"
+        query = "2026年8月15日至17日从上海出发，帮我规划北京三日游"
         intent = extract_trip_intent(query)
 
         questions = build_clarification_questions(
@@ -121,7 +121,7 @@ class ClarificationServiceTests(unittest.TestCase):
         self.assertNotIn(questions[0].field, {"destination", "days", "pace"})
 
     def test_does_not_repeat_fields_already_stated_by_user(self):
-        query = "我在上海，下周帮我规划北京3天2夜特种兵之旅，和朋友两个人，人均2000"
+        query = "我在上海，2026年8月15日至17日帮我规划北京3天2夜特种兵之旅，和朋友两个人，人均2000"
         intent = extract_trip_intent(query)
 
         questions = build_clarification_questions(query, intent)
@@ -153,13 +153,51 @@ class ClarificationServiceTests(unittest.TestCase):
         self.assertNotIn("budget_total", fields)
         self.assertNotIn("people_type", fields)
 
-    def test_complete_request_needs_no_clarification(self):
+    def test_relative_date_is_replaced_by_a_concrete_date_question(self):
         query = "下周从上海出发，帮我规划北京3天2夜特种兵之旅，和朋友两个人，人均2000"
         intent = extract_trip_intent(query)
 
         questions = build_clarification_questions(query, intent)
 
+        self.assertEqual(questions[0].field, "date_range")
+        self.assertFalse(questions[0].allow_skip)
+        self.assertEqual(questions[0].options[-1], "日期暂未确定")
+
+    def test_complete_request_with_exact_dates_needs_no_clarification(self):
+        query = "2026年8月15日至17日从上海出发，帮我规划北京3天2夜特种兵之旅，和朋友两个人，人均2000"
+        intent = extract_trip_intent(query)
+
+        questions = build_clarification_questions(query, intent)
+
+        self.assertEqual(intent.date_range, "2026-08-15 至 2026-08-17")
+        self.assertEqual(intent.days, 3)
         self.assertEqual(questions, [])
+
+    def test_bare_missing_budget_statement_still_requires_budget_clarification(self):
+        query = "2026年8月15日至17日从上海出发，帮我规划杭州三日游，和朋友两个人，预算还没写"
+        intent = extract_trip_intent(query)
+
+        questions = build_clarification_questions(query, intent)
+
+        self.assertEqual([question.field for question in questions], ["budget_total"])
+
+    def test_reported_plain_request_clarifies_missing_budget(self):
+        query = "我想从北京去南京玩三天，2026年9月20日至22日，两位成人，喜欢人文历史。"
+        intent = extract_trip_intent(query)
+
+        questions = build_clarification_questions(query, intent)
+
+        self.assertEqual(intent.origin, "北京")
+        self.assertEqual([question.field for question in questions], ["budget_total"])
+
+    def test_reported_food_trip_clarifies_duration_before_date(self):
+        query = "我想从上海去苏州旅行，两位成人，总预算3000元，喜欢园林和美食。"
+        intent = extract_trip_intent(query)
+
+        questions = build_clarification_questions(query, intent)
+
+        self.assertEqual(intent.origin, "上海")
+        self.assertEqual([question.field for question in questions], ["days"])
 
 
 if __name__ == "__main__":

@@ -3,7 +3,12 @@ from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from schemas.trip_models import ClarificationQuestion, TripIntent, UserTravelProfile
 from services.destination_catalog_service import canonical_destination, domestic_city_names, INTERNATIONAL_DESTINATIONS
-from services.travel_date_service import canonicalize_explicit_date_range
+from services.travel_date_service import (
+    canonicalize_explicit_date_range,
+    canonicalize_planning_date_range,
+    FLEXIBLE_DATE_RANGE_VALUE,
+    is_flexible_date_range,
+)
 
 
 CITY_NAMES = [
@@ -16,9 +21,14 @@ CITY_NAMES = [
 CITY_NAMES = sorted(set(CITY_NAMES + domestic_city_names() + list(INTERNATIONAL_DESTINATIONS)), key=len, reverse=True)
 
 TRIP_PLANNING_PATTERN = re.compile(
-    r"(规划|安排|制定|做一份|帮我|行程|攻略|路线|几日游|一日游|二日游|两日游|三日游|四日游|五日游|周末游|自由行|旅游|旅行|出游|游玩)"
+    r"(规划|安排|制定|做一份|帮我|行程|攻略|路线|几日游|一日游|二日游|两日游|三日游|四日游|五日游|"
+    r"周末游|自由行|旅游|旅行|出游|游玩|(?:去|到|前往).{0,16}玩\s*[0-9一二两三四五六七八九十]{1,3}\s*(?:天|日|晚))"
 )
 NON_ITINERARY_PATTERN = re.compile(r"(酒店|住宿|美食|餐厅|门票|车票|火车|高铁|航班|机票|天气|签证)")
+STRONG_ITINERARY_PATTERN = re.compile(
+    r"(规划|制定|行程|攻略|路线|几日游|一日游|二日游|两日游|三日游|四日游|五日游|周末游|自由行|"
+    r"旅游|旅行|出游|游玩|(?:去|到|前往).{0,16}玩\s*[0-9一二两三四五六七八九十]{1,3}\s*(?:天|日|晚))"
+)
 
 CHINESE_NUMBERS = {
     "一": 1,
@@ -71,12 +81,24 @@ def is_trip_planning_query(query: str) -> bool:
         return False
     if not TRIP_PLANNING_PATTERN.search(text):
         return False
-    if NON_ITINERARY_PATTERN.search(text) and not re.search(r"(行程|规划|路线|几日游|自由行)", text):
+    if NON_ITINERARY_PATTERN.search(text) and not STRONG_ITINERARY_PATTERN.search(text):
         return False
     return True
 
 
 def _extract_destination(query: str) -> Optional[str]:
+    direct_route = _extract_named_route(query)
+    if direct_route:
+        return direct_route[1]
+    route_match = re.search(
+        r"从[\u4e00-\u9fff]{2,12}?(?:出发)?(?:去|到|前往)([\u4e00-\u9fff]{2,8}?)(?=玩|旅|游|行程|攻略|路线|，|,|。|\s|$)",
+        query,
+    )
+    if route_match:
+        route_destination = route_match.group(1)
+        for city in sorted(CITY_NAMES, key=len, reverse=True):
+            if city in route_destination:
+                return city
     destination_text = re.sub(
         r"(?:从[一-鿿A-Za-z\s]{2,30}出发|我在[一-鿿A-Za-z\s]{2,30}(?=[，,。\s]))",
         " ",
@@ -104,8 +126,18 @@ def _extract_destination(query: str) -> Optional[str]:
     return None
 
 
+def _extract_named_route(query: str) -> Optional[Tuple[str, str]]:
+    cities = "|".join(re.escape(city) for city in CITY_NAMES)
+    match = re.search(rf"({cities})(?:市)?\s*(?:到|去|至|→|->)\s*({cities})(?:市)?", query)
+    return (match.group(1), match.group(2)) if match else None
+
+
 def _extract_origin(query: str) -> Optional[str]:
+    direct_route = _extract_named_route(query)
+    if direct_route:
+        return direct_route[0]
     for pattern in [
+        r"从([\u4e00-\u9fff]{2,8}?)(?:出发)?(?:去|到|前往)",
         r"从([\u4e00-\u9fff]{2,8})出发",
         r"([\u4e00-\u9fff]{2,8})出发",
         r"出发地(?:是|为|在)?([\u4e00-\u9fff]{2,8})",
@@ -128,6 +160,8 @@ def _extract_date_range(query: str) -> Optional[str]:
     text = _safe_text(query)
     if not text:
         return None
+    if is_flexible_date_range(text):
+        return FLEXIBLE_DATE_RANGE_VALUE
     explicit_range = canonicalize_explicit_date_range(text)
     if explicit_range:
         return explicit_range
@@ -144,16 +178,21 @@ def _extract_date_range(query: str) -> Optional[str]:
 
 
 def _extract_days(query: str) -> Optional[int]:
-    match = re.search(
-        r"(?<![0-9一二两三四五六七八九十月])([0-9一二两三四五六七八九十]{1,3})\s*(?:天[两二三四五六七八九十0-9]?夜|天|日|晚)",
-        query,
-    )
-    if not match:
-        return None
-    return _number_from_text(match.group(1))
+    number = r"([0-9一二两三四五六七八九十]{1,3})"
+    for pattern in (
+        rf"(?<![0-9一二两三四五六七八九十月]){number}\s*(?:天(?:[两二三四五六七八九十0-9]+夜)?|晚)",
+        rf"(?<![0-9一二两三四五六七八九十月]){number}\s*日(?=\s*[\u4e00-\u9fff]{{0,8}}(?:游|行程|旅行|之旅|攻略|安排|计划))",
+    ):
+        match = re.search(pattern, query)
+        if match:
+            return _number_from_text(match.group(1))
+    return None
 
 
 def _extract_people_count(query: str) -> Optional[int]:
+    breakdown = _extract_traveler_counts(query)
+    if breakdown:
+        return sum(breakdown.values())
     matches = re.findall(
         r"([0-9一二两三四五六七八九十]{1,3})\s*(?:(?:名|个|位)\s*)?(?:成人|儿童|孩子|老人|人)",
         query,
@@ -166,7 +205,26 @@ def _extract_people_count(query: str) -> Optional[int]:
     return _number_from_text(generic_match.group(1)) if generic_match else None
 
 
+def _extract_traveler_counts(query: str) -> Optional[Dict[str, int]]:
+    labels = {
+        "adult": r"成人",
+        "child": r"儿童|孩子",
+        "senior": r"老人|长者",
+    }
+    counts: Dict[str, int] = {}
+    for traveler_type, label in labels.items():
+        matches = re.findall(
+            rf"([0-9一二两三四五六七八九十]{{1,3}})\s*(?:(?:名|个|位)\s*)?(?:{label})",
+            query,
+        )
+        total = sum(value for value in (_number_from_text(item) for item in matches) if value is not None)
+        if matches:
+            counts[traveler_type] = total
+    return counts or None
+
+
 def _extract_people_type(query: str) -> Optional[str]:
+    traveler_counts = _extract_traveler_counts(query) or {}
     pairs = [
         ("亲子", "亲子"),
         ("孩子", "亲子"),
@@ -181,6 +239,10 @@ def _extract_people_type(query: str) -> Optional[str]:
         ("商务", "商务"),
     ]
     for keyword, value in pairs:
+        if value == "带老人" and traveler_counts.get("senior") == 0:
+            continue
+        if value == "亲子" and traveler_counts.get("child") == 0:
+            continue
         if keyword in query:
             return value
     return None
@@ -330,7 +392,7 @@ def _apply_answer_values(intent: TripIntent, answers: Dict[str, Any], *, overrid
     if "date_range" in answers and can_set("date_range"):
         raw_date_range = _safe_text(answers.get("date_range"))
         intent.date_range = (
-            canonicalize_explicit_date_range(raw_date_range)
+            canonicalize_planning_date_range(raw_date_range, intent.days)
             or raw_date_range
             or intent.date_range
         )
@@ -367,6 +429,7 @@ def merge_semantic_trip_analysis(
     intent: TripIntent,
     analysis: Optional[Dict[str, Any]],
     evidence_text: str,
+    protected_fields: Optional[Set[str]] = None,
 ) -> Tuple[TripIntent, Set[str], Optional[ClarificationQuestion]]:
     if not isinstance(analysis, dict):
         return intent, set(), None
@@ -381,8 +444,11 @@ def merge_semantic_trip_analysis(
     accepted: Dict[str, Any] = {}
     explicit_fields: Set[str] = set()
     allowed_fields = set(TripIntent.model_fields)
+    protected = set(protected_fields or set())
     for field, value in patch.items():
         if field not in allowed_fields or field == "confidence" or value in (None, "", []):
+            continue
+        if field in protected:
             continue
         quote = _safe_text(evidence.get(field))
         if not quote or quote not in source:
@@ -422,6 +488,7 @@ def extract_trip_intent(
     profile_model = _normalize_profile(profile)
     answers = _normalize_answer_map(clarification_answers)
     budget = _extract_budget(text)
+    traveler_counts = _extract_traveler_counts(text) or {}
 
     intent = TripIntent(
         origin=_extract_origin(text),
@@ -429,6 +496,9 @@ def extract_trip_intent(
         date_range=_extract_date_range(text),
         days=_extract_days(text),
         people_count=_extract_people_count(text),
+        adult_count=traveler_counts.get("adult"),
+        child_count=traveler_counts.get("child"),
+        senior_count=traveler_counts.get("senior"),
         people_type=_extract_people_type(text),
         budget_total=budget["budget_total"],
         budget_per_person=budget["budget_per_person"],
@@ -437,9 +507,10 @@ def extract_trip_intent(
     )
 
     _apply_answer_values(intent, answers)
+    normalized_date_range = canonicalize_planning_date_range(intent.date_range, intent.days)
+    if normalized_date_range:
+        intent.date_range = normalized_date_range
 
-    if not intent.people_type:
-        intent.people_type = profile_model.default_people_type
     if not intent.pace:
         intent.pace = _pace_from_any(profile_model.pace)
     if not intent.travel_style:

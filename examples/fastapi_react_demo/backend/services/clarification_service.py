@@ -3,6 +3,11 @@ from typing import Iterable, List, Optional, Set
 
 from schemas.trip_models import ClarificationQuestion, TripIntent, UserTravelProfile
 from services.trip_intent_service import is_trip_planning_query
+from services.travel_date_service import (
+    build_clarification_date_options,
+    canonicalize_explicit_date_range,
+    is_flexible_date_range,
+)
 
 
 MAX_CLARIFICATION_QUESTIONS = 4
@@ -41,10 +46,17 @@ def _mentions_people(query: str) -> bool:
 
 
 def _mentions_budget(query: str) -> bool:
+    # A bare reference such as “没写预算/预算待补充” is not a budget answer.
+    # Only concrete amounts, explicit tiers or an explicit no-limit choice may
+    # close the budget clarification gate.
     return bool(
         re.search(
-            r"(预算|人均|每人|总预算|控制在|不超过|以内|不设预算|预算不限|丰俭由人|都可以|[0-9]+(?:\.[0-9]+)?\s*(?:元|块|rmb|RMB))",
+            r"((?:人均|每人|总预算|预算|控制在|不超过|以内)\D{0,8}[0-9]+(?:\.[0-9]+)?\s*(?:元|块|rmb|RMB)?|"
+            r"[0-9]+(?:\.[0-9]+)?\s*(?:元|块|rmb|RMB)|"
+            r"不设(?:严格)?预算|预算(?:不限|无上限)|不限预算|没有预算限制|丰俭由人|"
+            r"(?:预算|消费|花费)?\s*(?:经济|省钱|性价比|标准|中等|舒适|高端|豪华)(?:型|档|水平|预算)?)",
             query,
+            re.IGNORECASE,
         )
     )
 
@@ -59,7 +71,13 @@ def _mentions_date(query: str) -> bool:
 
 
 def _mentions_origin(query: str) -> bool:
-    return bool(re.search(r"(从[\u4e00-\u9fff]{2,8}出发|[\u4e00-\u9fff]{2,8}出发|出发地|我在[\u4e00-\u9fff]{2,8}|[\u4e00-\u9fff]{2,8}本地)", query))
+    return bool(
+        re.search(
+            r"(从[\u4e00-\u9fff]{2,8}(?:出发|去|到|前往)|[\u4e00-\u9fff]{2,8}出发|"
+            r"出发地|我在[\u4e00-\u9fff]{2,8}|[\u4e00-\u9fff]{2,8}本地)",
+            query,
+        )
+    )
 
 
 def _date_range_implies_duration(value: Optional[str]) -> bool:
@@ -149,6 +167,8 @@ def _replace_with_preferred_question(
     for index, question in enumerate(questions):
         if not fields_match(question.field, preferred_question.field):
             continue
+        if canonical_clarification_field(question.field) == "date_range":
+            return questions
         options = [option for option in preferred_question.options if _safe_text(option)][:4]
         if len(options) < 2:
             options = question.options
@@ -159,6 +179,7 @@ def _replace_with_preferred_question(
             reason=_safe_text(preferred_question.reason) or question.reason,
             options=options,
             allow_custom=preferred_question.allow_custom,
+            allow_skip=question.allow_skip,
             profile_default_value=question.profile_default_value,
         )
         return [replacement, *questions[:index], *questions[index + 1 :]]
@@ -211,22 +232,6 @@ def build_clarification_questions(
         )
 
     if (
-        not intent.date_range
-        and not _mentions_date(query_text)
-        and "date_range" not in explicit
-        and not _field_is_answered(answered, "date_range")
-    ):
-        questions.append(
-            ClarificationQuestion(
-                id="q_date_range",
-                field="date_range",
-                question="大概什么时候出行？",
-                reason="日期会影响天气、开放时间、票务紧张程度和节假日拥挤度。",
-                options=["本周末", "下周", "五一/国庆假期", "日期还没定"],
-            )
-        )
-
-    if (
         not intent.days
         and not _date_range_implies_duration(intent.date_range)
         and "days" not in explicit
@@ -239,6 +244,22 @@ def build_clarification_questions(
                 question="计划玩几天？",
                 reason="天数会影响每天安排密度和是否需要近郊路线。",
                 options=["1天", "2天", "3天", "5天及以上"],
+            )
+        )
+
+    date_range_is_resolved = bool(
+        canonicalize_explicit_date_range(intent.date_range)
+        or is_flexible_date_range(intent.date_range)
+    )
+    if intent.days and not date_range_is_resolved:
+        questions.append(
+            ClarificationQuestion(
+                id="q_date_range",
+                field="date_range",
+                question=f"{intent.days}天行程，具体什么时候出发？",
+                reason="选择具体日期可查询往返交通和天气；日期暂未确定也可以先生成不含时效信息的参考方案。",
+                options=build_clarification_date_options(intent.days),
+                allow_skip=False,
             )
         )
 
@@ -272,69 +293,6 @@ def build_clarification_questions(
                 question="这次旅行大概预算是多少？",
                 reason="预算会影响酒店档位、交通方式和餐厅选择。",
                 options=budget_options,
-            )
-        )
-
-    if (
-        not _has_style(intent)
-        and not _field_is_answered(answered, "pace", "travel_style")
-        and not _field_is_answered(explicit, "pace", "travel_style")
-    ):
-        questions.append(
-            ClarificationQuestion(
-                id="q_pace",
-                field="pace",
-                question="希望旅行节奏怎样？",
-                reason="节奏会影响每天安排几个景点和通勤强度。",
-                options=["轻松休闲", "适中平衡", "尽量多玩"],
-            )
-        )
-
-    if (
-        _query_focuses_on_food(query_text)
-        and not intent.dietary_preferences
-        and not _field_is_answered(answered, "dietary_preferences")
-        and "dietary_preferences" not in explicit
-    ):
-        questions.append(
-            ClarificationQuestion(
-                id="q_dietary_preferences",
-                field="dietary_preferences",
-                question="饮食方面有什么需要优先照顾的吗？",
-                reason="美食是这次规划重点，口味和饮食限制会直接影响餐厅选择。",
-                options=["没有特别限制", "少辣/清淡", "素食", "清真"],
-            )
-        )
-
-    if (
-        _query_focuses_on_hotel(query_text)
-        and not intent.hotel_preference
-        and not _field_is_answered(answered, "hotel_preference")
-        and "hotel_preference" not in explicit
-    ):
-        questions.append(
-            ClarificationQuestion(
-                id="q_hotel_preference",
-                field="hotel_preference",
-                question="住宿最看重哪一点？",
-                reason="住宿位置和档位会影响每天路线、通勤和整体预算。",
-                options=["交通方便", "靠近核心景点", "安静舒适", "性价比优先"],
-            )
-        )
-
-    if (
-        _query_focuses_on_transport(query_text)
-        and not intent.transport_preference
-        and not _field_is_answered(answered, "transport_preference")
-        and "transport_preference" not in explicit
-    ):
-        questions.append(
-            ClarificationQuestion(
-                id="q_transport_preference",
-                field="transport_preference",
-                question="行程内更偏好哪种交通方式？",
-                reason="交通偏好会改变景点组合、通勤时间和预算分配。",
-                options=["公共交通优先", "打车优先", "自驾", "都可以"],
             )
         )
 
