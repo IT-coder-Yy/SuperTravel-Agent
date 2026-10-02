@@ -51,6 +51,21 @@ describe('真实 Leaflet 视口恢复', () => {
     expect(map.getCenter()).toEqual(L.latLng(35.7155, 139.7745));
   });
 
+  it('C1 桌面拟合为行程卡和输入框留出空间，选中点仍可见', () => {
+    const { map, container } = createMap(1200, 800);
+    container.classList.add('c1-workbench');
+    syncLeafletViewport(map, tokyo);
+    for (const point of tokyo) {
+      const position = map.latLngToContainerPoint([point.lat, point.lng]);
+      expect(position.x).toBeGreaterThan(330);
+      expect(position.y).toBeLessThan(620);
+    }
+    syncLeafletViewport(map, tokyo, 'ueno');
+    const selected = map.latLngToContainerPoint([tokyo[1].lat, tokyo[1].lng]);
+    expect(selected.x).toBeGreaterThan(330);
+    expect(selected.x).toBeLessThan(1100);
+  });
+
   it('隐藏地图选中东京地点，展开和连续尺寸更新后仍在选中地点', async () => {
     const { map, container } = createMap(0, 0);
     expect(syncLeafletViewport(map, tokyo, 'ueno')).toBe(false);
