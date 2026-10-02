@@ -3,6 +3,7 @@ import importlib.util
 import sys
 import unittest
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import patch, AsyncMock
 
@@ -459,7 +460,9 @@ class MainRouteContractTests(unittest.IsolatedAsyncioTestCase):
         fake_tool_manager = object()
         fake_controller = object()
 
-        with patch.object(
+        with TemporaryDirectory() as directory, patch.object(
+            self.main, "default_trip_database_path", return_value=Path(directory) / "trips.sqlite3",
+        ), patch.object(
             self.main,
             "initialize_runtime_with_boundary",
             AsyncMock(return_value=(fake_tool_manager, fake_controller)),
