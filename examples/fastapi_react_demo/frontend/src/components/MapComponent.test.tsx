@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
     flyToBounds: vi.fn(),
     fitBounds: vi.fn(),
     stop: vi.fn(),
-    getContainer: vi.fn(() => ({ clientWidth: 400, clientHeight: 300 })),
+    getContainer: vi.fn(() => ({ closest: () => null, clientWidth: 400, clientHeight: 300 })),
     invalidateSize: vi.fn(),
     removeLayer: vi.fn(),
     setView: vi.fn(),
@@ -77,7 +77,12 @@ vi.mock('react-leaflet', async () => {
   };
 });
 
-import MapComponent, { orderMapLocations, type LocationGroup, type LocationPoint } from './MapComponent';
+import ActualMapComponent, { orderMapLocations, type LocationGroup, type LocationPoint } from './MapComponent';
+
+// 本组验证无浏览器凭证时的 Leaflet 路径，不读取开发机的地图账号。
+const MapComponent = (props: React.ComponentProps<typeof ActualMapComponent>) => (
+  <ActualMapComponent baiduMapApiKey="" {...props} />
+);
 
 const locations: LocationPoint[] = [
   { id: 'west-lake', name: '西湖', lat: 30.25, lng: 120.15, category: '景点' },
@@ -97,14 +102,15 @@ describe('MapComponent', () => {
   });
 
   beforeEach(() => {
+    vi.stubEnv('VITE_BAIDU_MAP_AK', '');
     vi.clearAllMocks();
     mocks.markerOpenPopups.clear();
     mocks.polyline.mockImplementation(() => ({ addTo: vi.fn().mockReturnThis() }));
-    mocks.map.getContainer.mockImplementation(() => ({ clientWidth: 400, clientHeight: 300 }));
+    mocks.map.getContainer.mockImplementation(() => ({ closest: () => null, clientWidth: 400, clientHeight: 300 }));
   });
 
   it('移动端隐藏地图不启动飞行动画，展开后重新展示选中地点', async () => {
-    const container = { clientWidth: 0, clientHeight: 0 };
+    const container = { closest: () => null, clientWidth: 0, clientHeight: 0 };
     mocks.map.getContainer.mockReturnValue(container);
     let notifyResize: () => void = () => {};
     vi.stubGlobal('ResizeObserver', class {

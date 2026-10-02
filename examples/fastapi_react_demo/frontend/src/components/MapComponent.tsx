@@ -203,7 +203,8 @@ const MapViewportSync: React.FC<{
   selectedLocationId?: string;
   zoom: number;
   markerRefs: React.MutableRefObject<Record<string, L.Marker>>;
-}> = ({ locations, selectedLocationId, zoom, markerRefs }) => {
+  showPopups: boolean;
+}> = ({ locations, selectedLocationId, zoom, markerRefs, showPopups }) => {
   const map = useMap();
   const pendingPopup = useRef<string | null>(null);
   const openPendingPopup = () => {
@@ -215,13 +216,13 @@ const MapViewportSync: React.FC<{
     }
   };
   useEffect(() => {
-    pendingPopup.current = selectedLocationId || null;
+    pendingPopup.current = showPopups ? selectedLocationId || null : null;
     let popupFrame: number | undefined;
     const sync = () => {
       if (!syncLeafletViewport(map, locations, selectedLocationId)) return;
       if (popupFrame !== undefined) cancelAnimationFrame(popupFrame);
       // React Leaflet 在兄弟组件的 effect 中绑定 Popup，等待本轮提交完成后再打开。
-      if (selectedLocationId) popupFrame = requestAnimationFrame(openPendingPopup);
+      if (selectedLocationId && showPopups) popupFrame = requestAnimationFrame(openPendingPopup);
       else map.closePopup();
     };
     sync();
@@ -232,7 +233,7 @@ const MapViewportSync: React.FC<{
       if (popupFrame !== undefined) cancelAnimationFrame(popupFrame);
       // MapContainer 卸载时负责停止动画；此处的清理可能晚于 map.remove()。
     };
-  }, [map, locations, selectedLocationId, markerRefs]);
+  }, [map, locations, selectedLocationId, markerRefs, showPopups]);
   useEffect(() => {
     // 聚合展开后只补开未挂载的弹窗，不重置用户手动选择的缩放级别。
     if (!pendingPopup.current) return;
@@ -256,6 +257,7 @@ export interface MapComponentProps {
   activeGroupId?: string;
   selectedLocationId?: string;
   baiduMapApiKey?: string;
+  showPopups?: boolean;
   onSelectLocation: (locationId: string) => void;
   dayRoutes?: DayRouteGeometry[];
 }
@@ -308,6 +310,7 @@ const areMapPropsEqual = (prev: MapComponentProps, next: MapComponentProps) => {
     prev.activeGroupId === next.activeGroupId &&
     prev.selectedLocationId === next.selectedLocationId &&
     prev.baiduMapApiKey === next.baiduMapApiKey &&
+    prev.showPopups === next.showPopups &&
     prev.onSelectLocation === next.onSelectLocation &&
     JSON.stringify(prev.dayRoutes || []) === JSON.stringify(next.dayRoutes || []) &&
     areLocationArraysEqual(prev.locations || [], next.locations || []) &&
@@ -368,6 +371,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
   baiduMapApiKey,
   onSelectLocation,
   dayRoutes = [],
+  showPopups = true,
 }) => {
   const [tileProviderIndex, setTileProviderIndex] = useState(0);
   const [mapZoom, setMapZoom] = useState(16);
@@ -440,11 +444,13 @@ const MapComponent: React.FC<MapComponentProps> = ({
   const baiduBrowserKey = String(
     baiduMapApiKey !== undefined ? baiduMapApiKey : (frontendEnv?.VITE_BAIDU_MAP_AK || '')
   ).trim();
-  if (hasDomesticRoute && baiduBrowserKey) {
+  if (baiduBrowserKey) {
     return <BaiduMapAdapter
       apiKey={baiduBrowserKey}
       locations={locations}
-      routes={domesticRoutes}
+      routes={normalizedDayRoutes}
+      coordinateSystem={hasDomesticRoute ? 'BD09LL' : 'WGS84'}
+      showPopups={showPopups}
       selectedLocationId={selectedLocationId}
       onSelectLocation={onSelectLocation}
     />;
@@ -531,7 +537,7 @@ const MapComponent: React.FC<MapComponentProps> = ({
           style={{ width: '100%', height: '100%' }}
           ref={mapRef}
         >
-          <MapViewportSync locations={locations} selectedLocationId={selectedLocationId} zoom={mapZoom} markerRefs={markerRefs} />
+          <MapViewportSync locations={locations} selectedLocationId={selectedLocationId} zoom={mapZoom} markerRefs={markerRefs} showPopups={showPopups} />
           <MapZoomObserver onZoomChange={setMapZoom} />
           <TileLayer
             key={currentTileProvider.id}
@@ -593,9 +599,9 @@ const MapComponent: React.FC<MapComponentProps> = ({
                   click: () => onSelectLocation(location.id),
                 }}
               >
-                <Popup minWidth={260} maxWidth={300}>
+                {showPopups && <Popup minWidth={260} maxWidth={300}>
                   <MapLocationQuickView location={location} onClose={() => onSelectLocation('')} />
-                </Popup>
+                </Popup>}
               </Marker>
             );
           })}

@@ -12,6 +12,7 @@ it('恢复与编辑地点时复用地图，延迟加载的标记不会访问已�
     enableScrollWheelZoom = vi.fn();
     setViewport = vi.fn();
     centerAndZoom = vi.fn();
+    setMapStyleV2 = vi.fn();
     getZoom = () => 16;
     addEventListener = vi.fn();
     removeEventListener = vi.fn();
@@ -33,7 +34,8 @@ it('恢复与编辑地点时复用地图，延迟加载的标记不会访问已�
   const onSelectLocation = vi.fn();
   const view = render(<BaiduMapAdapter apiKey="test" locations={[first]} routes={[]} onSelectLocation={onSelectLocation} />);
   await waitFor(() => expect(maps[0]?.addOverlay).toHaveBeenCalledOnce());
-  const oldZoomListener = maps[0].addEventListener.mock.calls[0][1];
+  expect(maps[0].setMapStyleV2).toHaveBeenCalled();
+  const oldZoomListener = maps[0].addEventListener.mock.calls.find(([event]: string[]) => event === 'zoomend')[1];
   view.rerender(<BaiduMapAdapter apiKey="test" locations={[first, second]} routes={[]} onSelectLocation={onSelectLocation} />);
   await waitFor(() => expect(maps[0].addOverlay).toHaveBeenCalledTimes(3));
   expect(maps).toHaveLength(1);

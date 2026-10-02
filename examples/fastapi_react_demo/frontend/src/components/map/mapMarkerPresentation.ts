@@ -26,7 +26,7 @@ export interface MapLocationMarker {
 
 export type MapMarkerDisplayItem = MapLocationCluster | MapLocationMarker;
 
-const DAY_COLORS = ['#4f46e5', '#0f766e', '#c2410c', '#7c3aed', '#be123c'];
+const DAY_COLORS = ['#245e56', '#3567cb', '#936337', '#536c4e', '#805d77'];
 
 const categoryIcon = (category: string) => {
   const normalized = category.toLocaleLowerCase();
@@ -44,7 +44,7 @@ export const mapDayColor = (day: MapMarkerLocation['day']): string => {
   const normalizedDay = Number(String(day ?? '').match(/\d+/)?.[0]);
   return Number.isInteger(normalizedDay) && normalizedDay > 0
     ? DAY_COLORS[(normalizedDay - 1) % DAY_COLORS.length]
-    : '#4f46e5';
+    : '#245e56';
 };
 
 export const mapCategoryGlyph = (category?: string): string => categoryIcon(category || '').glyph;

@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import MapLocationQuickView from '../MapLocationQuickView';
 import type { DayRouteGeometry, LocationPoint } from '../MapComponent';
+import { baiduRoamingStyle } from './baiduMapStyle';
+import { convertBaiduScene } from './baiduCoordinates';
 import {
   clusterMapLocations,
   escapeMapHtml,
@@ -26,6 +28,8 @@ interface Props {
   routes: DayRouteGeometry[];
   selectedLocationId?: string;
   onSelectLocation: (locationId: string) => void;
+  coordinateSystem?: 'BD09LL' | 'WGS84';
+  showPopups?: boolean;
 }
 
 let loader: Promise<void> | null = null;
@@ -99,12 +103,15 @@ const loadBaiduMap = (apiKey: string) => {
   if (loader) return loader;
   loader = new Promise<void>((resolve, reject) => {
     const callbackName = '__superTravelBaiduMapReady';
+    const timer = window.setTimeout(() => fail(new Error('BAIDU_MAP_SCRIPT_TIMEOUT')), 20000);
     const fail = (error: Error) => {
+      window.clearTimeout(timer);
       resetBaiduLoader();
       reject(error);
     };
     window[callbackName] = () => {
       if (window.BMapGL) {
+        window.clearTimeout(timer);
         resolve();
         return;
       }
@@ -120,7 +127,7 @@ const loadBaiduMap = (apiKey: string) => {
   return loader;
 };
 
-const BaiduMapAdapter: React.FC<Props> = ({ apiKey, locations, routes, selectedLocationId, onSelectLocation }) => {
+const BaiduMapCanvas: React.FC<Props> = ({ apiKey, locations, routes, selectedLocationId, onSelectLocation, showPopups = true }) => {
   const hostRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<any>(null);
   const markerRefs = useRef<Record<string, any>>({});
@@ -129,6 +136,7 @@ const BaiduMapAdapter: React.FC<Props> = ({ apiKey, locations, routes, selectedL
   const onSelectLocationRef = useRef(onSelectLocation);
   const selectedLocationIdRef = useRef(selectedLocationId);
   const [mapInstance, setMapInstance] = useState<any>(null);
+  const [baseMapReady, setBaseMapReady] = useState(false);
   const [loadFailed, setLoadFailed] = useState(false);
   const [retryToken, setRetryToken] = useState(0);
   const selected = locations.find((location) => location.id === selectedLocationId);
@@ -149,9 +157,23 @@ const BaiduMapAdapter: React.FC<Props> = ({ apiKey, locations, routes, selectedL
     let cancelled = false;
     let map: any = null;
     setLoadFailed(false);
+    setBaseMapReady(false);
     loadBaiduMap(apiKey).then(() => {
       if (cancelled || !hostRef.current || !window.BMapGL) return;
-      map = new window.BMapGL.Map(hostRef.current);
+      map = new window.BMapGL.Map(hostRef.current, {
+        enableRotate: false, enableTilt: false,
+        displayOptions: { poi: true, poiIcon: false, poiText: true, building: false, indoor: false, overlay: true },
+      });
+      map.centerAndZoom(new window.BMapGL.Point(116.404, 39.915), 11);
+      // 在 SDK 首次加载底图后应用，避免初始默认主题覆盖自定义样式。
+      const applyStyle = () => {
+        if (cancelled) return;
+        setBaseMapReady(true);
+        map.removeEventListener('tilesloaded', applyStyle);
+        map.setMapStyleV2({ styleJson: baiduRoamingStyle });
+      };
+      map.addEventListener('tilesloaded', applyStyle);
+      map.setMapStyleV2({ styleJson: baiduRoamingStyle });
       map.enableScrollWheelZoom(true);
       mapRef.current = map;
       setMapInstance(map);
@@ -176,10 +198,6 @@ const BaiduMapAdapter: React.FC<Props> = ({ apiKey, locations, routes, selectedL
     markerRefs.current = {};
     markerLabelsRef.current = {};
     markerOverlaysRef.current = [];
-    const points = locations.map((location) => new BMapGL.Point(location.lng, location.lat));
-    if (points.length > 0) map.setViewport(points, { margins: [36, 36, 36, 36] });
-    else map.centerAndZoom(new BMapGL.Point(116.4074, 39.9042), 11);
-
     const removeMarkers = () => {
       markerOverlaysRef.current.forEach((overlay) => map.removeOverlay?.(overlay));
       markerOverlaysRef.current = [];
@@ -256,13 +274,34 @@ const BaiduMapAdapter: React.FC<Props> = ({ apiKey, locations, routes, selectedL
   }, [mapInstance, locations, routes]);
 
   useEffect(() => {
-    if (!selected || !mapRef.current || !window.BMapGL) return;
-    mapRef.current.setZoom?.(16);
-    mapRef.current.panTo(new window.BMapGL.Point(selected.lng, selected.lat));
-  }, [selected, mapInstance]);
+    const host = hostRef.current;
+    if (!host || !mapInstance || mapInstance !== mapRef.current || !window.BMapGL) return;
+    const syncViewport = () => {
+      if (!host.clientWidth || !host.clientHeight || mapInstance !== mapRef.current) return;
+      const BMapGL = window.BMapGL;
+      if (selected) {
+        mapInstance.centerAndZoom(new BMapGL.Point(selected.lng, selected.lat), 16);
+      } else if (locations.length) {
+        const c1Desktop = host.closest('.c1-workbench') && window.matchMedia('(min-width: 769px)').matches;
+        mapInstance.setViewport(locations.map(({ lng, lat }) => new BMapGL.Point(lng, lat)), {
+          margins: c1Desktop ? [90, 60, 210, Math.min(370, host.clientWidth * 0.45)] : [50, 40, 90, 40],
+        });
+      }
+    };
+    syncViewport();
+    // SDK 的画布尺寸更新晚于 DOM ResizeObserver；以其 resize 事件再拟合一次。
+    mapInstance.addEventListener('resize', syncViewport);
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(syncViewport);
+    observer?.observe(host);
+    return () => {
+      observer?.disconnect();
+      if (mapInstance === mapRef.current) mapInstance.removeEventListener('resize', syncViewport);
+    };
+  }, [selected, locations, mapInstance]);
 
   return <div className="baidu-map-adapter">
     <div ref={hostRef} className="baidu-map-host" />
+    {!baseMapReady && !loadFailed && <div className="baidu-map-loading" role="status">正在载入百度底图…</div>}
     {loadFailed && <div className="map-route-unavailable" role="status">
       <span>百度地图未能加载。请确认 VITE_BAIDU_MAP_AK 为 WebGL JavaScript API 的浏览器端 AK，并在百度地图控制台放行 http://127.0.0.1:8001 与 http://localhost:8001。</span>
       <button type="button" onClick={() => { resetBaiduLoader(); setRetryToken((value) => value + 1); }}>重新加载地图</button>
@@ -270,7 +309,42 @@ const BaiduMapAdapter: React.FC<Props> = ({ apiKey, locations, routes, selectedL
     {!loadFailed && locations.length > 1 && routeStatus !== 'ready' && (
       <div className="map-route-unavailable" role="status">{routeAvailabilityMessage(routeStatus)}</div>
     )}
-    {selected && <MapLocationQuickView location={selected} onClose={() => onSelectLocation('')} />}
+    <div className="baidu-map-zoom" aria-label="地图缩放">
+      <button type="button" aria-label="放大地图" onClick={() => mapRef.current?.zoomIn()}>＋</button>
+      <button type="button" aria-label="缩小地图" onClick={() => mapRef.current?.zoomOut()}>−</button>
+    </div>
+    {showPopups && selected && <MapLocationQuickView location={selected} onClose={() => onSelectLocation('')} />}
+  </div>;
+};
+
+const BaiduMapAdapter: React.FC<Props> = (props) => {
+  const { apiKey, locations, routes, coordinateSystem = 'BD09LL' } = props;
+  const cache = useRef(new Map<string, { lng: number; lat: number }>());
+  const [scene, setScene] = useState<{
+    sourceLocations: LocationPoint[]; sourceRoutes: DayRouteGeometry[];
+    locations: LocationPoint[]; routes: DayRouteGeometry[];
+  } | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (coordinateSystem !== 'WGS84') return;
+    let cancelled = false;
+    setFailed(false);
+    loadBaiduMap(apiKey)
+      .then(() => convertBaiduScene(window.BMapGL, locations, routes, cache.current, () => cancelled))
+      .then((converted) => {
+        if (!cancelled) setScene({ ...converted, sourceLocations: locations, sourceRoutes: routes });
+      }).catch(() => { if (!cancelled) setFailed(true); });
+    return () => { cancelled = true; };
+  }, [apiKey, locations, routes, coordinateSystem, retry]);
+  if (coordinateSystem === 'BD09LL') return <BaiduMapCanvas {...props} />;
+  const ready = scene?.sourceLocations === locations && scene?.sourceRoutes === routes;
+  return <div className="baidu-map-adapter">
+    {scene && <BaiduMapCanvas {...props} locations={ready ? scene.locations : []} routes={ready ? scene.routes : []} />}
+    {(!ready || failed) && <div className="map-route-unavailable" role="status">
+      {failed ? '百度地图或坐标转换服务暂不可用，尚未显示地点。' : '正在载入百度地图…'}
+      {failed && <button type="button" onClick={() => setRetry((value) => value + 1)}>重试</button>}
+    </div>}
   </div>;
 };
 
