@@ -20,6 +20,30 @@ def _number(value: Any) -> float | None:
     return float(match.group()) if match else None
 
 
+def _ticket_price(value: Any) -> float | None:
+    # 票务接口用 0 表示未取得报价，不能把它展示或排序为免费车票。
+    price = _number(value)
+    return price if price is not None and price > 0 else None
+
+
+def _planning_option_rank(option: Mapping[str, Any], direction: str, travel_date: str) -> tuple:
+    """优先保留白天游览窗口，再在适合的班次间比较价格和耗时。"""
+    field = "arrival_time" if direction == "outbound" else "departure_time"
+    try:
+        clock = datetime.fromisoformat(str(option.get(field)))
+        minute = (clock.date() - datetime.fromisoformat(travel_date).date()).days * 1440 + clock.hour * 60 + clock.minute
+        if direction == "outbound":
+            departure = datetime.fromisoformat(str(option.get("departure_time")))
+            # 过早出发或午后抵达都会压缩可用的旅行时间。
+            penalty = max(0, 6 * 60 - departure.hour * 60 - departure.minute) + max(0, minute - 11 * 60)
+        else:
+            penalty = max(0, 19 * 60 - minute) + max(0, minute - 23 * 60)
+    except (TypeError, ValueError):
+        penalty = float("inf")
+    price = option.get("price")
+    return penalty, price is None, price if price is not None else float("inf"), option.get("duration_minutes") or float("inf")
+
+
 def _duration_minutes(value: Any) -> int | None:
     text = str(value or "")
     hours = re.search(r"(\d+)\s*(?:小时|h)", text, re.I)
@@ -115,7 +139,7 @@ def _seat_options(row: Mapping[str, Any], *, source_is_live: bool) -> list[Dict[
             continue
         seen.add(name)
         remaining_text = str(item.get("remaining_text") or item.get("remaining") or item.get("left") or "").strip()
-        price = _number(item.get("price"))
+        price = _ticket_price(item.get("price"))
         normalized.append({
             "name": name,
             "availability": _seat_availability(remaining_text),
@@ -137,7 +161,7 @@ def _options(rows: Iterable[Mapping[str, Any]], mode: str, source: str, queried_
             "departure_station": departure_station, "arrival_station": arrival_station,
             "departure_time": row.get("depart"), "arrival_time": row.get("arrive"),
             "duration_minutes": _duration_minutes(row.get("duration")), "transfers": 0,
-            "price": _number(row.get("price")), "currency": "CNY",
+            "price": _ticket_price(row.get("price")), "currency": "CNY",
             "availability": _availability(row.get("note")), "booking_url": None,
             "seat_options": _seat_options(row, source_is_live=data_type == "confirmed_live_data"),
             "source_reference_id": f"source_ticket_{direction}_{mode}",
@@ -173,9 +197,10 @@ def transport_section_from_bundle(
     options += _options(bundle.get("flight_rows") or [], "flight", str(bundle.get("flight_source") or ""), queried_at, direction)
     options = [item for item in options if str(item.get("departure_time") or "").startswith(travel_date)]
     options.sort(key=lambda item: (item.get("price") is None, item.get("price") or 0, item.get("duration_minutes") or 10**9))
+    recommended = min(options, key=lambda option: _planning_option_rank(option, direction, travel_date)) if options else None
     return {
         "direction": direction, "scope": scope, "travel_date": travel_date, "supported_modes": supported_modes,
-        "recommended_option_id": options[0]["option_id"] if options else None, "options": options,
+        "recommended_option_id": recommended["option_id"] if recommended else None, "options": options,
         "status": "ready" if options else "unavailable",
         "status_reason": None if options else (fallback_guidance or transport_query_guidance()),
         "official_query_url": official_query_url,

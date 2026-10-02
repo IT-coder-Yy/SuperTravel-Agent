@@ -658,7 +658,9 @@ def _map_transport_section(
     except ValueError:
         travel_date = None
     options: List[TransportOptionV3] = []
-    for option in legacy.options[:3]:
+    # 展示仍保留三个方案，但必须包含排期实际采用的推荐班次。
+    ranked_options = sorted(legacy.options, key=lambda option: option.option_id != legacy.recommended_option_id)
+    for option in ranked_options[:3]:
         source_ref = _map_ref(option.source_reference_id, lookup)
         status = _source_status(option.data_type)
         availability = option.availability if status == "realtime_verified" else "unknown"

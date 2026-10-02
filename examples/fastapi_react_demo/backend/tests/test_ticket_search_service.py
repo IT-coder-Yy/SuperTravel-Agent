@@ -64,3 +64,26 @@ class TicketSearchServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_planning_chooses_daytime_outbound_and_evening_return_instead_of_cheapest_night_train():
+    def row(code, departure, arrival, price):
+        return {'trip_no': code, 'route': '上海 -> 杭州', 'depart': '2026-10-10 ' + departure,
+                'arrive': '2026-10-10 ' + arrival, 'price': price, 'duration': '1小时'}
+    for direction, rows, expected in (
+        ('outbound', [row('night', '04:00', '05:00', 20), row('morning', '08:00', '09:00', 40), row('late', '18:00', '19:00', 10)], 'morning'),
+        ('return', [row('early', '01:55', '03:00', 0), row('noon', '12:00', '13:00', 20), row('evening', '20:00', '21:00', 40)], 'evening'),
+    ):
+        section = transport_section_from_bundle({'direct_rows': rows, 'direct_source': '12306'}, direction, 'domestic', '2026-10-10')
+        selected = next(item for item in section['options'] if item['option_id'] == section['recommended_option_id'])
+        assert selected['service_number'] == expected
+        assert len(section['options']) == len(rows), '原始可选班次必须保留'
+
+
+def test_zero_ticket_quote_is_unknown_for_both_option_and_seat():
+    section = transport_section_from_bundle({'direct_source': '12306', 'direct_rows': [{
+        'trip_no': 'K528', 'depart': '2026-10-10 01:55', 'arrive': '2026-10-10 03:46',
+        'price': '0.0', 'seat_options': [{'name': '硬座', 'remaining_text': '有', 'price': '¥0'}],
+    }]}, 'return', 'domestic', '2026-10-10')
+    assert section['options'][0]['price'] is None
+    assert section['options'][0]['seat_options'][0]['price'] is None

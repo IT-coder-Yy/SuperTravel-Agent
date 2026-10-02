@@ -1050,3 +1050,22 @@ class TravelPlanV3ContractTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_v3_transport_limit_keeps_recommended_option_beyond_first_three():
+    from services.ticket_search_service import transport_section_from_bundle
+    legacy = build_legacy_v2_document()
+    legacy['return_transport'] = transport_section_from_bundle({
+        'direct_source': '12306',
+        'direct_rows': [{'trip_no': f'G{index}', 'route': '杭州 -> 上海',
+                         'depart': f'2026-08-01 {hour}:00', 'arrive': f'2026-08-01 {hour}:50',
+                         'duration': '50分钟', 'price': 10 + index}
+                        for index, hour in enumerate(('13', '14', '15', '20'))],
+    }, 'return', 'domestic', '2026-08-01')
+    expected = legacy['return_transport']['recommended_option_id']
+    assert expected not in [item['option_id'] for item in legacy['return_transport']['options'][:3]]
+    document = adapt_v2_to_v3(legacy)
+    assert len(document.return_transport.options) == 3
+    assert document.return_transport.selected_option_id == expected
+    selected = next(item for item in document.return_transport.options if item.option_id == expected)
+    assert selected.departure_time.local_iso.hour == 20
