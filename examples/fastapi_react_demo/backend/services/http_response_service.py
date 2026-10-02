@@ -43,13 +43,13 @@ def get_sse_headers() -> dict:
 async def generate_heartbeat_stream(session_id: str, logger: Any = logger) -> AsyncGenerator[str, None]:
     """Emit initial SSE connected event and heartbeat events."""
     try:
-        yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\\n\\n"
+        yield f"data: {json.dumps({'type': 'connected', 'session_id': session_id})}\n\n"
         while True:
             await asyncio.sleep(30)
-            yield f"data: {json.dumps({'type': 'heartbeat'})}\\n\\n"
+            yield f"data: {json.dumps({'type': 'heartbeat'})}\n\n"
     except Exception as e:
         logger.error(f"SSE连接错误: {str(e)}")
-        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\\n\\n"
+        yield f"data: {json.dumps({'type': 'error', 'message': str(e)})}\n\n"
 
 
 def build_heartbeat_sse_response(session_id: str, logger: Any = logger, sse_headers: Optional[dict] = None) -> Any:

@@ -1,9 +1,12 @@
+import asyncio
+import json
 import importlib.util
 import sys
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from unittest.mock import AsyncMock
 
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = Path(__file__).resolve().parents[4]
@@ -117,6 +120,34 @@ class McpServiceTests(unittest.TestCase):
 
 
 class HttpResponseServiceTests(unittest.TestCase):
+    def test_heartbeat_events_use_real_sse_frame_delimiters(self):
+        async def collect():
+            stream = http_response_service.generate_heartbeat_stream("session-1")
+            with patch("services.http_response_service.asyncio.sleep", AsyncMock()):
+                frames = [await anext(stream), await anext(stream)]
+            await stream.aclose()
+            return frames
+
+        frames = asyncio.run(collect())
+        for frame in frames:
+            self.assertTrue(frame.endswith("\n\n"))
+            self.assertNotIn("\\n", frame)
+        self.assertEqual(json.loads(frames[0][6:]), {"type": "connected", "session_id": "session-1"})
+        self.assertEqual(json.loads(frames[1][6:]), {"type": "heartbeat"})
+
+    def test_heartbeat_error_is_a_parseable_sse_frame(self):
+        async def collect():
+            stream = http_response_service.generate_heartbeat_stream("session-1")
+            await anext(stream)
+            with patch("services.http_response_service.asyncio.sleep", AsyncMock(side_effect=RuntimeError("failed"))):
+                frame = await anext(stream)
+            await stream.aclose()
+            return frame
+
+        frame = asyncio.run(collect())
+        self.assertTrue(frame.endswith("\n\n"))
+        self.assertEqual(json.loads(frame[6:]), {"type": "error", "message": "failed"})
+
     def test_add_cors_headers_sets_expected_fields(self):
         response = DummyResponse()
 
