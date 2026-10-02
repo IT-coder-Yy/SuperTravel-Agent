@@ -20,9 +20,9 @@
 
 ## Preview
 
-![SuperTravelAgent: C1 Glacier White map workspace](assets/preview/supertravelagent-c1.jpg)
+![SuperTravelAgent: C1 Glacier White concept preview](assets/preview/supertravelagent-c1-concept.png)
 
-The updated C1 Glacier White workspace, with a light Baidu map, a floating daily itinerary and an AI companion input. Trip management, photos, knowledge base, profile and settings remain accessible from the navigation rail. The screenshot shows the built-in Hangzhou case replay; its example data does not represent current prices or availability.
+C1 Glacier White concept preview: an illustrated West Lake map, a floating itinerary and an AI companion input, with a quiet invitation to leave room for the journey. This design mockup uses example routes and travel information; it is not a live application screenshot.
 
 ## A trip you can explore and edit
 

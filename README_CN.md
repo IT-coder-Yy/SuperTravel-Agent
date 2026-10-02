@@ -20,9 +20,9 @@
 
 ## 预览
 
-![SuperTravelAgent：C1 冰川白地图工作台](assets/preview/supertravelagent-c1.jpg)
+![SuperTravelAgent：C1 冰川白概念预览](assets/preview/supertravelagent-c1-concept.png)
 
-更新后的 C1 冰川白工作台：百度浅色地图、浮动每日行程与 AI 旅伴输入区，常驻导航保留旅程管理、旅行照片、知识库、用户画像和设置。截图展示内置杭州案例回放，示例信息不代表当前价格或库存。
+C1 冰川白概念预览：保留蓝绿西湖地图、浮动行程与 AI 旅伴输入区，在左上角加入「在湖山之间，留一点空白。」。本图为界面设计效果图，行程与地图信息均为示意，并非实际运行截图。
 
 ## 可查看、可调整的旅行方案
 
