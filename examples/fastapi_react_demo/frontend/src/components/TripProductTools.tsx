@@ -216,6 +216,8 @@ const TripProductTools: React.FC<Props> = ({
   }, []);
 
   const documentPayload = useMemo<Record<string, any>>(() => {
+    // V3 由服务端版本化编辑维护，展示用的旧版 plan/workspace 不能反向覆盖它。
+    if (document?.schema_version === '3.0') return document;
     if (!document) return {
     schema_version: '1.0', plan: effectivePlan, budget: workspace.budget,
     sources: workspace.sources, checklist, notes,
@@ -264,7 +266,7 @@ const TripProductTools: React.FC<Props> = ({
   }, [checklist, document, effectivePlan, notes, workspace.budget, workspace.days, workspace.sources]);
 
   useEffect(() => {
-    if (!document || !onDocumentChange) return;
+    if (!document || document.schema_version === '3.0' || !onDocumentChange) return;
     const signature = JSON.stringify({
       planId: documentPayload.plan_id,
       version: documentPayload.version,

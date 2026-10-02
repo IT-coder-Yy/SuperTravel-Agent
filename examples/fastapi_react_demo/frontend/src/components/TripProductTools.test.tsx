@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TripProductTools, { buildChecklistItem, buildEffectiveTripPlan, buildTripNote } from './TripProductTools';
 
@@ -87,6 +87,24 @@ describe('TripProductTools', () => {
     expect(emitted.itinerary.days[0].activities[0].title).toBe('新版景点');
     expect(emitted.map_guidance.location_ids).toEqual(['new-poi']);
     expect(emitted.delivery.markdown_filename).toBe('杭州新版行程-v2.md');
+  });
+
+  it('does not overwrite a V3 draft with legacy workspace fields', async () => {
+    const onDocumentChange = vi.fn();
+    const emptyWorkspace = { days: [], locations: [], sources: [], budget: null, validation: null, repair: null };
+    const draft = { schema_version: '3.0', plan_id: 'v3', revision: 2, status: 'draft',
+      itinerary: { days: [] }, budget: { categories: [] }, notes: [], checklist: [] };
+    const { rerender } = render(<TripProductTools
+      plan={{ plan_id: 'v3', version: 2, trip_days: [{ day: 1, activities: [] }] }}
+      document={draft} workspace={emptyWorkspace} onDocumentChange={onDocumentChange}
+    />);
+    await act(async () => {});
+    expect(onDocumentChange).not.toHaveBeenCalled();
+    rerender(<TripProductTools plan={{ plan_id: 'v3', version: 3 }}
+      document={{ ...draft, revision: 3 }} workspace={emptyWorkspace} onDocumentChange={onDocumentChange} />);
+    await act(async () => {});
+    expect(onDocumentChange).not.toHaveBeenCalled();
+    expect(draft.itinerary).toEqual({ days: [] });
   });
 
   it('offers only the saved formal version when an unapplied draft cannot be committed', async () => {
