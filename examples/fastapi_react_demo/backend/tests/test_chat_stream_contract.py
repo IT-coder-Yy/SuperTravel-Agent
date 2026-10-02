@@ -1480,3 +1480,47 @@ class ChatStreamContractTests(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_empty_or_failed_model_output_never_reports_success():
+    async def collect(chunks):
+        frames = [frame async for frame in generate_chat_stream(
+            request_messages=[SimpleNamespace(role="user", content="hello", message_id="u1", type="normal")],
+            controller=FakeController(chunks), tool_manager=None,
+            use_deepthink=False, use_multi_agent=False, sanitize_text=lambda value: value,
+        )]
+        return [json.loads(frame.removeprefix("data: ")) for frame in frames]
+
+    for chunks in (
+        [],
+        [[{"role": "assistant", "type": "error", "content": "Connection error."}]],
+        [[{"role": "assistant", "type": "final_answer", "content": "任务执行失败"}]],
+    ):
+        events = asyncio.run(collect(chunks))
+        assert events[-2]["type"] == "error"
+        assert events[-2]["code"] == "CHAT_STREAM_FAILED"
+        assert events[-2]["retryable"] is True
+        assert events[-1]["type"] == "chat_complete"
+        assert events[-1]["finish_reason"] == "failed"
+        assert "Connection error" not in json.dumps(events)
+
+    events = asyncio.run(collect([[{"role": "assistant", "type": "final_answer", "content": "你好"}]]))
+    assert events[-1]["finish_reason"] == "completed"
+    assert all(event["type"] != "error" for event in events)
+
+
+def test_direct_executor_answer_is_visible_only_in_simplified_workflow():
+    async def collect(multi_agent):
+        return [json.loads(frame.removeprefix("data: ")) async for frame in generate_chat_stream(
+            request_messages=[SimpleNamespace(role="user", content="hello", message_id="u1", type="normal")],
+            controller=FakeController([[{"role": "assistant", "type": "do_subtask_result", "content": "你好"}]]),
+            tool_manager=None, use_deepthink=False, use_multi_agent=multi_agent,
+            sanitize_text=lambda value: value,
+        )]
+
+    direct = asyncio.run(collect(False))
+    assert any(event.get("step_type") == "final_answer" and event.get("content") == "你好" for event in direct)
+    assert direct[-1]["finish_reason"] == "completed"
+    intermediate = asyncio.run(collect(True))
+    assert all(event.get("content") != "你好" for event in intermediate)
+    assert intermediate[-1]["finish_reason"] == "failed"

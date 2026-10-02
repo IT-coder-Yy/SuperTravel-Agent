@@ -2856,3 +2856,35 @@ class ChatServiceTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_optional_image_failure_keeps_travel_data_and_uses_reference_context_once():
+    from services.chat_service import _prepare_travel_context
+    history = []
+    travel = {'destination_city': '杭州', 'map_locations': [{'name': '西湖'}], 'context_message': '旅行资料'}
+    with patch('services.chat_service.maybe_prepare_travel_experience_bundle', return_value=travel), \
+         patch('services.chat_service.maybe_prepare_destination_cover', side_effect=RuntimeError('图片不可用')):
+        result = _prepare_travel_context(
+            user_query='杭州旅行', tool_manager=object(), message_history=history, session_id='context-test',
+            selected_skill_ids=[], xhs_bundle={'context_message': '社区参考'},
+            ticket_bundle={'direct_rows': []}, allow_web_search=True,
+        )
+    assert result is travel and result['map_locations'][0]['name'] == '西湖'
+    assert [message['content'] for message in history] == ['社区参考']
+    assert history[0]['type'] == 'system_xhs_search_context'
+
+
+def test_ticket_lookup_keeps_evening_trains_beyond_provider_first_twenty():
+    from services.ticket_search_service import transport_section_from_bundle
+    provider_rows = [{'train_code': f'G{index}', 'start_time': f'{hour:02d}:{minute:02d}',
+                      'arrive_time': f'{hour + 1:02d}:{minute:02d}', 'duration': '01:00', 'price': 40}
+                     for index, (hour, minute) in enumerate([(6 + i // 4, i % 4 * 15) for i in range(20)] + [(20, 0)])]
+    def run_tool(name, messages, session_id, **kwargs):
+        limit = kwargs.get('limitedNum', 0)
+        return {'tickets': provider_rows[:limit] if limit else provider_rows}
+    manager = SimpleNamespace(get_tool=lambda name: object() if name == 'get-tickets' else None, run_tool=run_tool)
+    with patch('services.chat_service._station_query_pairs', return_value=[('杭州', '上海')]):
+        bundle = maybe_prepare_train_ticket_bundle('杭州到上海 2026-10-10 火车票', manager, [], 'evening-test')
+    section = transport_section_from_bundle(bundle, 'return', 'domestic', '2026-10-10')
+    selected = next(item for item in section['options'] if item['option_id'] == section['recommended_option_id'])
+    assert selected['departure_time'] == '2026-10-10 20:00'

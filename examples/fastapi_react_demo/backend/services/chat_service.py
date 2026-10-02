@@ -2135,20 +2135,6 @@ def _contains_ticket_table(content: str) -> bool:
     return bool(re.search(r"(飞机票信息表|火车和高铁票信息表|大巴票信息表|12306实时车票班次信息(?:总)?表)", _safe_text(content)))
 
 
-def _append_ticket_table_if_missing(content: str, markdown_table: str) -> str:
-    base = _safe_text(content)
-    table = _safe_text(markdown_table)
-
-    if not table:
-        return base
-    if _contains_ticket_table(base):
-        return base
-    if not base:
-        return table
-
-    return f"{base}\n\n{table}"
-
-
 def _content_covers_ticket_bundle(content: str, ticket_bundle: Dict[str, Any]) -> bool:
     text = _safe_text(content)
     if not text or not _contains_ticket_table(text):
@@ -3620,7 +3606,7 @@ def _meal_transport_context(
         options = section.get("options")
         if not isinstance(options, list) or not options:
             return None
-        option = options[0]
+        option = next((item for item in options if item.get("option_id") == section.get("recommended_option_id")), None)
         if not isinstance(option, dict) or option.get("data_type") != "confirmed_live_data":
             return None
         value = _safe_text(option.get(field))
@@ -5775,46 +5761,6 @@ def _build_travel_knowledge_fallback(query_text: str, kind_text: str) -> str:
     ])
 
 
-def _build_travel_reference_interpretation(
-    web_rows: List[Dict[str, str]],
-    xhs_rows: List[Dict[str, str]],
-) -> str:
-    lines: List[str] = []
-
-    useful_web_rows = [
-        row for row in web_rows
-        if isinstance(row, dict) and (_safe_text(row.get("title")) or _safe_text(row.get("snippet")))
-    ]
-    useful_xhs_rows = [
-        row for row in xhs_rows
-        if isinstance(row, dict) and (_safe_text(row.get("title")) or _safe_text(row.get("summary")))
-    ]
-
-    if useful_web_rows:
-        lines.extend(["## 检索参考解读", ""])
-        for index, row in enumerate(useful_web_rows[:4], start=1):
-            title = _safe_text(row.get("title")) or f"网页参考 {index}"
-            snippet = _safe_text(row.get("snippet")) or "该结果可作为路线、酒店或行程信息的交叉参考。"
-            lines.append(f"{index}. {title}")
-            lines.append(f"- 摘要：{snippet}")
-            lines.append(f"- 链接：{_markdown_link_cell(row.get('url'))}")
-            lines.append("")
-
-    if useful_xhs_rows:
-        lines.extend(["## 小红书参考解读", ""])
-        for index, row in enumerate(useful_xhs_rows[:4], start=1):
-            title = _safe_text(row.get("title")) or f"小红书参考 {index}"
-            summary = _safe_text(row.get("summary")) or "该笔记可作为用户体验和真实反馈参考。"
-            author = _safe_text(row.get("author"))
-            author_part = f"（作者：{author}）" if author and author != "-" else ""
-            lines.append(f"{index}. {title}{author_part}")
-            lines.append(f"- 摘要：{summary}")
-            lines.append(f"- 链接：{_markdown_link_cell(row.get('url'))}")
-            lines.append("")
-
-    return "\n".join(lines).strip()
-
-
 def _looks_like_reference_only_travel_answer(content: str) -> bool:
     text = _safe_text(content)
     if not text:
@@ -5880,52 +5826,6 @@ def _build_travel_reminder_section(query_text: str, kinds: List[str]) -> str:
             "- 以上建议用于路线和筛选参考，实时价格、库存、开放时间和预约规则请以官方或平台页面为准。",
             "- 如果有老人、儿童或大件行李，优先减少跨区通勤并选择地铁/打车更稳定的路线。",
         ])
-    return "\n".join(lines)
-
-
-def _build_travel_context_advice_section(travel_bundle: Dict[str, Any]) -> str:
-    query_text = _safe_text(travel_bundle.get("query"))
-    travel_date = _safe_text(travel_bundle.get("travel_date")) or _extract_travel_date(query_text)
-    origin_city = _safe_text(travel_bundle.get("origin_city"))
-    destination_city = _safe_text(travel_bundle.get("destination_city")) or _extract_destination_city(query_text)
-    weather_summary = _safe_text(travel_bundle.get("weather_summary"))
-    origin_error = _safe_text(travel_bundle.get("origin_error"))
-    weather_error = _safe_text(travel_bundle.get("weather_error"))
-    date_sensitive = bool(travel_bundle.get("date_sensitive", True))
-
-    lines = [
-        "## 出行基础信息",
-        "",
-        f"- 出行日期：{travel_date}",
-        f"- 默认出发地：{origin_city or '未获取到地级市定位'}",
-        f"- 目的地：{destination_city or '未识别'}",
-        "",
-        "## 交通与天气建议",
-        "",
-    ]
-
-    if not date_sensitive:
-        lines.append("- 日期暂未确定：本次只规划城际交通方式与到达逻辑，不推荐具体班次、票价或余票。")
-    elif origin_city and destination_city:
-        if origin_city == destination_city:
-            lines.append(f"- 城际交通：当前定位与目的地同为{destination_city}，优先按市内交通规划，核心景点之间建议打车、公交或步行串联。")
-        else:
-            lines.append(f"- 城际交通：默认从{origin_city}出发前往{destination_city}，优先查询高铁/动车，其次考虑长途汽车或自驾；具体班次和价格需以实时票务平台为准。")
-    elif destination_city:
-        lines.append(f"- 城际交通：未获取到出发地，暂按到达{destination_city}后的市内动线规划；补充出发城市后应重新核对车次/航班/自驾时间。")
-    else:
-        lines.append("- 城际交通：未识别目的地，需补充目的地后才能给出准确交通建议。")
-
-    if not date_sensitive:
-        lines.append("- 天气建议：未查询具体日期天气；日期确定后再补充天气和穿衣建议。")
-    elif weather_summary:
-        lines.append(f"- 天气建议：{travel_date} 前后{destination_city or '目的地'}天气参考为{weather_summary}，建议按实时预报调整衣物、雨具和室内外景点比例。")
-    else:
-        lines.append(f"- 天气建议：天气工具暂未返回可用结果（{weather_error or '原因未知'}），出发前请再次核对目的地实时天气。")
-
-    if origin_error and not origin_city:
-        lines.append(f"- 定位说明：{origin_error}；本次不会编造出发地。")
-
     return "\n".join(lines)
 
 
@@ -6222,7 +6122,8 @@ def maybe_prepare_train_ticket_bundle(
                     fromStation=candidate_from,
                     toStation=candidate_to,
                     format="json",
-                    limitedNum=20,
+                    # 供应商先按发车时间排序；只取前 20 条会丢失晚间返程。
+                    limitedNum=0,
                     sortFlag="startTime",
                 )
                 direct_payload = _unwrap_tool_output(direct_raw)
@@ -7764,11 +7665,6 @@ def _travel_bundle_to_trip_plan(travel_bundle: Dict[str, Any]) -> TripPlan:
     return plan
 
 
-def _image_provider_root(image_url: Any) -> str:
-    parsed = urlparse(_safe_text(image_url))
-    return f"https://{parsed.hostname}/" if parsed.scheme == "https" and parsed.hostname else ""
-
-
 def _normalize_image_search_candidates(payload: Any, tool_name: str) -> List[Dict[str, str]]:
     if isinstance(payload, str):
         # Parse tavily-mcp's numbered image section before the generic JSON
@@ -8447,7 +8343,7 @@ def _transport_fallback_guidance(travel_bundle: Dict[str, Any], direction: str) 
     return transport_query_guidance(origin, destination)
 
 
-def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+def _prepare_travel_plan(travel_bundle: Dict[str, Any]):
     initial_plan = _travel_bundle_to_trip_plan(travel_bundle)
     initial_validation = validate_trip_plan(initial_plan)
     repair_result = repair_trip_plan_once(initial_plan, initial_validation)
@@ -8457,7 +8353,10 @@ def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List
     final_validation = validate_trip_plan(plan)
     _ensure_estimated_route_legs(plan)
     plan.trip_days = _build_trip_days(plan, final_validation)
-    plan_payload = _public_trip_plan_payload(plan)
+    return plan, initial_validation, final_validation, repair_result
+
+
+def _document_from_travel_plan(plan, travel_bundle: Dict[str, Any]) -> Dict[str, Any]:
     document = adapt_v1_document_to_v2({
         "schema_version": "1.0", "plan": plan.model_dump(mode="json"),
         "budget": plan.budget_summary, "sources": [item.model_dump(mode="json") for item in plan.source_references],
@@ -8614,24 +8513,13 @@ def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List
             item["reasons"] = reasons
             item["source_reference_ids"] = lodging_reference_ids
     scope = document["outbound_transport"]["scope"]
-    outbound_date = document["outbound_transport"].get("travel_date")
-    return_date = document["return_transport"].get("travel_date")
     date_sensitive = bool(travel_bundle.get("date_sensitive", True))
-    if date_sensitive:
-        document["outbound_transport"] = transport_section_from_bundle(
-            travel_bundle.get("ticket_bundle"), "outbound", scope, outbound_date,
-            _transport_fallback_guidance(travel_bundle, "outbound"),
-        )
-        document["return_transport"] = transport_section_from_bundle(
-            travel_bundle.get("return_ticket_bundle"), "return", scope, return_date,
-            _transport_fallback_guidance(travel_bundle, "return"),
-        )
-    else:
-        document["outbound_transport"] = transport_section_from_bundle(
-            None, "outbound", scope, None,
-        )
-        document["return_transport"] = transport_section_from_bundle(
-            None, "return", scope, None,
+    for direction, bundle_key in (("outbound", "ticket_bundle"), ("return", "return_ticket_bundle")):
+        section_name = f"{direction}_transport"
+        document[section_name] = transport_section_from_bundle(
+            travel_bundle.get(bundle_key) if date_sensitive else None, direction, scope,
+            document[section_name].get("travel_date") if date_sensitive else None,
+            _transport_fallback_guidance(travel_bundle, direction) if date_sensitive else None,
         )
     ticket_source_labels = {"train": "铁路票务平台", "intercity_bus": "城际客运平台", "flight": "航班票务平台"}
     existing_source_ids = {str(item.get("reference_id") or "") for item in document["sources"]}
@@ -8648,6 +8536,20 @@ def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List
                 "confidence": 0.9 if option.get("data_type") == "confirmed_live_data" else 0.65,
                 "related_fields": [section_name, "price", "availability"], "related_places": [],
             })
+    return document
+
+
+def build_travel_document(travel_bundle: Dict[str, Any]) -> Dict[str, Any]:
+    """正式规划直接取得文档，避免构建并丢弃旧版 SSE 与 Markdown。"""
+    plan, _, _, _ = _prepare_travel_plan(travel_bundle)
+    return sanitize_user_visible_payload(_document_from_travel_plan(plan, travel_bundle))
+
+
+def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], str]:
+    """旧版聊天协议适配：同一构建核心输出增量事件和正文。"""
+    plan, initial_validation, final_validation, repair_result = _prepare_travel_plan(travel_bundle)
+    document = _document_from_travel_plan(plan, travel_bundle)
+    plan_payload = _public_trip_plan_payload(plan)
     repair_payload = repair_result.model_dump(exclude={"plan", "remaining_validation"})
     events = [
         {
@@ -8721,11 +8623,6 @@ def _build_travel_structured_result(travel_bundle: Dict[str, Any]) -> Tuple[List
         },
     ]
     return sanitize_user_visible_payload(events), export_trip_markdown(document)
-
-
-def _build_travel_structured_events(travel_bundle: Dict[str, Any]) -> List[Dict[str, Any]]:
-    events, _ = _build_travel_structured_result(travel_bundle)
-    return events
 
 
 async def _build_travel_structured_result_with_routes(
@@ -9047,6 +8944,59 @@ def _sanitize_non_stream_result(result: Any) -> Any:
     return result
 
 
+def _prepare_chat_history(request_messages, selected_skill_ids, selected_knowledge_context, allow_web_search):
+    message_history = build_message_history(request_messages)
+    skill_message = build_skill_system_message(selected_skill_ids)
+    if skill_message:
+        message_history.insert(0, skill_message)
+    append_selected_knowledge_context_message(message_history, selected_knowledge_context)
+    append_online_search_policy_message(message_history, allow_web_search)
+    return message_history
+
+
+def _append_bundle_context(message_history, bundle, message_type):
+    if bundle and bundle.get("context_message"):
+        message_history.append({
+            "role": "system", "content": bundle["context_message"],
+            "message_id": str(uuid.uuid4()), "type": message_type,
+        })
+
+
+def _prepare_travel_context(*, user_query, tool_manager, message_history, session_id,
+                            selected_skill_ids, xhs_bundle, ticket_bundle, allow_web_search,
+                            allow_date_sensitive=True, trip_intent=None, profile=None,
+                            selected_knowledge_context=None, fallback_destination=""):
+    """两种聊天入口共用资料准备；可选增强失败时保留已取得的旅行资料。"""
+    common = dict(tool_manager=tool_manager, message_history=message_history, session_id=session_id)
+    travel_bundle = None
+    try:
+        travel_bundle = maybe_prepare_travel_experience_bundle(
+            user_query=user_query, selected_skill_ids=selected_skill_ids, xhs_bundle=xhs_bundle,
+            allow_web_search=allow_web_search, allow_date_sensitive=allow_date_sensitive, **common,
+        )
+        if travel_bundle:
+            if trip_intent is not None:
+                travel_bundle["trip_intent"] = trip_intent.model_dump()
+            if ticket_bundle:
+                travel_bundle["ticket_bundle"] = ticket_bundle
+            if profile:
+                travel_bundle["user_profile"] = _normalize_user_profile(profile).model_dump()
+            if selected_knowledge_context:
+                travel_bundle["selected_knowledge_context"] = selected_knowledge_context
+            travel_bundle["cover_image"] = maybe_prepare_destination_cover(
+                destination=_safe_text(travel_bundle.get("destination_city")) or fallback_destination, **common,
+            )
+            maybe_prepare_activity_images(travel_bundle, **common)
+        if travel_bundle and travel_bundle.get("context_message"):
+            append_travel_rag_context_message(message_history, _safe_text(travel_bundle.get("rag_context")))
+            _append_bundle_context(message_history, travel_bundle, "system_travel_experience_context")
+            return travel_bundle
+    except Exception as error:
+        logger.error("旅行体验增强失败: %s", error)
+    _append_bundle_context(message_history, xhs_bundle, "system_xhs_search_context")
+    return travel_bundle
+
+
 def execute_chat_once(
     request_messages: List[Any],
     controller: Any,
@@ -9062,12 +9012,9 @@ def execute_chat_once(
     allow_web_search: bool = True,
 ) -> Dict[str, Any]:
     """Run a non-stream chat request and build standard response payload."""
-    message_history = build_message_history(request_messages)
-    skill_message = build_skill_system_message(selected_skill_ids)
-    if skill_message:
-        message_history.insert(0, skill_message)
-    append_selected_knowledge_context_message(message_history, selected_knowledge_context)
-    append_online_search_policy_message(message_history, allow_web_search)
+    message_history = _prepare_chat_history(
+        request_messages, selected_skill_ids, selected_knowledge_context, allow_web_search,
+    )
     runtime_session_id = session_id or str(uuid.uuid4())
     ticket_bundle: Optional[Dict[str, Any]] = None
     xhs_bundle: Optional[Dict[str, Any]] = None
@@ -9119,15 +9066,8 @@ def execute_chat_once(
                 session_id=runtime_session_id,
                 selected_skill_ids=selected_skill_ids,
             )
-        if ticket_bundle and ticket_bundle.get("context_message"):
-            message_history.append(
-                {
-                    "role": "system",
-                    "content": ticket_bundle["context_message"],
-                    "message_id": str(uuid.uuid4()),
-                    "type": "system_realtime_ticket_context",
-                }
-            )
+        _append_bundle_context(message_history, ticket_bundle, "system_realtime_ticket_context")
+
     except Exception as ticket_error:
         logger.error(f"非流式实时票务硬规则预查询失败: {ticket_error}")
 
@@ -9163,69 +9103,13 @@ def execute_chat_once(
         except Exception as xhs_error:
             logger.error(f"非流式小红书预检索失败: {xhs_error}")
 
-    if not ticket_bundle or is_trip_planning_query(latest_user_query):
-        try:
-            travel_bundle = maybe_prepare_travel_experience_bundle(
-                user_query=latest_user_query,
-                tool_manager=effective_tool_manager,
-                message_history=message_history,
-                session_id=runtime_session_id,
-                selected_skill_ids=selected_skill_ids,
-                xhs_bundle=xhs_bundle,
-                allow_web_search=allow_web_search,
-                allow_date_sensitive=date_sensitive_enabled,
-            )
-            if travel_bundle:
-                if non_stream_trip_intent is not None:
-                    travel_bundle["trip_intent"] = non_stream_trip_intent.model_dump()
-                if ticket_bundle:
-                    travel_bundle["ticket_bundle"] = ticket_bundle
-                destination = _safe_text(travel_bundle.get("destination_city")) or _extract_destination_city(latest_user_query)
-                travel_bundle["cover_image"] = maybe_prepare_destination_cover(
-                    destination=destination,
-                    tool_manager=effective_tool_manager,
-                    message_history=message_history,
-                    session_id=runtime_session_id,
-                )
-                maybe_prepare_activity_images(
-                    travel_bundle,
-                    tool_manager=effective_tool_manager,
-                    message_history=message_history,
-                    session_id=runtime_session_id,
-                )
-            if travel_bundle and travel_bundle.get("context_message"):
-                append_travel_rag_context_message(
-                    message_history,
-                    _safe_text(travel_bundle.get("rag_context")),
-                )
-                message_history.append(
-                    {
-                        "role": "system",
-                        "content": travel_bundle["context_message"],
-                        "message_id": str(uuid.uuid4()),
-                        "type": "system_travel_experience_context",
-                    }
-                )
-            elif xhs_bundle and xhs_bundle.get("context_message"):
-                message_history.append(
-                    {
-                        "role": "system",
-                        "content": xhs_bundle["context_message"],
-                        "message_id": str(uuid.uuid4()),
-                        "type": "system_xhs_search_context",
-                    }
-                )
-        except Exception as travel_error:
-            logger.error(f"非流式旅行体验增强失败: {travel_error}")
-            if xhs_bundle and xhs_bundle.get("context_message"):
-                message_history.append(
-                    {
-                        "role": "system",
-                        "content": xhs_bundle["context_message"],
-                        "message_id": str(uuid.uuid4()),
-                        "type": "system_xhs_search_context",
-                    }
-                )
+    travel_bundle = _prepare_travel_context(
+        user_query=latest_user_query, tool_manager=effective_tool_manager,
+        message_history=message_history, session_id=runtime_session_id,
+        selected_skill_ids=selected_skill_ids, xhs_bundle=xhs_bundle, ticket_bundle=ticket_bundle,
+        allow_web_search=allow_web_search, allow_date_sensitive=date_sensitive_enabled,
+        trip_intent=non_stream_trip_intent, fallback_destination=_extract_destination_city(latest_user_query),
+    )
 
     if not _ticket_bundle_has_valid_results(ticket_bundle) and not xhs_bundle and not travel_bundle:
         travel_rag_context = maybe_prepare_travel_rag_context(latest_user_query)
@@ -9385,18 +9269,16 @@ def build_chat_stream_response(
         "allow_web_search": allow_web_search,
         "sanitize_text": effective_sanitize_text,
     }
-    if request_id is not None:
-        stream_kwargs["request_id"] = request_id
-    if profile is not None:
-        stream_kwargs["profile"] = profile
-    if planning_mode is not None:
-        stream_kwargs["planning_mode"] = planning_mode
-    if clarification_answers is not None:
-        stream_kwargs["clarification_answers"] = clarification_answers
-    if selected_knowledge_context is not None:
-        stream_kwargs["selected_knowledge_context"] = selected_knowledge_context
-    if structured_trip_request is not None:
-        stream_kwargs["structured_trip_request"] = structured_trip_request
+    stream_kwargs.update({
+        key: value for key, value in {
+            "request_id": request_id,
+            "profile": profile,
+            "planning_mode": planning_mode,
+            "clarification_answers": clarification_answers,
+            "selected_knowledge_context": selected_knowledge_context,
+            "structured_trip_request": structured_trip_request,
+        }.items() if value is not None
+    })
 
     return StreamingResponse(
         generate_chat_stream(**stream_kwargs),
@@ -9436,18 +9318,16 @@ def build_chat_stream_route(
             "use_multi_agent": use_multi_agent,
             "allow_web_search": allow_web_search,
         }
-        if request_id is not None:
-            response_kwargs["request_id"] = request_id
-        if profile is not None:
-            response_kwargs["profile"] = profile
-        if planning_mode is not None:
-            response_kwargs["planning_mode"] = planning_mode
-        if clarification_answers is not None:
-            response_kwargs["clarification_answers"] = clarification_answers
-        if selected_knowledge_context is not None:
-            response_kwargs["selected_knowledge_context"] = selected_knowledge_context
-        if structured_trip_request is not None:
-            response_kwargs["structured_trip_request"] = structured_trip_request
+        response_kwargs.update({
+            key: value for key, value in {
+                "request_id": request_id,
+                "profile": profile,
+                "planning_mode": planning_mode,
+                "clarification_answers": clarification_answers,
+                "selected_knowledge_context": selected_knowledge_context,
+                "structured_trip_request": structured_trip_request,
+            }.items() if value is not None
+        })
         return build_chat_stream_response(**response_kwargs)
     except HTTPException:
         raise
@@ -9473,20 +9353,14 @@ def build_chat_stream_request_route(
         "use_multi_agent": request.use_multi_agent,
         "logger": logger,
     }
-    if hasattr(request, "profile"):
-        route_kwargs["profile"] = getattr(request, "profile")
-    if hasattr(request, "planning_mode"):
-        route_kwargs["planning_mode"] = getattr(request, "planning_mode")
-    if hasattr(request, "allow_web_search"):
-        route_kwargs["allow_web_search"] = getattr(request, "allow_web_search")
-    if hasattr(request, "clarification_answers"):
-        route_kwargs["clarification_answers"] = getattr(request, "clarification_answers")
-    if hasattr(request, "selected_knowledge_context"):
-        route_kwargs["selected_knowledge_context"] = getattr(request, "selected_knowledge_context")
-    if hasattr(request, "structured_trip_request"):
-        route_kwargs["structured_trip_request"] = getattr(request, "structured_trip_request")
-    if hasattr(request, "request_id"):
-        route_kwargs["request_id"] = getattr(request, "request_id")
+    route_kwargs.update({
+        field: getattr(request, field)
+        for field in (
+            "profile", "planning_mode", "allow_web_search", "clarification_answers",
+            "selected_knowledge_context", "structured_trip_request", "request_id",
+        )
+        if hasattr(request, field)
+    })
     return build_chat_stream_route(**route_kwargs)
 
 
@@ -9550,12 +9424,9 @@ async def generate_chat_stream(
 
     try:
         sanitize_text = sanitize_text or (lambda text: text)
-        message_history = build_message_history(request_messages)
-        skill_message = build_skill_system_message(selected_skill_ids)
-        if skill_message:
-            message_history.insert(0, skill_message)
-        append_selected_knowledge_context_message(message_history, selected_knowledge_context)
-        append_online_search_policy_message(message_history, allow_web_search)
+        message_history = _prepare_chat_history(
+            request_messages, selected_skill_ids, selected_knowledge_context, allow_web_search,
+        )
         message_id = str(uuid.uuid4())
         stream_session_id = stream_request_id
 
@@ -9742,7 +9613,6 @@ async def generate_chat_stream(
             yield encode_event(progress_chunk)
             await asyncio.sleep(0.01)
         ticket_bundle: Optional[Dict[str, Any]] = None
-        return_ticket_bundle: Optional[Dict[str, Any]] = None
         xhs_bundle: Optional[Dict[str, Any]] = None
         travel_bundle: Optional[Dict[str, Any]] = None
         travel_rag_context = ""
@@ -9751,10 +9621,6 @@ async def generate_chat_stream(
         structured_trip_final_text = ""
         model_final_answer_emitted = False
         error_phase = "researching"
-        date_sensitive_enabled = not bool(
-            resolved_trip_intent
-            and is_flexible_date_range(resolved_trip_intent.date_range)
-        )
         if resolved_trip_intent is not None and (structured_trip_intent is not None or is_trip_planning_query(latest_user_query)):
             from services.production_planning_service import stream_production_plan
             async for event in stream_production_plan(intent=resolved_trip_intent, query=latest_user_query,
@@ -9771,49 +9637,10 @@ async def generate_chat_stream(
                 "session_id": stream_session_id,
                 "selected_skill_ids": selected_skill_ids,
             }
-            dates = re.findall(r"\d{4}-\d{2}-\d{2}", _safe_text(resolved_trip_intent.date_range) if resolved_trip_intent else "")
-            can_query_return = bool(
-                date_sensitive_enabled
-                and
-                is_trip_planning_query(latest_user_query)
-                and resolved_trip_intent and resolved_trip_intent.origin and resolved_trip_intent.destination
-                and len(dates) >= 2
+            ticket_bundle = await asyncio.to_thread(
+                maybe_prepare_train_ticket_bundle, user_query=latest_user_query, **ticket_kwargs,
             )
-            if can_query_return:
-                outbound_query = (
-                    f"{resolved_trip_intent.origin}到{resolved_trip_intent.destination} "
-                    f"{dates[0]} 火车票 机票 大巴票"
-                )
-                outbound_task = asyncio.create_task(asyncio.to_thread(
-                    maybe_prepare_train_ticket_bundle, user_query=outbound_query, **ticket_kwargs,
-                ))
-                return_query = (
-                    f"{resolved_trip_intent.destination}到{resolved_trip_intent.origin} "
-                    f"{dates[-1]} 火车票 机票 大巴票"
-                )
-                return_task = asyncio.create_task(asyncio.to_thread(
-                    maybe_prepare_train_ticket_bundle, user_query=return_query, **ticket_kwargs,
-                ))
-                done, pending = await asyncio.wait(
-                    {outbound_task, return_task}, timeout=TICKET_QUERY_TOTAL_TIMEOUT_SECONDS,
-                )
-                for task in pending:
-                    task.cancel()
-                ticket_bundle = outbound_task.result() if outbound_task in done and not outbound_task.exception() else None
-                return_ticket_bundle = return_task.result() if return_task in done and not return_task.exception() else None
-            elif date_sensitive_enabled:
-                ticket_bundle = await asyncio.to_thread(
-                    maybe_prepare_train_ticket_bundle, user_query=latest_user_query, **ticket_kwargs,
-                )
-            if ticket_bundle and ticket_bundle.get("context_message"):
-                message_history.append(
-                    {
-                        "role": "system",
-                        "content": ticket_bundle["context_message"],
-                        "message_id": str(uuid.uuid4()),
-                        "type": "system_realtime_ticket_context",
-                    }
-                )
+            _append_bundle_context(message_history, ticket_bundle, "system_realtime_ticket_context")
 
             if ticket_bundle:
                 realtime_only_answer = _safe_text(ticket_bundle.get("realtime_only_answer"))
@@ -9866,80 +9693,13 @@ async def generate_chat_stream(
             )
             return
 
-        if not ticket_bundle or is_trip_planning_query(latest_user_query):
-            try:
-                travel_bundle = await asyncio.to_thread(
-                    maybe_prepare_travel_experience_bundle,
-                    user_query=latest_user_query,
-                    tool_manager=effective_tool_manager,
-                    message_history=message_history,
-                    session_id=stream_session_id,
-                    selected_skill_ids=selected_skill_ids,
-                    xhs_bundle=xhs_bundle,
-                    allow_web_search=allow_web_search,
-                    allow_date_sensitive=date_sensitive_enabled,
-                )
-                if travel_bundle:
-                    if ticket_bundle:
-                        travel_bundle["ticket_bundle"] = ticket_bundle
-                    if return_ticket_bundle:
-                        travel_bundle["return_ticket_bundle"] = return_ticket_bundle
-                    if resolved_trip_intent is not None:
-                        travel_bundle["trip_intent"] = resolved_trip_intent.model_dump()
-                    if profile:
-                        travel_bundle["user_profile"] = _normalize_user_profile(profile).model_dump()
-                    if selected_knowledge_context:
-                        travel_bundle["selected_knowledge_context"] = selected_knowledge_context
-                    destination = _safe_text(travel_bundle.get("destination_city")) or (
-                        _safe_text(resolved_trip_intent.destination) if resolved_trip_intent else ""
-                    )
-                    travel_bundle["cover_image"] = await asyncio.to_thread(
-                        maybe_prepare_destination_cover,
-                        destination=destination,
-                        tool_manager=effective_tool_manager,
-                        message_history=message_history,
-                        session_id=stream_session_id,
-                    )
-                    await asyncio.to_thread(
-                        maybe_prepare_activity_images,
-                        travel_bundle,
-                        tool_manager=effective_tool_manager,
-                        message_history=message_history,
-                        session_id=stream_session_id,
-                    )
-                if travel_bundle and travel_bundle.get("context_message"):
-                    append_travel_rag_context_message(
-                        message_history,
-                        _safe_text(travel_bundle.get("rag_context")),
-                    )
-                    message_history.append(
-                        {
-                            "role": "system",
-                            "content": travel_bundle["context_message"],
-                            "message_id": str(uuid.uuid4()),
-                            "type": "system_travel_experience_context",
-                        }
-                    )
-                elif xhs_bundle and xhs_bundle.get("context_message"):
-                    message_history.append(
-                        {
-                            "role": "system",
-                            "content": xhs_bundle["context_message"],
-                            "message_id": str(uuid.uuid4()),
-                            "type": "system_xhs_search_context",
-                        }
-                    )
-            except Exception as travel_error:
-                logger.error(f"流式旅行体验增强失败: {travel_error}")
-                if xhs_bundle and xhs_bundle.get("context_message"):
-                    message_history.append(
-                        {
-                            "role": "system",
-                            "content": xhs_bundle["context_message"],
-                            "message_id": str(uuid.uuid4()),
-                            "type": "system_xhs_search_context",
-                        }
-                    )
+        travel_bundle = await asyncio.to_thread(
+            _prepare_travel_context, user_query=latest_user_query, tool_manager=effective_tool_manager,
+            message_history=message_history, session_id=stream_session_id,
+            selected_skill_ids=selected_skill_ids, xhs_bundle=xhs_bundle, ticket_bundle=ticket_bundle,
+            allow_web_search=allow_web_search, profile=profile,
+            selected_knowledge_context=selected_knowledge_context,
+        )
 
         logger.info(f"旅行增强结果状态: {'已生成' if travel_bundle else '未生成'}")
         if travel_bundle:
@@ -10038,6 +9798,9 @@ async def generate_chat_stream(
             deep_research=effective_use_multi_agent,
         ):
             for msg in chunk:
+                # 简化工作流的直接回答使用 do_subtask_result；多智能体模式仍将其视为中间结果。
+                if not effective_use_multi_agent and msg.get("type") == "do_subtask_result":
+                    msg = {**msg, "type": "final_answer"}
                 is_assistant_final_answer = (
                     msg.get('type') == 'final_answer' and msg.get('role', 'assistant') == 'assistant'
                 )
@@ -10191,6 +9954,9 @@ async def generate_chat_stream(
             if appendix_payload:
                 yield encode_event(appendix_chunk)
                 await asyncio.sleep(0.01)
+
+        if not model_final_answer_emitted and not realtime_only_answer:
+            raise RuntimeError("模型未返回有效回答")
 
         yield encode_event(
             _chat_complete_payload(
