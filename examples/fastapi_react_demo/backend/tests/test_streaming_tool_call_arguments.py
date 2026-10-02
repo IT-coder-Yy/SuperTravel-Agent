@@ -41,3 +41,23 @@ class StreamingToolCallArgumentsTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_direct_executor_stops_after_answer_but_continues_after_tools():
+    agent = object.__new__(DirectExecutorAgent)
+    agent.MAX_LOOP_COUNT = 3
+    agent._merge_messages = lambda messages, chunks: [*messages, *chunks]
+    calls = []
+    def respond(**kwargs):
+        calls.append(True)
+        chunk = {'role': 'assistant', 'content': '联调通过', 'type': 'do_subtask_result'}
+        kwargs['all_new_response_chunks'].append(chunk)
+        yield [chunk]
+        return False
+    agent._call_llm_and_process_response = respond
+    output = list(agent._execute_loop([], [], None, 'direct-test'))
+    assert len(calls) == len(output) == 1
+    assert not agent._should_stop_execution([
+        {'role': 'assistant', 'tool_calls': [{'id': 'call-1'}]},
+        {'role': 'tool', 'content': '检索完成'},
+    ])

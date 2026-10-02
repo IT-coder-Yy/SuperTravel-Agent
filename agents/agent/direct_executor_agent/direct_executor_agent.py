@@ -733,32 +733,8 @@ class DirectExecutorAgent(AgentBase):
             yield from self._handle_tool_error(tool_call['id'], tool_name, e)
 
     def _should_stop_execution(self, all_new_response_chunks: List[Dict[str, Any]]) -> bool:
-        """
-        判断是否应该停止执行
-        
-        Args:
-            all_new_response_chunks: 响应块列表
-            
-        Returns:
-            bool: 是否应该停止执行
-        """
-        if len(all_new_response_chunks) < 10:
-            logger.debug(f"DirectExecutorAgent: 响应块: {json.dumps(all_new_response_chunks, ensure_ascii=False, indent=2)}")
-        
-        if len(all_new_response_chunks) == 0:
-            logger.info("DirectExecutorAgent: 没有更多响应块，停止执行")
-            return True
-        
-        # 如果所有响应块都没有工具调用且没有内容，就停止执行
-        if all(
-            item.get('tool_calls', None) is None and 
-            (item.get('content', None) is None or item.get('content', None) == '')
-            for item in all_new_response_chunks
-        ):
-            logger.info("DirectExecutorAgent: 没有更多响应块，停止执行")
-            return True
-        
-        return False
+        """没有新的工具调用时，本轮文本就是回答，避免再次请求模型重复输出。"""
+        return not any(item.get('tool_calls') for item in all_new_response_chunks)
 
     def _handle_execution_error(self, error: Exception) -> Generator[List[Dict[str, Any]], None, None]:
         """
