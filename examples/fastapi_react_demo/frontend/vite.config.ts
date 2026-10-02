@@ -21,6 +21,7 @@ const productionChunk = (rawId: string): string | undefined => {
 export default defineConfig({
   // 运行时与前端共享 examples/fastapi_react_demo/.env；仅 VITE_ 前缀变量会注入浏览器构建。
   envDir: '..',
+  cacheDir: '.cache/vite',
   plugins: [react()],
   server: {
     host: '0.0.0.0',
