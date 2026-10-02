@@ -67,81 +67,19 @@ def build_runtime_model_status_payload() -> Dict[str, str]:
     return {key: value for key, value in payload.items() if value}
 
 
-def build_system_status_route(
-    tool_manager: Any,
-    active_sessions: Dict[str, Dict[str, Any]],
-    logger: Any = logger,
-    agents_count: int = 7,
-    version: str = "0.8",
-) -> Dict[str, Any]:
-    """Build status payload with route-level error boundary semantics."""
+def build_system_status_runtime_model_http_response(response: Any, runtime_state: Any) -> Any:
+    """在单一 HTTP 边界组装状态，保留响应模型、CORS 和错误语义。"""
     from fastapi import HTTPException
-
-    try:
-        return build_system_status(
-            tool_manager=tool_manager,
-            active_sessions=active_sessions,
-            agents_count=agents_count,
-            version=version,
-        )
-    except Exception as e:
-        logger.error(f"获取系统状态失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def build_system_status_http_response(
-    response: Any,
-    tool_manager: Any,
-    active_sessions: Dict[str, Dict[str, Any]],
-    logger: Any = logger,
-    agents_count: int = 7,
-    version: str = "0.8",
-) -> Dict[str, Any]:
-    """Build system status payload and attach CORS headers for API response."""
+    from schemas.api_models import SystemStatus
     from services.http_response_service import add_cors_headers
 
     add_cors_headers(response)
-    return build_system_status_route(
-        tool_manager=tool_manager,
-        active_sessions=active_sessions,
-        logger=logger,
-        agents_count=agents_count,
-        version=version,
-    )
-
-
-def build_system_status_model_http_response(
-    response: Any,
-    tool_manager: Any,
-    active_sessions: Dict[str, Dict[str, Any]],
-    logger: Any = logger,
-    agents_count: int = 7,
-    version: str = "0.8",
-) -> Any:
-    """Build status payload as SystemStatus model for route handlers."""
-    from schemas.api_models import SystemStatus
-
-    payload = build_system_status_http_response(
-        response=response,
-        tool_manager=tool_manager,
-        active_sessions=active_sessions,
-        logger=logger,
-        agents_count=agents_count,
-        version=version,
-    )
+    try:
+        payload = build_system_status(runtime_state.tool_manager, runtime_state.active_sessions)
+    except Exception as exc:
+        logger.error(f"获取系统状态失败: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return SystemStatus(**payload)
-
-
-def build_system_status_runtime_model_http_response(
-    response: Any,
-    runtime_state: Any,
-) -> Any:
-    """Build status model response directly from runtime state container."""
-    return build_system_status_model_http_response(
-        response=response,
-        tool_manager=runtime_state.tool_manager,
-        active_sessions=runtime_state.active_sessions,
-    )
 
 
 def sync_settings_from_model(
@@ -214,89 +152,27 @@ def configure_runtime(
     )
 
 
-def configure_runtime_with_response(
-    api_key: str,
-    model_name: str,
-    base_url: str,
-    max_tokens: int,
-    temperature: float,
-) -> Tuple[AgentController, Dict[str, str]]:
-    """Configure runtime and return standardized response payload."""
-    controller = configure_runtime(
-        api_key=api_key,
-        model_name=model_name,
-        base_url=base_url,
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
-    logger.info(f"系统配置更新成功: {model_name}")
-    print(f"🔄 配置已更新并保存: {model_name}")
-    return controller, {"status": "success", "message": "配置更新成功并已保存到文件"}
-
-
-def configure_runtime_route(
-    api_key: str,
-    model_name: str,
-    base_url: str,
-    max_tokens: int,
-    temperature: float,
-    logger: Any = logger,
-) -> Tuple[AgentController, Dict[str, str]]:
-    """Configure runtime with route-level error boundary semantics."""
+def configure_runtime_request_http_response(response: Any, config: Any, runtime_state: Any) -> Dict[str, str]:
+    """保存配置并在成功后替换运行时控制器。"""
     from fastapi import HTTPException
-
-    try:
-        return configure_runtime_with_response(
-            api_key=api_key,
-            model_name=model_name,
-            base_url=base_url,
-            max_tokens=max_tokens,
-            temperature=temperature,
-        )
-    except Exception as e:
-        logger.error(f"系统配置失败: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
-
-
-def configure_runtime_http_response(
-    response: Any,
-    api_key: str,
-    model_name: str,
-    base_url: str,
-    max_tokens: int,
-    temperature: float,
-    logger: Any = logger,
-) -> Tuple[AgentController, Dict[str, str]]:
-    """Configure runtime and attach CORS headers for API response."""
     from services.http_response_service import add_cors_headers
 
     add_cors_headers(response)
-    return configure_runtime_route(
-        api_key=api_key,
-        model_name=model_name,
-        base_url=base_url,
-        max_tokens=max_tokens,
-        temperature=temperature,
-        logger=logger,
-    )
-
-
-def configure_runtime_request_http_response(
-    response: Any,
-    config: Any,
-    runtime_state: Any,
-) -> Dict[str, str]:
-    """Configure runtime from request object and update runtime state controller."""
-    controller, payload = configure_runtime_http_response(
-        response=response,
-        api_key=config.api_key,
-        model_name=config.model_name,
-        base_url=config.base_url,
-        max_tokens=config.max_tokens,
-        temperature=config.temperature,
-    )
+    try:
+        controller = configure_runtime(
+            api_key=config.api_key,
+            model_name=config.model_name,
+            base_url=config.base_url,
+            max_tokens=config.max_tokens,
+            temperature=config.temperature,
+        )
+        logger.info(f"系统配置更新成功: {config.model_name}")
+        print(f"🔄 配置已更新并保存: {config.model_name}")
+    except Exception as exc:
+        logger.error(f"系统配置失败: {exc}")
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     runtime_state.controller = controller
-    return payload
+    return {"status": "success", "message": "配置更新成功并已保存到文件"}
 
 
 def resolve_controller_from_app_config(app_config: Any) -> Tuple[Optional[AgentController], Optional[str], Optional[str]]:

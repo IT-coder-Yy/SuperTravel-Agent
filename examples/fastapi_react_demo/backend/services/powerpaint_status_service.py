@@ -45,34 +45,16 @@ def build_powerpaint_status(
     }
 
 
-def build_powerpaint_status_route(
-    logger: Any = logger,
-    checker: Callable[[str], bool] = is_powerpaint_reachable,
-) -> Dict[str, Any]:
-    """Build PowerPaint status payload with route-level error boundary semantics."""
+def build_powerpaint_status_model_http_response(response: Any) -> Any:
+    """探测服务并生成带 CORS 的状态响应。"""
     from fastapi import HTTPException
-
-    try:
-        return build_powerpaint_status(checker=checker)
-    except Exception as e:
-        logger.error(f"获取 PowerPaint 状态失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def build_powerpaint_status_http_response(
-    response: Any,
-    logger: Any = logger,
-    checker: Callable[[str], bool] = is_powerpaint_reachable,
-) -> Dict[str, Any]:
-    """Build PowerPaint status payload and attach CORS headers."""
+    from schemas.api_models import PowerPaintStatus
     from services.http_response_service import add_cors_headers
 
     add_cors_headers(response)
-    return build_powerpaint_status_route(logger=logger, checker=checker)
-
-
-def build_powerpaint_status_model_http_response(response: Any) -> Any:
-    """Build PowerPaint status payload as response model."""
-    from schemas.api_models import PowerPaintStatus
-
-    return PowerPaintStatus(**build_powerpaint_status_http_response(response=response))
+    try:
+        payload = build_powerpaint_status()
+    except Exception as exc:
+        logger.error(f"获取 PowerPaint 状态失败: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    return PowerPaintStatus(**payload)

@@ -356,29 +356,13 @@ def list_skill_infos(tool_manager: Any = None, app_config: Any = None) -> List[D
     return infos
 
 
-def build_skill_catalog_http_response(response: Any, tool_manager: Any, app_config: Any) -> List[Dict[str, Any]]:
+def build_skill_catalog_runtime_model_http_response(response: Any, runtime_state: Any) -> List[Any]:
+    from config_loader import get_app_config
+    from schemas.api_models import SkillInfo
     from services.http_response_service import add_cors_headers
 
     add_cors_headers(response)
-    return list_skill_infos(tool_manager=tool_manager, app_config=app_config)
-
-
-def build_skill_catalog_model_http_response(response: Any, tool_manager: Any, app_config: Any) -> List[Any]:
-    from schemas.api_models import SkillInfo
-
-    payload = build_skill_catalog_http_response(
-        response=response,
-        tool_manager=tool_manager,
-        app_config=app_config,
-    )
-    return [SkillInfo(**item) for item in payload]
-
-
-def build_skill_catalog_runtime_model_http_response(response: Any, runtime_state: Any) -> List[Any]:
-    from config_loader import get_app_config
-
-    return build_skill_catalog_model_http_response(
-        response=response,
-        tool_manager=runtime_state.tool_manager,
-        app_config=get_app_config(),
-    )
+    return [
+        SkillInfo(**item)
+        for item in list_skill_infos(runtime_state.tool_manager, get_app_config())
+    ]

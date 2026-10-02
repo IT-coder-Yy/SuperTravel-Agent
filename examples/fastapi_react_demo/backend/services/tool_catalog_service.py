@@ -20,7 +20,7 @@ def _simple_chinese_description(name: str, description: Any) -> str:
     for keywords, text in rules:
         if any(keyword in normalized for keyword in keywords):
             return text
-    first_line = str(description or "").strip().splitlines()[0].strip()
+    first_line = str(description or "").strip().split("\n", 1)[0].strip()
     if not first_line or not any("\u4e00" <= char <= "\u9fff" for char in first_line):
         return "为旅行规划提供结构化辅助能力。"
     sentence = first_line.split("。", 1)[0].strip()
@@ -43,36 +43,16 @@ def build_tool_catalog(tool_manager: Any) -> List[Dict[str, Any]]:
     ]
 
 
-def build_tool_catalog_route(tool_manager: Any, logger: Any = logger) -> List[Dict[str, Any]]:
-    """Build tool catalog with route-level error boundary semantics."""
+def build_tool_catalog_runtime_model_http_response(response: Any, runtime_state: Any) -> List[Any]:
+    """将工具目录转换为 HTTP 响应。"""
     from fastapi import HTTPException
-
-    try:
-        return build_tool_catalog(tool_manager=tool_manager)
-    except Exception as e:
-        logger.error(f"获取工具列表失败: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-def build_tool_catalog_http_response(response: Any, tool_manager: Any, logger: Any = logger) -> List[Dict[str, Any]]:
-    """Build tool catalog payload and attach CORS headers for API response."""
+    from schemas.api_models import ToolInfo
     from services.http_response_service import add_cors_headers
 
     add_cors_headers(response)
-    return build_tool_catalog_route(tool_manager=tool_manager, logger=logger)
-
-
-def build_tool_catalog_model_http_response(response: Any, tool_manager: Any, logger: Any = logger) -> List[Any]:
-    """Build tool catalog as ToolInfo model list for route handlers."""
-    from schemas.api_models import ToolInfo
-
-    payload = build_tool_catalog_http_response(response=response, tool_manager=tool_manager, logger=logger)
+    try:
+        payload = build_tool_catalog(runtime_state.tool_manager)
+    except Exception as exc:
+        logger.error(f"获取工具列表失败: {exc}")
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
     return [ToolInfo(**tool) for tool in payload]
-
-
-def build_tool_catalog_runtime_model_http_response(response: Any, runtime_state: Any) -> List[Any]:
-    """Build tool catalog model list directly from runtime state container."""
-    return build_tool_catalog_model_http_response(
-        response=response,
-        tool_manager=runtime_state.tool_manager,
-    )

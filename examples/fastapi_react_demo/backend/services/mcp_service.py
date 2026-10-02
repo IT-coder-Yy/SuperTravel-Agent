@@ -126,28 +126,14 @@ def build_mcp_servers_runtime_status(tool_manager: Any) -> Dict[str, Any]:
     return build_mcp_servers_response(app_config=app_config, tool_manager=tool_manager)
 
 
-def build_mcp_servers_runtime_status_safe(tool_manager: Any, logger: Any = logger) -> Dict[str, Any]:
-    """Build MCP runtime status with route-level error boundary semantics."""
+def build_mcp_servers_runtime_state_http_response(response: Any, runtime_state: Any) -> Dict[str, Any]:
+    """从当前运行时读取 MCP 状态并保留 HTTP 错误格式。"""
     from fastapi import HTTPException
-
-    try:
-        return build_mcp_servers_runtime_status(tool_manager=tool_manager)
-    except Exception as e:
-        logger.error(f"获取MCP服务器状态失败: {e}")
-        raise HTTPException(status_code=500, detail=f"获取MCP服务器状态失败: {str(e)}")
-
-
-def build_mcp_servers_runtime_status_http_response(response: Any, tool_manager: Any, logger: Any = logger) -> Dict[str, Any]:
-    """Build MCP runtime status payload and attach CORS headers for API response."""
     from services.http_response_service import add_cors_headers
 
     add_cors_headers(response)
-    return build_mcp_servers_runtime_status_safe(tool_manager=tool_manager, logger=logger)
-
-
-def build_mcp_servers_runtime_state_http_response(response: Any, runtime_state: Any) -> Dict[str, Any]:
-    """Build MCP runtime status payload directly from runtime state container."""
-    return build_mcp_servers_runtime_status_http_response(
-        response=response,
-        tool_manager=runtime_state.tool_manager,
-    )
+    try:
+        return build_mcp_servers_runtime_status(runtime_state.tool_manager)
+    except Exception as exc:
+        logger.error(f"获取MCP服务器状态失败: {exc}")
+        raise HTTPException(status_code=500, detail=f"获取MCP服务器状态失败: {exc}") from exc
