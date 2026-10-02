@@ -123,4 +123,32 @@ describe('TravelPlannerWorkbench', () => {
     expect(screen.getByTestId('workbench-map').dataset.routeDays).toBe('');
     expect(onSelectLocation).toHaveBeenCalledWith('');
   });
+
+  it('opens the full editor from C1 and keeps it mounted across close and reopen', () => {
+    renderWorkbench();
+    expect(screen.queryByTestId('trip-workspace')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /编辑行程/ }));
+    const editor = screen.getByTestId('trip-workspace');
+    fireEvent.click(screen.getByRole('button', { name: /关闭|Close/ }));
+    fireEvent.click(screen.getByRole('button', { name: /编辑行程/ }));
+    expect(screen.getByTestId('trip-workspace')).toBe(editor);
+  });
+
+  it('selects a mapped stop by its POI id and keeps unlocated activities visible', () => {
+    const { props } = renderWorkbench({
+      effectiveMapLocations: [{ ...locations[0], id: 'poi-west-lake', poi_id: undefined }],
+      tripWorkspace: { ...workspace, days: [{
+        id: 'day-1', day: 1, date: '2026-10-03', theme: '西湖漫步', revision: 1,
+        estimated_cost: null, warnings: [], data_type: null, source: null, sources: [],
+        activities: ['西湖', '待确认茶馆'].map((title, index) => ({
+          id: `activity-${index}`, day: 1, start_time: '09:30', end_time: null, title,
+          place: { name: title, poi_id: index === 0 ? 'poi-west-lake' : 'unknown' },
+          estimated_cost: null, notes: [], data_type: null, source: null, sources: [], evidence_refs: [], route_to_next: null,
+        })),
+      }] },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /1 西湖/ }));
+    expect(props.onSelectLocation).toHaveBeenCalledWith('poi-west-lake');
+    expect(screen.getByRole('button', { name: /待确认茶馆.*位置待确认/ })).toBeTruthy();
+  });
 });

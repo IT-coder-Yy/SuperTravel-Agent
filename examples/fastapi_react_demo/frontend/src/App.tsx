@@ -11,9 +11,9 @@ import { travelTheme } from './features/travel/theme/travelTheme';
 import { apiClient } from './services/apiClient';
 import './App.css';
 import './styles/visual-system.css';
+import './styles/c1-system.css';
 
 const { Content } = Layout;
-const MOBILE_LAYOUT_QUERY = '(max-width: 768px)';
 const PhotoEditor = lazy(() => import('./components/PhotoEditor'));
 const SettingsPage = lazy(() => import('./components/SettingsPage'));
 const KnowledgeBase = lazy(() => import('./components/KnowledgeBase'));
@@ -29,9 +29,6 @@ const RouteLoading: React.FC = () => (
 );
 
 const AppContent: React.FC = () => {
-  const [collapsed, setCollapsed] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia(MOBILE_LAYOUT_QUERY).matches
-  );
   const [currentChatId, setCurrentChatId] = useState<string>('');
   const [loadedMessages, setLoadedMessages] = useState<ChatHistoryItem['messages'] | null>(null);
   const [loadedTripPlan, setLoadedTripPlan] = useState<Record<string, unknown> | null>(null);
@@ -46,16 +43,6 @@ const AppContent: React.FC = () => {
   const chatInterfaceRef = useRef<TravelPlannerPageRef>(null);
   const navigate = useNavigate();
   const location = useLocation();
-
-  useEffect(() => {
-    const mobileLayout = window.matchMedia(MOBILE_LAYOUT_QUERY);
-    const collapseOnMobile = (event: MediaQueryListEvent | MediaQueryList) => {
-      if (event.matches) setCollapsed(true);
-    };
-    collapseOnMobile(mobileLayout);
-    mobileLayout.addEventListener('change', collapseOnMobile);
-    return () => mobileLayout.removeEventListener('change', collapseOnMobile);
-  }, []);
 
   // 刷新后自动恢复最近会话
   useEffect(() => {
@@ -215,20 +202,18 @@ const AppContent: React.FC = () => {
   return (
     <ConfigProvider theme={travelTheme} locale={zhCN}>
       <SystemProvider>
-        <Layout style={{
+        <Layout className="c1-app" style={{
           height: '100dvh',
           overflow: 'hidden',
           background: 'var(--travel-gradient-page)'
         }}>
           <Layout style={{ flex: 1, overflow: 'hidden' }}>
             <Sidebar
-              collapsed={collapsed}
               currentChatId={currentChatId}
               onNewChat={handleNewChat}
               onChatSelect={handleChatSelect}
               onChatDeleted={handleChatDeleted}
               onHistoryCleared={handleHistoryCleared}
-              onToggleCollapse={() => setCollapsed(!collapsed)}
             />
 
             <Layout style={{
@@ -236,7 +221,9 @@ const AppContent: React.FC = () => {
               overflow: 'hidden',
               background: 'var(--travel-gradient-page)'
             }}>
+              <header className="c1-topbar"><a href="/" onClick={event => { event.preventDefault(); navigate('/'); }}>SuperTravel<span>Agent</span></a><span className="c1-topbar-page">{location.pathname === '/' ? '旅行规划' : location.pathname === '/knowledge' ? '知识库' : location.pathname === '/profile' ? '用户画像' : location.pathname === '/photo-editor' ? '旅行照片' : '设置'}</span><button onClick={() => handleNewChat()}>＋ 新旅程</button></header>
               <Content
+                className={location.pathname === '/' ? 'c1-planner-content' : undefined}
                 style={{
                   margin: 0,
                   height: '100%',

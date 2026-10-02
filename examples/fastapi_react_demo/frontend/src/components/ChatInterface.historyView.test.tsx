@@ -39,6 +39,7 @@ it('同旅程迟到详情保留日程视图，同时接受新修订和服务端�
     </TravelPlannerStateProvider>;
   };
   const view = render(viewFor(1));
+  fireEvent.click(await screen.findByRole('button', { name: /编辑行程/ }));
   await waitFor(() => expect(screen.getByRole('tab', { name: '日程' })).toBeTruthy());
   fireEvent.click(screen.getByRole('tab', { name: '日程' }));
   fireEvent.click(screen.getByText('选择活动'));

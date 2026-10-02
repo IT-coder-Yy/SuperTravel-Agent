@@ -383,6 +383,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const { profile } = useUserTravelProfile();
     const { selectedKnowledgeContext, clearSelectedKnowledgeContext } = useSelectedKnowledgeContext();
     const [messages, setMessages] = useState<Message[]>([]);
+    const [conversationOpen, setConversationOpen] = useState(false);
     const [inputText, setInputTextState] = useState('');
     const [isInputEmpty, setIsInputEmpty] = useState(true);
     const [isExistingTripComposerOpen, setIsExistingTripComposerOpen] = useState(false);
@@ -394,6 +395,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     const [demoReplay, setDemoReplay] = useState<DemoReplayState | null>(null);
     const [tripCreateTemplate, setTripCreateTemplate] = useState<(Partial<TripCreateRequest> & { days?: number }) | null>(null);
     const [isLoading, setIsLoading] = useState(false);
+    useEffect(() => {
+      if (isLoading) setConversationOpen(true);
+    }, [isLoading]);
     const [useDeepThink, setUseDeepThink] = useState(true);
     const [useMultiAgent, setUseMultiAgent] = useState(true);
     const [sessionId, setSessionId] = useState(() => uuidv4());
@@ -470,7 +474,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       ? `${safeText(activeTripDocument?.plan_id)}:${Number(activeTripDocument?.revision) || 0}`
       : activeTripPlanKey;
     const hasFormalTrip = Boolean(formalTripKey && formalTripDestination);
-    const shouldCollapseComposer = hasFormalTrip && !isExistingTripComposerOpen && !isLoading;
+    const shouldCollapseComposer = !showMap && hasFormalTrip && !isExistingTripComposerOpen && !isLoading;
     const [isNarrowLayout, setIsNarrowLayout] = useState(
       () => window.matchMedia('(max-width: 768px)').matches
     );
@@ -3756,12 +3760,13 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
       if (isLoading) return;
       if (shouldAppendUserMessage && !currentInput) return;
       if (!shouldAppendUserMessage && !options?.requestMessagesOverride?.length) return;
+      setConversationOpen(true);
 
       if (
         shouldAppendUserMessage
         && !options?.skipDestinationMutationGuard
         && hasFormalTrip
-        && isExistingTripComposerOpen
+        && (isExistingTripComposerOpen || showMap)
       ) {
         const mutation = detectDestinationMutation(formalTripDestination, currentInput);
         if (mutation) {
@@ -5618,9 +5623,9 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
     return (
       <div
         ref={chatMapLayoutRef}
-        className={`chat-map-layout ${showMap ? 'chat-map-layout-open' : ''} mobile-view-${mobilePrimaryView}`}
+        className={`chat-map-layout ${showMap ? 'chat-map-layout-open c1-map-mode' : ''} ${conversationOpen || isLoading ? 'c1-conversation-open' : ''} mobile-view-${mobilePrimaryView}`}
         style={{
-          height: '100dvh',
+          height: '100%',
           display: 'flex',
           flexDirection: 'row',
           overflow: 'hidden',
@@ -5653,6 +5658,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
           overflow: 'hidden',
         }}>
           {/* 消息列表 - 豆包风格 */}
+          {showMap && <div className="c1-conversation-toolbar"><span><MessageOutlined /> {demoReplay ? '示例回放 · 不写入旅程' : '你的 AI 旅伴'}</span><Button type="text" size="small" aria-expanded={conversationOpen || isLoading} disabled={isLoading} onClick={() => setConversationOpen(value => !value)}>{isLoading ? '规划进行中' : conversationOpen ? '收起对话' : '查看对话'}</Button></div>}
           <div ref={chatScrollRegionRef} className="chat-scroll-region" style={{
             flex: 1,
             overflow: 'auto',
@@ -5829,7 +5835,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
               >
                 {/* 顶部功能开关行 */}
                 {/* 控制选项区域 - 只保留地图按钮 */}
-                <div className="chat-input-tools" style={{
+                <details className="c1-planning-tools"><summary>规划工具 · 模型与资料</summary><div className="chat-input-tools" style={{
                   display: 'flex',
                   justifyContent: 'flex-end',
                   alignItems: 'center',
@@ -6339,6 +6345,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                   </div>
                 </div>
 
+                </details>
                 {/* 输入框和发送按钮区域 */}
                 <div className="chat-input-field-row" style={{
                   display: 'flex',
@@ -6364,8 +6371,8 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
                         ? (activePendingClarification.question.allow_skip === false
                           ? '请先回答上方问题'
                           : '请先回答或跳过上方问题')
-                        : (messages.length === 0 ? '直接描述目的地和天数…' : '发消息...')}
-                      autoSize={{ minRows: 2, maxRows: 6 }}
+                        : (messages.length === 0 ? '直接描述目的地和天数…' : '告诉旅伴，你想怎样调整这段旅程…')}
+                      autoSize={{ minRows: 1, maxRows: 5 }}
                       variant="borderless"
                       onPressEnter={(e) => {
                         const nativeEvent = e.nativeEvent as KeyboardEvent & { isComposing?: boolean };
@@ -6409,6 +6416,7 @@ const ChatInterface = forwardRef<ChatInterfaceRef, ChatInterfaceProps>(
 
                   <Button
                     type="primary"
+                    aria-label={isLoading ? '停止生成' : '发送消息'}
                     icon={isLoading ? <StopOutlined /> : <SendOutlined />}
                     onClick={() => {
                       if (isLoading) {

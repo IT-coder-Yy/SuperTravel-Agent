@@ -34,43 +34,43 @@ html, body, #root {
 
 /* 自定义主题色 */
 :root {
-  /* 品牌色保持蓝、紫、粉；大面积区域以低饱和底色承载，减少通用 AI 渐变感。 */
-  --travel-bg: oklch(0.975 0.018 279);
-  --travel-bg-mid: oklch(0.935 0.035 267);
-  --travel-bg-soft: oklch(0.962 0.024 318);
-  --travel-sidebar-bg: oklch(0.982 0.014 272 / 0.94);
-  --travel-surface: oklch(0.995 0.004 255);
-  --travel-surface-translucent: oklch(0.995 0.006 270 / 0.78);
-  --travel-surface-muted: oklch(0.955 0.022 274);
-  --travel-surface-warm: oklch(0.972 0.026 329);
-  --travel-hover: oklch(0.936 0.042 276);
-  --travel-selected: oklch(0.908 0.061 278);
-  --travel-selected-strong: oklch(0.854 0.088 279);
-  --travel-primary: oklch(0.52 0.165 274);
-  --travel-primary-dark: oklch(0.34 0.108 272);
-  --travel-primary-soft: oklch(0.77 0.102 278);
-  --travel-voyage: oklch(0.68 0.13 254);
-  --travel-violet: oklch(0.67 0.145 305);
-  --travel-accent: oklch(0.74 0.135 337);
-  --travel-coral: oklch(0.7 0.14 345);
+  /* C1 冰川白：蓝色交互、自然地图和中性浮层共用一套语义颜色。 */
+  --travel-bg: #f5f7fb;
+  --travel-bg-mid: #edf2f7;
+  --travel-bg-soft: #f5f7fb;
+  --travel-sidebar-bg: #fff;
+  --travel-surface: #fff;
+  --travel-surface-translucent: #fff;
+  --travel-surface-muted: #f2f5f9;
+  --travel-surface-warm: #f5f7fb;
+  --travel-hover: #eef3fa;
+  --travel-selected: #eaf0fb;
+  --travel-selected-strong: #dce7f8;
+  --travel-primary: #3567cb;
+  --travel-primary-dark: #254b96;
+  --travel-primary-soft: #a8bfe8;
+  --travel-voyage: #88b5ce;
+  --travel-violet: #a1b4ce;
+  --travel-accent: #739caa;
+  --travel-coral: #739caa;
   --travel-success: #237a52;
   --travel-warning: #8a4b00;
   --travel-danger: #b42318;
-  --travel-ink: oklch(0.22 0.038 259);
-  --travel-muted: oklch(0.44 0.033 257);
-  --travel-subtle: oklch(0.59 0.025 258);
-  --travel-border: oklch(0.82 0.027 257);
-  --travel-border-soft: oklch(0.9 0.017 262);
-  --travel-gradient-primary: linear-gradient(132deg, oklch(0.55 0.17 272) 0%, oklch(0.65 0.145 303) 58%, oklch(0.72 0.135 337) 100%);
-  --travel-gradient-action: linear-gradient(132deg, oklch(0.54 0.17 272) 0%, oklch(0.65 0.145 303) 56%, oklch(0.73 0.135 337) 100%);
-  --travel-gradient-soft: linear-gradient(145deg, color-mix(in oklch, var(--travel-surface) 92%, var(--travel-voyage) 8%) 0%, color-mix(in oklch, var(--travel-surface) 90%, var(--travel-violet) 10%) 52%, color-mix(in oklch, var(--travel-surface) 92%, var(--travel-accent) 8%) 100%);
-  --travel-gradient-page: radial-gradient(circle at 18% 0%, oklch(0.77 0.105 254 / 0.22), transparent 32%), radial-gradient(circle at 82% 0%, oklch(0.75 0.115 306 / 0.18), transparent 30%), radial-gradient(circle at 68% 100%, oklch(0.8 0.1 337 / 0.14), transparent 38%), linear-gradient(150deg, oklch(0.978 0.016 280) 0%, oklch(0.958 0.024 272) 52%, oklch(0.979 0.018 322) 100%);
-  --travel-gradient-glow: radial-gradient(circle at 16% 8%, color-mix(in oklch, var(--travel-voyage) 24%, transparent), transparent 34%), radial-gradient(circle at 86% 4%, color-mix(in oklch, var(--travel-violet) 22%, transparent), transparent 31%), radial-gradient(circle at 70% 92%, color-mix(in oklch, var(--travel-accent) 16%, transparent), transparent 34%);
-  --travel-card-shadow: 0 10px 26px rgba(57, 64, 119, 0.09);
-  --travel-float-shadow: 0 20px 50px rgba(57, 64, 119, 0.17);
-  --travel-shadow-raised: 0 12px 34px rgba(54, 62, 118, 0.12);
-  --travel-shadow-chrome: 0 18px 44px rgba(54, 62, 118, 0.16);
-  --travel-focus-color: #353b9d;
+  --travel-ink: #233247;
+  --travel-muted: #586b7e;
+  --travel-subtle: #607184;
+  --travel-border: #d9e1eb;
+  --travel-border-soft: #e8edf3;
+  --travel-gradient-primary: #3567cb;
+  --travel-gradient-action: #3567cb;
+  --travel-gradient-soft: #f5f7fb;
+  --travel-gradient-page: #f5f7fb;
+  --travel-gradient-glow: none;
+  --travel-card-shadow: 0 8px 28px #263b5010;
+  --travel-float-shadow: 0 14px 40px #263b501c;
+  --travel-shadow-raised: 0 8px 28px #263b5014;
+  --travel-shadow-chrome: 0 12px 32px #263b501c;
+  --travel-focus-color: #254b96;
   --travel-focus: 0 0 0 2px var(--travel-surface), 0 0 0 4px var(--travel-focus-color);
   --travel-space-xs: 0.25rem;
   --travel-space-sm: 0.5rem;
@@ -90,7 +90,7 @@ html, body, #root {
   --travel-ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --travel-motion-fast: 160ms;
   --travel-motion-base: 280ms;
-  --primary-color: #6269d8;
+  --primary-color: #3567cb;
   --success-color: #237a52;
   --warning-color: #8a4b00;
   --error-color: #b42318;
@@ -98,6 +98,6 @@ html, body, #root {
   --border-color: #d2dbe7;
   --text-color: #202f3f;
   --text-color-secondary: #5f6f80;
-  --background-color: #f3efff;
+  --background-color: #f5f7fb;
   --component-background: #fff;
 }
