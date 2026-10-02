@@ -36,14 +36,16 @@ const seedFormalTrip = async (page: Page) => {
 
 const openFormalTrip = async (page: Page, tripTitle: string) => {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+  await page.getByRole('button', { name: '旅程管理', exact: true }).click();
   const historyEntry = page.getByText(tripTitle, { exact: true }).first();
   await expect(historyEntry).toBeVisible({ timeout: 30_000 });
   await historyEntry.click();
+  await page.getByRole('button', { name: '编辑行程' }).click();
   await page.locator('.trip-workspace-tabs').getByText('日程', { exact: true }).click();
   const formalActivity = page.locator('[data-activity-id="act_hz_1"]');
   await expect(formalActivity).toBeVisible({ timeout: 30_000 });
-  await page.getByRole('button', { name: '继续调整' }).click();
-  await expect(page.getByPlaceholder('发消息...')).toBeVisible();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
+  await expect(page.getByPlaceholder('告诉旅伴，你想怎样调整这段旅程…')).toBeVisible();
   return formalActivity;
 };
 
@@ -62,7 +64,7 @@ test('formal workspace survives stopping a replanning request', async ({ page })
       await route.abort('aborted');
     });
     const formalActivity = await openFormalTrip(page, tripTitle);
-    const input = page.getByPlaceholder('发消息...');
+    const input = page.getByPlaceholder('告诉旅伴，你想怎样调整这段旅程…');
     const sendButton = page.locator('.chat-input-container button.ant-btn-primary');
 
     await input.fill('请重新规划这份正式方案');
@@ -72,6 +74,7 @@ test('formal workspace survives stopping a replanning request', async ({ page })
 
     await expect(input).toBeEnabled();
     await expect(input).toHaveValue('请重新规划这份正式方案');
+    await page.getByRole('button', { name: '编辑行程' }).click();
     await expect(formalActivity).toBeVisible();
     expect(chatRequestCount).toBe(1);
   } finally {
@@ -106,7 +109,7 @@ test('active run preflight blocks a second tab and keeps its formal workspace', 
       return route.abort('blockedbyclient');
     });
     const formalActivity = await openFormalTrip(page, tripTitle);
-    const input = page.getByPlaceholder('发消息...');
+    const input = page.getByPlaceholder('告诉旅伴，你想怎样调整这段旅程…');
     const sendButton = page.locator('.chat-input-container button.ant-btn-primary');
 
     await input.fill('标签页 B 的第二次规划');
@@ -115,7 +118,9 @@ test('active run preflight blocks a second tab and keeps its formal workspace', 
     await expect.poll(() => activeCheckCount).toBeGreaterThanOrEqual(1);
     expect(activeCheckCount).toBeLessThanOrEqual(2);
     await expect(page.getByText('另一标签页正在规划旅程。当前设备一次只能运行一项规划，请等待其完成，或在原标签页停止后再试。')).toBeVisible();
+    await page.getByRole('button', { name: '编辑行程' }).click();
     await expect(formalActivity).toBeVisible();
+    await page.getByRole('button', { name: '关闭', exact: true }).click();
     await expect(input).toHaveValue('标签页 B 的第二次规划');
     expect(chatRequestCount).toBe(0);
   } finally {

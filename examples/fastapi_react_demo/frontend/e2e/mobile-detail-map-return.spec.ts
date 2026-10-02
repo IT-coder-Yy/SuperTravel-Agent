@@ -38,7 +38,8 @@ test('mobile activity detail opens in the itinerary and returns from map to its 
     // 手机端历史栏只展示图标，先在桌面布局选中隔离测试旅程，再切换至手机布局验证主流程。
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-    const historyEntry = page.getByText(tripTitle, { exact: true }).first();
+    await page.getByRole('button', { name: '旅程管理', exact: true }).click();
+  const historyEntry = page.getByText(tripTitle, { exact: true }).first();
     await expect(historyEntry).toBeVisible({ timeout: 30_000 });
     await historyEntry.click();
 
@@ -47,6 +48,7 @@ test('mobile activity detail opens in the itinerary and returns from map to its 
     const layout = page.locator('.chat-map-layout');
     const navigation = page.getByRole('navigation', { name: '主要视图' });
     await navigation.getByText('行程', { exact: true }).click();
+    await page.getByRole('button', { name: '编辑行程' }).click();
     await page.locator('.trip-workspace-tabs').getByText('日程', { exact: true }).click();
     const activityCard = page.locator('[data-activity-id="act_hz_1"]');
     await expect(activityCard.getByRole('button', { name: '查看杭州契约景点一详情并定位地图' })).toBeVisible();

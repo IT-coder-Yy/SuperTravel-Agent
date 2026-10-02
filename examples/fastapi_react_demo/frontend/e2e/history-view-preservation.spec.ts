@@ -15,11 +15,11 @@ test('late same-trip history response preserves itinerary and activity detail; a
   let releaseResponse = () => {};
   const seed = async (label: string, document: unknown) => {
     const id = `e2e-history-view-${randomUUID()}`;
-    const title = `E2E 历史上下文 ${label} ${id.slice(-8)}`;
+    const title = `历史 ${label} ${id.slice(-8)}`;
     const saved = await page.request.put(`${baseUrl}/api/trips/${id}`, {
       data: {
         title,
-        messages: [{ id: `${id}-message`, role: 'user', content: `${label}契约测试`, displayContent: `${label}契约测试`, timestamp: new Date().toISOString() }],
+        messages: [{ id: `${id}-message`, role: 'user', content: title, displayContent: title, timestamp: new Date().toISOString() }],
         change_reason: 'user_message',
       },
     });
@@ -35,10 +35,14 @@ test('late same-trip history response preserves itinerary and activity detail; a
     requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
   }));
   const selectTrip = async (trip: { id: string; title: string }) => {
+    const closeEditor = page.locator('.c1-editor-drawer').getByRole('button', { name: '关闭', exact: true });
+    if (await closeEditor.isVisible()) await closeEditor.click();
+    await page.getByRole('button', { name: '旅程管理', exact: true }).click();
     const response = page.waitForResponse((item) => item.url().endsWith(`/api/trips/${trip.id}`) && item.request().method() === 'GET');
-    await page.getByText(trip.title, { exact: true }).first().click();
+    await page.locator('.c1-history-drawer').getByText(trip.title, { exact: true }).click();
     expect((await response).ok()).toBe(true);
     await settleRender(page);
+    await page.getByRole('button', { name: '编辑行程' }).click();
   };
 
   try {
@@ -47,8 +51,6 @@ test('late same-trip history response preserves itinerary and activity detail; a
     const first = await seed('杭州', domesticFixture);
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
     observations.push({ stage: 'loaded-build', scripts: await page.locator('script[src]').evaluateAll((scripts) => scripts.map((script) => script.getAttribute('src'))) });
-    await expect(page.getByText(first.title, { exact: true }).first()).toBeVisible();
-    await expect(page.locator('.trip-workspace')).toBeVisible();
     await selectTrip(first);
     const workspace = page.locator('.trip-workspace');
     await expect(workspace.getByText('杭州', { exact: true }).first()).toBeVisible();
@@ -67,15 +69,21 @@ test('late same-trip history response preserves itinerary and activity detail; a
       await released;
       await route.fulfill({ response });
     });
-    await page.getByText(first.title, { exact: true }).first().click();
+    await page.getByRole('button', { name: '关闭', exact: true }).click();
+    await page.getByRole('button', { name: '旅程管理', exact: true }).click();
+    await page.locator('.c1-history-drawer').getByText(first.title, { exact: true }).click();
     await held;
+    await page.getByRole('button', { name: '编辑行程' }).click();
     await workspace.locator('.trip-workspace-tabs').getByRole('tab', { name: '日程', exact: true }).click();
     await workspace.locator('[data-activity-id="act_hz_1"]').getByRole('button', { name: '查看杭州契约景点一详情并定位地图' }).click();
+    // C1 工作台定位地图后会关闭编辑抽屉；重新打开后检查详情状态。
+    await page.getByRole('button', { name: '编辑行程' }).click();
     const detail = workspace.getByRole('region', { name: '杭州契约景点一详情', exact: true });
     await expect(detail).toBeVisible();
     await detail.getByRole('button', { name: '返回 Day 1 日程', exact: true }).click();
     await expect(workspace.locator('[data-activity-id="act_hz_1"]')).toHaveClass(/trip-activity-card--selected/);
     await workspace.locator('[data-activity-id="act_hz_1"]').getByRole('button', { name: '查看杭州契约景点一详情并定位地图' }).click();
+    await page.getByRole('button', { name: '编辑行程' }).click();
     await expect(detail).toBeVisible();
     const workspaceBeforeRestore = await workspace.elementHandle();
     observations.push({ stage: 'detail-open-while-history-pending' });

@@ -29,7 +29,7 @@ test('demo replay restores the formal plan message when skipping to the result',
   });
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  await page.locator('.sidebar-menu-light .ant-menu-item[data-menu-id*="new-chat"]').click();
+  await page.getByRole('button', { name: '新旅程', exact: true }).click();
 
   const replayCase = page.getByRole('button', { name: /杭州三日人文慢游，开始示例回放/ });
   await expect(replayCase).toBeVisible();
@@ -45,7 +45,9 @@ test('demo replay restores the formal plan message when skipping to the result',
 
   await expect(page.locator('.formal-plan-bubble')).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('button', { name: '以此为模板创建行程' })).toBeVisible();
+  await page.getByRole('button', { name: '编辑行程' }).click();
   await expect(page.getByRole('heading', { name: '旅行工作台' })).toBeVisible();
+  await page.getByRole('button', { name: '关闭', exact: true }).click();
   await page.getByRole('button', { name: '重新播放' }).click();
   await expect(page.getByRole('button', { name: '暂停回放' })).toBeVisible();
   await page.getByRole('button', { name: '跳到结果' }).click();

@@ -13,7 +13,7 @@ const seedFormalTrip = async (
 ) => {
   const timestamp = Date.now();
   const tripId = `e2e-p8-${label}-${timestamp}`;
-  const tripTitle = `E2E P8 ${label} ${timestamp}`;
+  const tripTitle = `P8 ${label} ${String(timestamp).slice(-6)}`;
   await page.request.get(`${baseUrl}/api/device`);
   const saved = await page.request.put(`${baseUrl}/api/trips/${tripId}`, {
     data: {
@@ -21,8 +21,8 @@ const seedFormalTrip = async (
       messages: [{
         id: `e2e-p8-message-${timestamp}`,
         role: 'user',
-        content: `${label} 行程`,
-        displayContent: `${label} 行程`,
+        content: tripTitle,
+        displayContent: tripTitle,
         timestamp: new Date().toISOString(),
       }],
       change_reason: 'user_message',
@@ -41,9 +41,11 @@ const seedFormalTrip = async (
 
 const openFormalTrip = async (page: Page, tripTitle: string, activityId: string) => {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  const historyEntry = page.getByText(tripTitle, { exact: true }).first();
+  await page.getByRole('button', { name: '旅程管理', exact: true }).click();
+  const historyEntry = page.locator('.c1-history-drawer').getByText(tripTitle, { exact: true });
   await expect(historyEntry).toBeVisible({ timeout: 15_000 });
   await historyEntry.click();
+  await page.getByRole('button', { name: '编辑行程' }).click();
   const workspace = page.locator('.trip-workspace');
   await expect(workspace).toBeVisible();
   await workspace.locator('.trip-workspace-tabs').getByText('日程', { exact: true }).click();
@@ -65,7 +67,7 @@ test('new trip keeps the create form when a late automatic history restore retur
       await route.fulfill({ response });
     });
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-    await page.getByRole('menuitem', { name: /新旅程/ }).click();
+    await page.getByRole('button', { name: '新旅程', exact: true }).click();
     const createHeading = page.getByRole('heading', { name: '创建一趟新旅程' });
     await expect(createHeading).toBeVisible();
     await page.waitForTimeout(700);

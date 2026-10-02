@@ -43,6 +43,7 @@ test('390px mobile workspace keeps controls touch-sized, avoids overflow, and su
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('button', { name: '旅程管理', exact: true }).click();
     await page.getByText(tripTitle, { exact: true }).first().click();
 
     await page.setViewportSize({ width: 390, height: 844 });
@@ -60,6 +61,7 @@ test('390px mobile workspace keeps controls touch-sized, avoids overflow, and su
     expect(targetSizes.every((size) => size.width >= 40 && size.height >= 40)).toBe(true);
 
     await navigation.getByText('行程', { exact: true }).click();
+    await page.getByRole('button', { name: '编辑行程' }).click();
     const workspace = page.locator('.trip-workspace');
     await workspace.locator('.trip-workspace-tabs').getByText('日程', { exact: true }).click();
     const detailButton = page.getByRole('button', { name: '查看杭州契约景点一详情并定位地图' });

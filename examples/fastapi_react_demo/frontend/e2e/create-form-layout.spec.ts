@@ -4,7 +4,7 @@ const baseUrl = process.env.E2E_BASE_URL || 'http://127.0.0.1:8001';
 
 const openNewTrip = async (page: Page) => {
   await page.goto(baseUrl, { waitUntil: 'domcontentloaded' });
-  await page.locator('.sidebar-menu-light .ant-menu-item[data-menu-id*="new-chat"]').click();
+  await page.getByRole('button', { name: '新旅程', exact: true }).click();
   await expect(page.getByRole('heading', { name: '创建一趟新旅程' })).toBeVisible();
 };
 
@@ -43,8 +43,8 @@ test('desktop creation form uses aligned rows and the restored theme', async ({ 
   await expect(page.getByText('也可以直接在下方描述旅行需求')).toHaveCount(0);
   await expect(page.getByText('或', { exact: true })).toHaveCount(0);
 
-  const background = await page.locator('body').evaluate((element) => getComputedStyle(element).backgroundImage);
-  expect(background).toContain('radial-gradient');
+  await expect(page.locator('.c1-app')).toBeVisible();
+  await expect(page.locator('.c1-rail')).toHaveCSS('background-color', 'rgb(255, 255, 255)');
 
   if (process.env.VISUAL_OUTPUT) {
     await page.screenshot({ path: process.env.VISUAL_OUTPUT });
