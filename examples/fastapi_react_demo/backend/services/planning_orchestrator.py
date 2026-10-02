@@ -126,7 +126,10 @@ class PlanningTaskResult:
 
 class PlanningTaskGraph:
     def __init__(self, tasks: Iterable[PlanningTask]) -> None:
-        self.tasks = {task.task_id: task for task in tasks}
+        task_list = list(tasks)
+        self.tasks = {task.task_id: task for task in task_list}
+        if len(self.tasks) != len(task_list):
+            raise ValueError("任务 ID 不能重复")
         if not self.tasks:
             raise ValueError("任务图不能为空")
         for task in self.tasks.values():
@@ -158,28 +161,31 @@ class PlanningTaskGraph:
         executors: Dict[str, Callable[[], Awaitable[Any]]],
         on_event: Optional[Callable[..., Awaitable[None]]] = None,
     ) -> Dict[str, PlanningTaskResult]:
-        pending = set(self.tasks)
+        missing = self.tasks.keys() - executors.keys()
+        if missing:
+            raise ValueError(f"任务缺少执行器: {sorted(missing)}")
+        pending = dict(self.tasks)
+        running: Dict[asyncio.Task, str] = {}
         results: Dict[str, PlanningTaskResult] = {}
-        while pending:
-            ready = [
-                task_id
-                for task_id in pending
-                if all(dependency in results for dependency in self.tasks[task_id].dependencies)
-            ]
-            if not ready:
-                raise RuntimeError("任务图无法继续执行")
-            running = [asyncio.create_task(self._execute_task(self.tasks[task_id], executors[task_id], on_event)) for task_id in ready]
-            try:
-                batch = await asyncio.gather(*running)
-            except BaseException:
-                for task in running:
-                    task.cancel()
-                await asyncio.gather(*running, return_exceptions=True)
-                raise
-            for result in batch:
-                results[result.task_id] = result
-                pending.remove(result.task_id)
-        return results
+        try:
+            while pending or running:
+                for task_id, task in list(pending.items()):
+                    if all(dependency in results for dependency in task.dependencies):
+                        running[asyncio.create_task(self._execute_task(task, executors[task_id], on_event))] = task_id
+                        del pending[task_id]
+                if not running:
+                    raise RuntimeError("任务图无法继续执行")
+                finished, _ = await asyncio.wait(running, return_when=asyncio.FIRST_COMPLETED)
+                # 先收集本轮所有结果；任何失败都阻止新的依赖任务启动。
+                completed = {future: future.result() for future in finished}
+                for future, result in completed.items():
+                    del running[future]
+                    results[result.task_id] = result
+            return results
+        finally:
+            for future in running:
+                future.cancel()
+            await asyncio.gather(*running, return_exceptions=True)
 
     @staticmethod
     async def _execute_task(
@@ -222,7 +228,7 @@ def build_default_task_graph() -> PlanningTaskGraph:
             PlanningTask("lodging", "住宿 Agent", "research", "筛选住宿区域", ("地图", "可信网页"), ("requirements",)),
             PlanningTask("dining", "美食 Agent", "research", "筛选真实餐饮地点", ("地图", "可信攻略"), ("requirements",)),
             PlanningTask("route", "路线 Agent", "route_planning", "编排日程与路线", ("地图",), ("research", "transport", "lodging", "dining")),
-            PlanningTask("budget", "预算 Agent", "route_planning", "汇总预算与未知费用", dependencies=("route",)),
+            PlanningTask("budget", "预算 Agent", "route_planning", "汇总预算与未知费用", dependencies=("verification",)),
             PlanningTask("verification", "实时核验 Agent", "realtime_verification", "核验正式地点、路线与强实时事实", ("官方实时交通", "百度地图"), ("route",)),
             PlanningTask("quality", "质量 Agent", "validation_completed", "执行完整 V3 Schema 与业务校验", dependencies=("budget", "verification")),
         ]
@@ -416,7 +422,7 @@ class PlanningOrchestrator:
         task_graph_mode = False
         formal_markdown = ""
         clarification_finished = False
-        buffered_structured: List[Dict[str, Any]] = []
+        has_partial_document = False
         queue: asyncio.Queue[tuple[str, Any]] = asyncio.Queue()
         loop = asyncio.get_running_loop()
 
@@ -573,7 +579,7 @@ class PlanningOrchestrator:
                         yield failed_event
                     return
                 if item_type == "done":
-                    if buffered_structured and not formal_document_emitted:
+                    if has_partial_document and not formal_document_emitted:
                         async for failed_event in fail_run(
                             "FORMAL_DOCUMENT_MISSING",
                             "方案未完成完整校验，地图和工作台数据未发布。",
@@ -621,7 +627,7 @@ class PlanningOrchestrator:
                         yield encode_sse(complete_stage("requirements_analysis", "仍需补充一个关键条件", status="degraded"))
 
                 if event_type in STRUCTURED_EVENT_TYPES:
-                    buffered_structured.append(payload)
+                    has_partial_document = True
                     if active_stage == "requirements_analysis" and not task_graph_mode:
                         yield encode_sse(complete_stage("requirements_analysis", "已整理行程约束"))
                         yield encode_sse(start_stage("research"))
@@ -744,7 +750,7 @@ class PlanningOrchestrator:
                             }
                         )
                     )
-                    buffered_structured.clear()
+                    has_partial_document = False
                     continue
 
                 yield encode_sse(factory.legacy(payload))

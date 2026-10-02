@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import replace
+from copy import deepcopy
 import re
 from typing import Any, AsyncIterator, Dict
 
@@ -10,7 +11,7 @@ from services.planning_orchestrator import PlanningTaskGraph, build_default_task
 from services.formal_consistency_service import (
     finalize_initial_schedule, recalculate_formal_budget, refresh_schedule_validation,
 )
-from services.travel_document_service import adapt_v2_to_v3, export_travel_plan_v3_markdown
+from services.travel_document_service import adapt_v2_to_v3
 from schemas.trip_v3_models import TravelPlanDocumentV3
 from services.meal_schedule_service import prepare_early_departure_breakfast, early_breakfast_preparation_covers
 
@@ -31,8 +32,7 @@ async def stream_production_plan(*, intent: Any, query: str, tool_manager: Any, 
     # 完整百度核验允许 360 秒，避免正常账户排队在 180 秒触发重复任务。
     # 整体软/硬时限仍由外层运行管理器执行。
     map_timeout = 360 if getattr(tool_manager, "baidu_request_dispatcher", None) is not None else 180
-    tasks = [replace(task, timeout_seconds=map_timeout if task.task_id in {"research", "lodging", "dining", "verification"} else 120,
-                     dependencies=("verification",) if task.task_id == "budget" else task.dependencies)
+    tasks = [replace(task, timeout_seconds=map_timeout if task.task_id in {"research", "lodging", "dining", "route", "verification"} else 120)
              for task in base.tasks.values()]
     graph = PlanningTaskGraph(tasks)
     common = {"tool_manager": tool_manager, "message_history": message_history, "session_id": session_id}
@@ -44,16 +44,18 @@ async def stream_production_plan(*, intent: Any, query: str, tool_manager: Any, 
         return await asyncio.to_thread(c._run_map_search_for_travel, user_query=query,
             destination_city=intent.destination, research_role=role, **common)
 
+    async def lookup_web(terms: str) -> tuple:
+        if not allow_web_search:
+            return [], "", "已关闭网页检索"
+        return await asyncio.to_thread(c._run_web_search_for_travel,
+            user_query=f"{intent.destination} {terms}", **common)
+
     async def research() -> dict:
         locations, tool, error, _ = await lookup_role("research")
         if not locations:
             raise ValueError(f"{intent.destination}真实景点检索暂未返回可用地点，请稍后重试。")
         context["attractions"] = locations
-        if allow_web_search:
-            rows, web_tool, web_error = await asyncio.to_thread(c._run_web_search_for_travel,
-                user_query=f"{intent.destination} 旅行 景点 历史人文 官方 开放时间", **common)
-        else:
-            rows, web_tool, web_error = [], "", "已关闭网页检索"
+        rows, web_tool, web_error = await lookup_web("旅行 景点 历史人文 官方 开放时间")
         bundle.update(web_rows=c._filter_destination_reference_rows(rows, intent.destination), web_tool=web_tool,
                       web_error=web_error, rag_context=c.maybe_prepare_travel_rag_context(query), map_tool=tool, map_error=error)
         return {"places": locations, "references": bundle["web_rows"], "warnings": [value for value in (error, web_error) if value]}
@@ -74,11 +76,7 @@ async def stream_production_plan(*, intent: Any, query: str, tool_manager: Any, 
         if intent.days > 1 and not verified:
             raise ValueError(f"{intent.destination}住宿地点尚未核验成功，无法建立每日住宿路线。")
         bundle["lodging_candidates"] = verified
-        if allow_web_search:
-            rows, web_tool, web_error = await asyncio.to_thread(c._run_web_search_for_travel,
-                user_query=f"{intent.destination} 住宿 酒店 区域 价格参考", **common)
-        else:
-            rows, web_tool, web_error = [], "", "已关闭网页检索"
+        rows, web_tool, web_error = await lookup_web("住宿 酒店 区域 价格参考")
         bundle.update(lodging_web_rows=rows, lodging_web_tool=web_tool, lodging_web_error=web_error,
                       lodging_reference_rows=[{**row, "reference_type": "web"} for row in rows[:3]])
         return {"places": verified, "references": rows, "warnings": [value for value in (error, web_error) if value]}
@@ -92,17 +90,16 @@ async def stream_production_plan(*, intent: Any, query: str, tool_manager: Any, 
 
     async def route() -> dict:
         bundle["map_locations"] = c._merge_map_locations(context.get("attractions", []), context.get("dining", []), max_rows=65)
-        events, _ = await asyncio.to_thread(c._build_travel_structured_result, bundle)
-        context["legacy_document"] = next(event["document"] for event in events if event.get("type") == "trip_plan")
-        return {"itinerary": context["legacy_document"]["itinerary"], "candidate_places": context["legacy_document"].get("candidate_places", [])}
-
-    async def verification() -> dict:
+        # 资料齐备后只构建一次；路线、预算与质量校验依次更新同一份文档。
         bundle["cover_image"] = await asyncio.to_thread(c.maybe_prepare_destination_cover, destination=intent.destination, **common)
         await asyncio.to_thread(c.maybe_prepare_activity_images, bundle, **common)
-        # 图片属于可选资料；重新构造确保与已核验 POI 绑定后才进入正式文档。
-        events, _ = await asyncio.to_thread(c._build_travel_structured_result, bundle)
-        legacy = next(event["document"] for event in events if event.get("type") == "trip_plan")
-        document = adapt_v2_to_v3(legacy).model_dump(mode="json")
+        legacy = await asyncio.to_thread(c.build_travel_document, bundle)
+        context["document"] = adapt_v2_to_v3(legacy).model_dump(mode="json")
+        return {"itinerary": legacy["itinerary"], "candidate_places": legacy.get("candidate_places", [])}
+
+    async def verification() -> dict:
+        # 失败的路线核验不得污染下次重试的原始排期。
+        document = deepcopy(context["document"])
         document["title"] = f"{intent.destination}{intent.days}日旅行方案"
         from services.transport_hub_service import enrich_selected_transport_hubs
         await enrich_selected_transport_hubs(document, tool_manager)
