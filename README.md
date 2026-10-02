@@ -20,9 +20,9 @@
 
 ## Preview
 
-![SuperTravelAgent: itinerary and map workspace](assets/preview/supertravelagent-preview.gif)
+![SuperTravelAgent: C1 Glacier White map workspace](assets/preview/supertravelagent-c1.jpg)
 
-Recorded from the running application on October 2, 2026: replay the built-in Hangzhou case, browse three days alongside the map, review the checklist and alerts, and use the case as a template. This sanitized case replay does not request a new model-generated plan or represent current prices and availability.
+The updated C1 Glacier White workspace, with a light Baidu map, a floating daily itinerary and an AI companion input. Trip management, photos, knowledge base, profile and settings remain accessible from the navigation rail. The screenshot shows the built-in Hangzhou case replay; its example data does not represent current prices or availability.
 
 ## A trip you can explore and edit
 
